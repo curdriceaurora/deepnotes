@@ -1,0 +1,431 @@
+import Foundation
+import NotesDomain
+import NotesStorage
+import NotesSync
+
+public enum TaskListFilter: String, CaseIterable, Codable, Sendable {
+    case all
+    case today
+    case upcoming
+    case overdue
+    case completed
+
+    public var title: String {
+        switch self {
+        case .all: return "All"
+        case .today: return "Today"
+        case .upcoming: return "Upcoming"
+        case .overdue: return "Overdue"
+        case .completed: return "Completed"
+        }
+    }
+}
+
+public struct NoteBacklink: Equatable, Sendable {
+    public var sourceNoteID: UUID
+    public var sourceTitle: String
+
+    public init(sourceNoteID: UUID, sourceTitle: String) {
+        self.sourceNoteID = sourceNoteID
+        self.sourceTitle = sourceTitle
+    }
+}
+
+public struct NewTaskInput: Sendable {
+    public var noteID: UUID?
+    public var title: String
+    public var details: String
+    public var dueStart: Date?
+    public var dueEnd: Date?
+    public var status: TaskStatus
+    public var priority: Int
+    public var recurrenceRule: String?
+
+    public init(
+        noteID: UUID? = nil,
+        title: String,
+        details: String = "",
+        dueStart: Date? = nil,
+        dueEnd: Date? = nil,
+        status: TaskStatus = .backlog,
+        priority: Int = 3,
+        recurrenceRule: String? = nil
+    ) {
+        self.noteID = noteID
+        self.title = title
+        self.details = details
+        self.dueStart = dueStart
+        self.dueEnd = dueEnd
+        self.status = status
+        self.priority = priority
+        self.recurrenceRule = recurrenceRule
+    }
+}
+
+public protocol WorkspaceServicing: Sendable {
+    func listNotes() async throws -> [Note]
+    func searchNotes(query: String, limit: Int) async throws -> [Note]
+    func createNote(title: String, body: String) async throws -> Note
+    func updateNote(id: UUID, title: String, body: String) async throws -> Note
+    func backlinks(for noteID: UUID) async throws -> [NoteBacklink]
+    func listTasks(filter: TaskListFilter) async throws -> [Task]
+    func createTask(_ input: NewTaskInput) async throws -> Task
+    func updateTask(_ task: Task) async throws -> Task
+    func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task
+    func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task
+    func toggleTaskCompletion(taskID: UUID, isCompleted: Bool) async throws -> Task
+    func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport
+    func seedDemoDataIfNeeded() async throws
+}
+
+public actor WorkspaceService: WorkspaceServicing {
+    private let taskStore: TaskStore
+    private let noteStore: NoteStore
+    private let bindingStore: CalendarBindingStore
+    private let checkpointStore: SyncCheckpointStore
+    private let mapper: TaskCalendarMapper
+    private let clock: Clock
+    private let linkParser: WikiLinkParser
+
+    public init(
+        taskStore: TaskStore,
+        noteStore: NoteStore,
+        bindingStore: CalendarBindingStore,
+        checkpointStore: SyncCheckpointStore,
+        mapper: TaskCalendarMapper = TaskCalendarMapper(),
+        clock: Clock = SystemClock(),
+        linkParser: WikiLinkParser = WikiLinkParser()
+    ) {
+        self.taskStore = taskStore
+        self.noteStore = noteStore
+        self.bindingStore = bindingStore
+        self.checkpointStore = checkpointStore
+        self.mapper = mapper
+        self.clock = clock
+        self.linkParser = linkParser
+    }
+
+    public init(store: SQLiteStore) {
+        self.init(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store
+        )
+    }
+
+    public func listNotes() async throws -> [Note] {
+        try await noteStore.fetchNotes(includeDeleted: false)
+    }
+
+    public func searchNotes(query: String, limit: Int = 50) async throws -> [Note] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return try await listNotes()
+        }
+        return try await noteStore.searchNotes(query: trimmed, limit: max(1, limit))
+    }
+
+    public func createNote(title: String, body: String) async throws -> Note {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackTitle = "Untitled \(ISO8601DateFormatter().string(from: clock.now()))"
+
+        let note = Note(
+            title: trimmedTitle.isEmpty ? fallbackTitle : trimmedTitle,
+            body: body,
+            updatedAt: clock.now()
+        )
+        return try await noteStore.upsertNote(note)
+    }
+
+    public func updateNote(id: UUID, title: String, body: String) async throws -> Note {
+        guard let existing = try await noteStore.fetchNote(id: id), existing.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing note \(id)")
+        }
+
+        var next = existing
+        next.title = title
+        next.body = body
+        next.updatedAt = clock.now()
+        return try await noteStore.upsertNote(next)
+    }
+
+    public func backlinks(for noteID: UUID) async throws -> [NoteBacklink] {
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        guard let targetNote = notes.first(where: { $0.id == noteID }) else {
+            return []
+        }
+
+        let targetTitle = targetNote.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !targetTitle.isEmpty else {
+            return []
+        }
+
+        return notes
+            .filter { note in
+                note.id != noteID && linkParser
+                    .linkedTitles(in: note.body)
+                    .contains { $0.lowercased() == targetTitle }
+            }
+            .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
+            .sorted { $0.sourceTitle.localizedCaseInsensitiveCompare($1.sourceTitle) == .orderedAscending }
+    }
+
+    public func listTasks(filter: TaskListFilter) async throws -> [Task] {
+        let tasks = try await taskStore.fetchTasks(includeDeleted: false)
+        let now = clock.now()
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: now)
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+
+        let filtered = tasks.filter { task in
+            switch filter {
+            case .all:
+                return task.status != .done
+            case .today:
+                guard let due = task.dueStart else { return false }
+                return due >= now && due < tomorrowStart && task.status != .done
+            case .upcoming:
+                guard let due = task.dueStart else { return false }
+                return due >= tomorrowStart && task.status != .done
+            case .overdue:
+                guard let due = task.dueStart else { return false }
+                return due < now && task.status != .done
+            case .completed:
+                return task.status == .done || task.completedAt != nil
+            }
+        }
+
+        return filtered.sorted { lhs, rhs in
+            switch (lhs.dueStart, rhs.dueStart) {
+            case let (left?, right?):
+                if left != right {
+                    return left < right
+                }
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            case (nil, nil):
+                break
+            }
+            return lhs.updatedAt > rhs.updatedAt
+        }
+    }
+
+    public func createTask(_ input: NewTaskInput) async throws -> Task {
+        let allTasks = try await taskStore.fetchTasks(includeDeleted: false)
+        let task = try Task(
+            noteID: input.noteID,
+            stableID: UUID().uuidString.lowercased(),
+            title: input.title,
+            details: input.details,
+            dueStart: input.dueStart,
+            dueEnd: input.dueEnd,
+            status: input.status,
+            priority: input.priority,
+            recurrenceRule: input.recurrenceRule,
+            kanbanOrder: nextKanbanOrderForAppend(status: input.status, tasks: allTasks),
+            updatedAt: clock.now()
+        )
+        return try await taskStore.upsertTask(task)
+    }
+
+    public func updateTask(_ task: Task) async throws -> Task {
+        var copy = task
+        copy.updatedAt = clock.now()
+        return try await taskStore.upsertTask(copy)
+    }
+
+    public func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: taskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(taskID)")
+        }
+
+        var tasks = try await taskStore.fetchTasks(includeDeleted: false)
+        var desiredOrder = try kanbanOrder(
+            forMovingTaskID: taskID,
+            targetStatus: status,
+            beforeTaskID: beforeTaskID,
+            tasks: tasks
+        )
+
+        if desiredOrder.isNaN {
+            try await rebalanceKanbanOrder(for: status, excludingTaskID: taskID)
+            tasks = try await taskStore.fetchTasks(includeDeleted: false)
+            desiredOrder = try kanbanOrder(
+                forMovingTaskID: taskID,
+                targetStatus: status,
+                beforeTaskID: beforeTaskID,
+                tasks: tasks
+            )
+        }
+
+        if task.status == status && abs(task.kanbanOrder - desiredOrder) <= Self.kanbanOrderEpsilon {
+            return task
+        }
+
+        task.status = status
+        task.kanbanOrder = desiredOrder
+        task.updatedAt = clock.now()
+        if status == .done {
+            task.completedAt = task.completedAt ?? clock.now()
+        } else {
+            task.completedAt = nil
+        }
+
+        return try await taskStore.upsertTask(task)
+    }
+
+    public func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task {
+        try await moveTask(taskID: taskID, to: status, beforeTaskID: nil)
+    }
+
+    public func toggleTaskCompletion(taskID: UUID, isCompleted: Bool) async throws -> Task {
+        try await setTaskStatus(taskID: taskID, status: isCompleted ? .done : .next)
+    }
+
+    public func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport {
+        let engine = TwoWaySyncEngine(
+            taskStore: taskStore,
+            noteStore: noteStore,
+            bindingStore: bindingStore,
+            checkpointStore: checkpointStore,
+            calendarProvider: calendarProvider,
+            mapper: mapper,
+            clock: clock
+        )
+
+        return try await engine.runOnce(configuration: configuration)
+    }
+
+    public func seedDemoDataIfNeeded() async throws {
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        if notes.isEmpty {
+            let planning = try await createNote(
+                title: "Q2 Launch Plan",
+                body: "# Goals\n- Ship planning app\n\n## Linked\n- [[Vendor Call Notes]]"
+            )
+
+            _ = try await createNote(
+                title: "Vendor Call Notes",
+                body: "Prepare talking points from [[Q2 Launch Plan]]."
+            )
+
+            var datedNote = Note(
+                title: "Launch review card",
+                body: "Calendar-linked note card for launch review.",
+                dateStart: clock.now().addingTimeInterval(7_200),
+                dateEnd: clock.now().addingTimeInterval(10_800),
+                isAllDay: false,
+                recurrenceRule: nil,
+                calendarSyncEnabled: true,
+                updatedAt: clock.now()
+            )
+            datedNote = try await noteStore.upsertNote(datedNote)
+
+            _ = try await createTask(NewTaskInput(
+                noteID: planning.id,
+                title: "Call supplier",
+                details: "Finalize lead time",
+                dueStart: clock.now().addingTimeInterval(3600),
+                dueEnd: clock.now().addingTimeInterval(5400),
+                status: .next,
+                priority: 4
+            ))
+
+            _ = try await createTask(NewTaskInput(
+                noteID: planning.id,
+                title: "Draft launch email",
+                details: "Reference [[Q2 Launch Plan]]",
+                dueStart: clock.now().addingTimeInterval(7200),
+                dueEnd: clock.now().addingTimeInterval(9000),
+                status: .doing,
+                priority: 3
+            ))
+
+            _ = try await createTask(NewTaskInput(
+                noteID: planning.id,
+                title: "Review budget",
+                details: "Weekly review",
+                dueStart: clock.now().addingTimeInterval(86_400),
+                dueEnd: clock.now().addingTimeInterval(90_000),
+                status: .waiting,
+                priority: 2,
+                recurrenceRule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0"
+            ))
+        }
+    }
+
+    private func nextKanbanOrderForAppend(status: TaskStatus, tasks: [Task]) -> Double {
+        let existingMax = tasks
+            .filter { $0.status == status }
+            .map(\.kanbanOrder)
+            .max() ?? 0
+        return existingMax + 1
+    }
+
+    private func kanbanOrder(
+        forMovingTaskID taskID: UUID,
+        targetStatus: TaskStatus,
+        beforeTaskID: UUID?,
+        tasks: [Task]
+    ) throws -> Double {
+        let targetTasks = tasks
+            .filter { $0.id != taskID && $0.status == targetStatus }
+            .sorted(by: Self.kanbanSort)
+
+        guard !targetTasks.isEmpty else {
+            return 1
+        }
+
+        let beforeIndex = beforeTaskID.flatMap { candidateID in
+            targetTasks.firstIndex(where: { $0.id == candidateID })
+        }
+
+        if let beforeIndex {
+            let next = targetTasks[beforeIndex].kanbanOrder
+            if beforeIndex == 0 {
+                return next - 1
+            }
+            let previous = targetTasks[beforeIndex - 1].kanbanOrder
+            let gap = next - previous
+            if gap <= Self.kanbanOrderEpsilon {
+                return .nan
+            }
+            return previous + (gap / 2)
+        }
+
+        return (targetTasks.last?.kanbanOrder ?? 0) + 1
+    }
+
+    private func rebalanceKanbanOrder(for status: TaskStatus, excludingTaskID: UUID) async throws {
+        let orderedTasks = try await taskStore.fetchTasks(includeDeleted: false)
+            .filter { $0.status == status && $0.id != excludingTaskID }
+            .sorted(by: Self.kanbanSort)
+
+        for (index, existing) in orderedTasks.enumerated() {
+            let newOrder = Double(index + 1)
+            if abs(existing.kanbanOrder - newOrder) <= Self.kanbanOrderEpsilon {
+                continue
+            }
+
+            var copy = existing
+            copy.kanbanOrder = newOrder
+            copy.updatedAt = clock.now()
+            _ = try await taskStore.upsertTask(copy)
+        }
+    }
+
+    private static let kanbanOrderEpsilon: Double = 1e-6
+
+    private static func kanbanSort(_ lhs: Task, _ rhs: Task) -> Bool {
+        if abs(lhs.kanbanOrder - rhs.kanbanOrder) > kanbanOrderEpsilon {
+            return lhs.kanbanOrder < rhs.kanbanOrder
+        }
+        if lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+}

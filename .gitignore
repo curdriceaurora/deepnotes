@@ -1,0 +1,6 @@
+.build/
+.build-cache/
+.DS_Store
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

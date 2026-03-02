@@ -1,0 +1,29 @@
+name: Coverage Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  coverage:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run test suite with coverage
+        run: swift test --enable-code-coverage
+      - name: Validate coverage minimums
+        run: ./Scripts/coverage-gates.sh
+      - name: Collect coverage artifacts
+        if: always()
+        run: |
+          mkdir -p coverage-artifacts
+          find .build -type f -path "*codecov/*.json" -exec cp {} coverage-artifacts/ \;
+          ./Scripts/coverage-gates.sh > coverage-artifacts/coverage-gates.txt || true
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-artifacts
+          path: coverage-artifacts
