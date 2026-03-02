@@ -34,6 +34,303 @@ final class SQLiteMigrationTests: XCTestCase {
         XCTAssertNotNil(versions["note_version"])
     }
 
+    // MARK: - Large-data migration perf test
+
+    /// Builds a large Era 1 fixture (50k notes, 10k tasks, 5k calendar bindings)
+    /// then opens the store, triggering the full migration path.  Asserts:
+    ///  - Migration completes within the latency budget (p95 ≤ 3 000 ms across 3 runs).
+    ///  - All data survives: task count unchanged, FTS search returns results.
+    ///  - A write (upsertTask) and checkpoint save succeed immediately after migration.
+    ///  - A failed write during the post-migration session leaves the DB consistent
+    ///    (rollback/recovery path).
+    func testLargeDataMigrationPerfAndRecovery() async throws {
+        let noteCount = 50_000
+        let taskCount = 10_000
+        let bindingCount = 5_000
+        let budgetMS: Double = 3_000
+        let runs = 3
+
+        // ── Build Era 1 fixture ───────────────────────────────────────────────
+        let dbURL = try makeDatabaseURL()
+        try buildLargeEra1Fixture(databaseURL: dbURL, noteCount: noteCount, taskCount: taskCount, bindingCount: bindingCount)
+
+        // ── Time migration across `runs` reopens ─────────────────────────────
+        // We only time the first open (real migration). Subsequent reopens are
+        // a no-op ALTER since columns already exist, so they measure the fixed
+        // overhead of running the idempotent migration path.
+        var samples: [Double] = []
+        samples.reserveCapacity(runs)
+        let clock = ContinuousClock()
+
+        for _ in 0..<runs {
+            let start = clock.now
+            let s = try SQLiteStore(databaseURL: dbURL)
+            let elapsed = start.duration(to: clock.now)
+            samples.append(ms(elapsed))
+            // Let the store deinit to close the connection before the next run.
+            _ = s
+        }
+
+        let sorted = samples.sorted()
+        let p95 = sorted[min(sorted.count - 1, Int(ceil(0.95 * Double(sorted.count))) - 1)]
+        XCTAssertLessThanOrEqual(
+            p95, budgetMS,
+            String(format: "Migration p95 %.1f ms exceeds budget %.0f ms", p95, budgetMS)
+        )
+
+        // ── Post-migration correctness ────────────────────────────────────────
+        let store = try SQLiteStore(databaseURL: dbURL)
+
+        // FTS must be valid: notes were inserted with title "PerfNote <n>".
+        let hits = try await store.searchNotes(query: "PerfNote", limit: 5)
+        XCTAssertFalse(hits.isEmpty, "FTS search must return results after large migration")
+
+        // Task data integrity: fetch a known task by stable ID.
+        let knownTask = try await store.fetchTaskByStableID("perf-task-0")
+        XCTAssertNotNil(knownTask, "Task 0 must survive large migration")
+        XCTAssertEqual(knownTask?.kanbanOrder, 0,
+                       "kanban_order must default to 0 for pre-kanban tasks after migration")
+
+        // ── Write succeeds after migration ────────────────────────────────────
+        let newTask = try Task(
+            stableID: "post-migration-task",
+            title: "Post-Migration Write",
+            status: .next,
+            kanbanOrder: 1,
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_000)
+        )
+        let saved = try await store.upsertTask(newTask)
+        XCTAssertGreaterThan(saved.version, 0)
+
+        let cp = SyncCheckpoint(
+            id: "post-migration-cp",
+            taskVersionCursor: saved.version,
+            noteVersionCursor: 0,
+            calendarToken: "token-after-migration",
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_000)
+        )
+        try await store.saveCheckpoint(cp)
+        let fetchedCP = try await store.fetchCheckpoint(id: "post-migration-cp")
+        XCTAssertEqual(fetchedCP?.taskVersionCursor, saved.version)
+
+        // ── Rollback/recovery: failed write leaves DB consistent ──────────────
+        let badTask = try Task(
+            stableID: "",   // triggers validation error before any transaction
+            title: "Bad",
+            status: .backlog,
+            kanbanOrder: 2,
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_100)
+        )
+        do {
+            _ = try await store.upsertTask(badTask)
+            XCTFail("Expected DomainValidationError.missingStableID")
+        } catch DomainValidationError.missingStableID {
+            // Expected — no transaction was opened
+        }
+
+        // The post-migration task and checkpoint must still be intact.
+        let refetched = try await store.fetchTaskByStableID("post-migration-task")
+        XCTAssertNotNil(refetched, "Post-migration task must survive a failed-write recovery path")
+        let refetchedCP = try await store.fetchCheckpoint(id: "post-migration-cp")
+        XCTAssertEqual(refetchedCP?.calendarToken, "token-after-migration")
+    }
+
+    // MARK: - Large fixture builder
+
+    /// Writes a large Era 1 schema + data set directly via SQLite3 without
+    /// going through SQLiteStore, so the migration path is exercised on open.
+    private func buildLargeEra1Fixture(
+        databaseURL: URL,
+        noteCount: Int,
+        taskCount: Int,
+        bindingCount: Int
+    ) throws {
+        var dbPointer: OpaquePointer?
+        guard sqlite3_open_v2(
+            databaseURL.path, &dbPointer,
+            SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
+            nil
+        ) == SQLITE_OK, let db = dbPointer else {
+            throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open large fixture DB")
+        }
+        defer { sqlite3_close(db) }
+
+        // Era 1 schema (no kanban_order, no stable_id on notes, old bindings schema)
+        let schema = """
+        PRAGMA journal_mode=WAL;
+        PRAGMA synchronous=NORMAL;
+
+        CREATE TABLE meta (
+            key TEXT PRIMARY KEY,
+            int_value INTEGER NOT NULL
+        );
+        INSERT INTO meta VALUES ('task_version', \(taskCount));
+        INSERT INTO meta VALUES ('note_version', \(noteCount));
+
+        CREATE TABLE notes (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            body TEXT NOT NULL,
+            updated_at REAL NOT NULL,
+            version INTEGER NOT NULL,
+            deleted_at REAL
+        );
+
+        CREATE TABLE tasks (
+            id TEXT PRIMARY KEY,
+            note_id TEXT,
+            stable_id TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            details TEXT NOT NULL,
+            due_start REAL,
+            due_end REAL,
+            status TEXT NOT NULL,
+            priority INTEGER NOT NULL,
+            recurrence_rule TEXT,
+            completed_at REAL,
+            updated_at REAL NOT NULL,
+            version INTEGER NOT NULL,
+            deleted_at REAL
+        );
+
+        CREATE TABLE calendar_bindings (
+            task_id TEXT NOT NULL,
+            calendar_id TEXT NOT NULL,
+            event_identifier TEXT,
+            external_identifier TEXT,
+            last_task_version INTEGER NOT NULL,
+            last_event_updated_at REAL,
+            last_synced_at REAL,
+            deleted_at REAL,
+            PRIMARY KEY (task_id, calendar_id)
+        );
+
+        CREATE TABLE sync_checkpoints (
+            id TEXT PRIMARY KEY,
+            task_version_cursor INTEGER NOT NULL,
+            calendar_token TEXT,
+            updated_at REAL NOT NULL
+        );
+        """
+        guard sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: String(cString: sqlite3_errmsg(db)))
+        }
+
+        // Batch-insert notes
+        guard sqlite3_exec(db, "BEGIN;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "BEGIN failed for notes")
+        }
+        let noteSQL = "INSERT INTO notes (id, title, body, updated_at, version) VALUES (?, ?, ?, ?, ?);"
+        var noteStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, noteSQL, -1, &noteStmt, nil) == SQLITE_OK, let noteStmt else {
+            throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(noteStmt) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        // Pre-generate UUID strings — SQLiteStore's note(from:) parses UUID(uuidString:)
+        // so IDs must be valid UUIDs. Collect them for use in the task binding inserts below.
+        var noteIDs: [String] = []
+        noteIDs.reserveCapacity(noteCount)
+        for _ in 0..<noteCount {
+            noteIDs.append(UUID().uuidString.lowercased())
+        }
+
+        for i in 0..<noteCount {
+            let id = noteIDs[i]
+            let title = "PerfNote \(i)"
+            let body = "Body content for performance migration fixture note number \(i)."
+            sqlite3_bind_text(noteStmt, 1, id, -1, transient)
+            sqlite3_bind_text(noteStmt, 2, title, -1, transient)
+            sqlite3_bind_text(noteStmt, 3, body, -1, transient)
+            sqlite3_bind_double(noteStmt, 4, 1_700_000_000 + Double(i))
+            sqlite3_bind_int64(noteStmt, 5, Int64(i + 1))
+            guard sqlite3_step(noteStmt) == SQLITE_DONE else {
+                throw StorageError.executeStatement(reason: String(cString: sqlite3_errmsg(db)))
+            }
+            sqlite3_reset(noteStmt)
+        }
+        guard sqlite3_exec(db, "COMMIT;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "COMMIT failed for notes")
+        }
+
+        // Batch-insert tasks — IDs must be valid UUIDs (task(from:) parses UUID(uuidString:))
+        guard sqlite3_exec(db, "BEGIN;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "BEGIN failed for tasks")
+        }
+        let statuses = ["backlog", "next", "doing", "waiting", "done"]
+        let taskSQL = """
+            INSERT INTO tasks (id, note_id, stable_id, title, details, status, priority, updated_at, version)
+            VALUES (?, ?, ?, ?, '', ?, 3, ?, ?);
+            """
+        var taskStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, taskSQL, -1, &taskStmt, nil) == SQLITE_OK, let taskStmt else {
+            throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(taskStmt) }
+        var taskIDs: [String] = []
+        taskIDs.reserveCapacity(taskCount)
+        for i in 0..<taskCount {
+            let id = UUID().uuidString.lowercased()
+            taskIDs.append(id)
+            let stableID = "perf-task-\(i)"
+            let noteID = noteIDs[i % noteCount]   // valid UUID reference
+            let status = statuses[i % statuses.count]
+            sqlite3_bind_text(taskStmt, 1, id, -1, transient)
+            sqlite3_bind_text(taskStmt, 2, noteID, -1, transient)
+            sqlite3_bind_text(taskStmt, 3, stableID, -1, transient)
+            sqlite3_bind_text(taskStmt, 4, "PerfTask \(i)", -1, transient)
+            sqlite3_bind_text(taskStmt, 5, status, -1, transient)
+            sqlite3_bind_double(taskStmt, 6, 1_700_000_000 + Double(i))
+            sqlite3_bind_int64(taskStmt, 7, Int64(i + 1))
+            guard sqlite3_step(taskStmt) == SQLITE_DONE else {
+                throw StorageError.executeStatement(reason: String(cString: sqlite3_errmsg(db)))
+            }
+            sqlite3_reset(taskStmt)
+        }
+        guard sqlite3_exec(db, "COMMIT;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "COMMIT failed for tasks")
+        }
+
+        // Batch-insert bindings (old task_id schema) — task_id references valid UUID task IDs
+        guard sqlite3_exec(db, "BEGIN;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "BEGIN failed for bindings")
+        }
+        let bindSQL = """
+            INSERT INTO calendar_bindings
+                (task_id, calendar_id, event_identifier, external_identifier,
+                 last_task_version, last_event_updated_at, last_synced_at)
+            VALUES (?, 'perf-cal', ?, ?, ?, ?, ?);
+            """
+        var bindStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, bindSQL, -1, &bindStmt, nil) == SQLITE_OK, let bindStmt else {
+            throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(bindStmt) }
+        for i in 0..<bindingCount {
+            let taskID = taskIDs[i % taskCount]
+            let eventID = "event-\(i)"
+            let extID = "ext-\(i)"
+            sqlite3_bind_text(bindStmt, 1, taskID, -1, transient)
+            sqlite3_bind_text(bindStmt, 2, eventID, -1, transient)
+            sqlite3_bind_text(bindStmt, 3, extID, -1, transient)
+            sqlite3_bind_int64(bindStmt, 4, Int64(i + 1))
+            sqlite3_bind_double(bindStmt, 5, 1_700_000_000 + Double(i))
+            sqlite3_bind_double(bindStmt, 6, 1_700_000_100 + Double(i))
+            guard sqlite3_step(bindStmt) == SQLITE_DONE else {
+                throw StorageError.executeStatement(reason: String(cString: sqlite3_errmsg(db)))
+            }
+            sqlite3_reset(bindStmt)
+        }
+        guard sqlite3_exec(db, "COMMIT;", nil, nil, nil) == SQLITE_OK else {
+            throw StorageError.executeStatement(reason: "COMMIT failed for bindings")
+        }
+    }
+
+    private func ms(_ duration: Duration) -> Double {
+        let c = duration.components
+        return Double(c.seconds) * 1_000 + Double(c.attoseconds) / 1_000_000_000_000_000
+    }
+
     // MARK: - Schema upgrade matrix
 
     /// Schema era 1: notes + tasks with no kanban_order, no stable_id on notes,

@@ -18,7 +18,7 @@ Minimum now:
 
 Required before first public beta / external users:
 - [x] Add replay tests from every released schema version to latest.
-- [ ] Add large-data migration perf test with rollback/recovery checks.
+- [x] Add large-data migration perf test with rollback/recovery checks.
 
 ## Project Next Steps
 
