@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "NotesSync", targets: ["NotesSync"]),
         .library(name: "NotesFeatures", targets: ["NotesFeatures"]),
         .library(name: "NotesUI", targets: ["NotesUI"]),
-        .executable(name: "notes-app", targets: ["NotesApp"]),
+        .executable(name: "Deep Notes", targets: ["NotesApp"]),
         .executable(name: "notes-cli", targets: ["NotesCLI"]),
         .executable(name: "notes-perf-harness", targets: ["NotesPerfHarness"])
     ],

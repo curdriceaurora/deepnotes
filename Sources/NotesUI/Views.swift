@@ -307,7 +307,7 @@ public struct NotesEditorView: View {
                 .font(.headline)
 
             if viewModel.backlinks.isEmpty {
-                Label("No backlinks yet", systemImage: "link.badge.minus")
+                Label("No backlinks yet", systemImage: "link")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("backlinksEmptyState")

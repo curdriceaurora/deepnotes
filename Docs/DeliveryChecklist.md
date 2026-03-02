@@ -17,7 +17,7 @@ Minimum now:
 - [x] Add `idempotent reopen` migration test (open same DB twice, no schema drift).
 
 Required before first public beta / external users:
-- [ ] Add replay tests from every released schema version to latest.
+- [x] Add replay tests from every released schema version to latest.
 - [ ] Add large-data migration perf test with rollback/recovery checks.
 
 ## Project Next Steps
@@ -45,7 +45,7 @@ Acceptance criteria:
 - [x] Add persistent in-column ordering key for tasks.
 - [x] Implement drag reorder inside each status column.
 - [x] Preserve ordering through app relaunch and sync cycles.
-- [ ] Add UI tests for reorder in same column and cross-column move + position.
+- [x] Add UI tests for reorder in same column and cross-column move + position.
 
 Acceptance criteria:
 - Reordered cards remain stable after restart and after sync.
@@ -70,8 +70,8 @@ Acceptance criteria:
 - Users can intentionally modify one occurrence without corrupting series rules.
 
 ### 6. Release prep
-- [ ] Add schema upgrade matrix tests for all released DB versions.
-- [ ] Add crash-safe recovery tests around migration and sync checkpoint writes.
+- [x] Add schema upgrade matrix tests for all released DB versions.
+- [x] Add crash-safe recovery tests around migration and sync checkpoint writes.
 - [ ] Create macOS + iOS smoke checklist for pre-release validation.
 - [ ] Add release checklist runbook with rollback plan.
 

@@ -40,7 +40,7 @@ struct NotesApplication: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Deep Notes") {
             NotesRootView(viewModel: viewModel)
         }
         .defaultSize(width: 1260, height: 860)

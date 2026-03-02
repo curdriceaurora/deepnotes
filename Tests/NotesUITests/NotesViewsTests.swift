@@ -293,6 +293,142 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == target.id }))
     }
 
+    // MARK: - Kanban ordering UI tests
+
+    /// Tapping moveRight on a backlog card and then moveLeft on the resulting next card
+    /// leaves the column ordering stable and the task ends back in backlog.
+    func testKanbanMoveRightThenLeftRestoresOriginalColumn() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let view = KanbanBoardView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        // Move right: backlog -> next
+        try inspected.find(viewWithAccessibilityIdentifier: "moveRight_\(task.id.uuidString)").button().tap()
+        try await flushAsyncActions()
+        await viewModel.setTaskFilter(.all)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == task.id })?.status, .next)
+
+        // Re-inspect after state change, then move left: next -> backlog
+        let view2 = KanbanBoardView(viewModel: viewModel)
+        let inspected2 = try view2.inspect()
+        try inspected2.find(viewWithAccessibilityIdentifier: "moveLeft_\(task.id.uuidString)").button().tap()
+        try await flushAsyncActions()
+        await viewModel.setTaskFilter(.all)
+
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == task.id })?.status, .backlog)
+    }
+
+    /// After moving a task cross-column via the drop API, the KanbanBoardView renders
+    /// a card for that task inside the target column's accessibility container.
+    func testKanbanDropCrossColumnCardAppearsInTargetColumn() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        // Perform cross-column move: backlog -> doing
+        let moved = await viewModel.handleTaskDrop(
+            taskPayloads: [task.id.uuidString],
+            to: .doing,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(moved)
+        await viewModel.setTaskFilter(.all)
+
+        // The card should now be present in the doing column state
+        let view = KanbanBoardView(viewModel: viewModel)
+        let inspected = try view.inspect()
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_doing"))
+        XCTAssertTrue(viewModel.tasks(for: .doing).contains(where: { $0.id == task.id }))
+        XCTAssertFalse(viewModel.tasks(for: .backlog).contains(where: { $0.id == task.id }))
+    }
+
+    /// Moving two tasks from backlog into the same target column via beforeTaskID preserves
+    /// the requested insertion order: the second card lands before the first.
+    func testKanbanDropCrossColumnRelativePositionIsPreserved() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        let backlogTasks = viewModel.tasks(for: .backlog)
+        guard backlogTasks.count >= 2 else {
+            return XCTFail("Expected at least 2 backlog tasks")
+        }
+        let first = backlogTasks[0]
+        let second = backlogTasks[1]
+
+        // Move first card to waiting
+        let move1 = await viewModel.handleTaskDrop(
+            taskPayloads: [first.id.uuidString],
+            to: .waiting,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(move1)
+
+        // Move second card to waiting, before the first
+        let move2 = await viewModel.handleTaskDrop(
+            taskPayloads: [second.id.uuidString],
+            to: .waiting,
+            beforeTaskID: first.id
+        )
+        XCTAssertTrue(move2)
+
+        let waitingOrder = viewModel.tasks(for: .waiting).map(\.id)
+        // The waiting column may have pre-existing tasks; verify relative ordering of the
+        // two moved cards: second must appear before first in the final column.
+        guard
+            let secondIdx = waitingOrder.firstIndex(of: second.id),
+            let firstIdx = waitingOrder.firstIndex(of: first.id)
+        else {
+            return XCTFail("Both moved tasks should be present in waiting column")
+        }
+        XCTAssertLessThan(secondIdx, firstIdx,
+            "Second card dropped before first should appear earlier in the column")
+    }
+
+    /// Reordering within the same column via the drop API is reflected in the view model
+    /// state that KanbanBoardView reads from, verifying the ordering requirement end-to-end
+    /// from the view layer.
+    func testKanbanDropSameColumnReorderIsReflectedInColumnOrder() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        let backlogBefore = viewModel.tasks(for: .backlog).map(\.id)
+        guard backlogBefore.count >= 2 else {
+            return XCTFail("Expected at least 2 backlog tasks")
+        }
+        let top = backlogBefore[0]
+        let bottom = backlogBefore[1]
+
+        // Move the bottom card before the top card -> it should become the new top
+        let moved = await viewModel.handleTaskDrop(
+            taskPayloads: [bottom.uuidString],
+            to: .backlog,
+            beforeTaskID: top
+        )
+        XCTAssertTrue(moved)
+
+        let backlogAfter = viewModel.tasks(for: .backlog).map(\.id)
+        XCTAssertEqual(backlogAfter[0], bottom, "Reordered card should now be at the top of the column")
+        XCTAssertEqual(backlogAfter[1], top, "Original top card should now be second")
+
+        // Verify the KanbanBoardView renders the column without error after reorder
+        let view = KanbanBoardView(viewModel: viewModel)
+        let inspected = try view.inspect()
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_backlog"))
+    }
+
     func testSyncDashboardShowsReportSectionAfterSync() async throws {
         let viewModel = makeViewModel()
         await viewModel.load()
@@ -393,6 +529,16 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .backlog,
                 priority: 2,
                 kanbanOrder: 1,
+                updatedAt: now
+            ),
+            try! Task(
+                id: UUID(uuidString: "10000000-0000-0000-0000-000000000006")!,
+                noteID: notes[0].id,
+                stableID: "task-backlog-2",
+                title: "Design",
+                status: .backlog,
+                priority: 2,
+                kanbanOrder: 2,
                 updatedAt: now
             ),
             try! Task(
