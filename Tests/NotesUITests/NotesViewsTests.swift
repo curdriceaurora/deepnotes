@@ -9,7 +9,7 @@ import ViewInspector
 @MainActor
 final class NotesViewsTests: XCTestCase {
     func testNotesEditorContainsCoreControls() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let view = NotesEditorView(viewModel: viewModel)
@@ -27,7 +27,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testTasksListContainsPickerAndRows() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -39,7 +39,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testKanbanRendersAllStatusColumns() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let view = KanbanBoardView(viewModel: viewModel)
@@ -51,7 +51,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testSyncDashboardHasCalendarFieldAndRunButton() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let view = SyncDashboardView(viewModel: viewModel)
@@ -63,7 +63,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorNewNoteButtonTriggersCreation() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         let countBefore = viewModel.notes.count
 
@@ -71,24 +71,24 @@ final class NotesViewsTests: XCTestCase {
         let inspected = try view.inspect()
         try inspected.find(viewWithAccessibilityIdentifier: "newNoteButton").button().tap()
 
-        try await _Concurrency.Task.sleep(nanoseconds: 120_000_000)
+        await waitUntil { viewModel.notes.count == countBefore + 1 }
         XCTAssertEqual(viewModel.notes.count, countBefore + 1)
     }
 
     func testSyncDashboardRunButtonUpdatesStatus() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let view = SyncDashboardView(viewModel: viewModel)
         let inspected = try view.inspect()
         try inspected.find(viewWithAccessibilityIdentifier: "runSyncButton").button().tap()
 
-        try await _Concurrency.Task.sleep(nanoseconds: 120_000_000)
+        await waitUntil { viewModel.lastSyncReport != nil }
         XCTAssertNotNil(viewModel.lastSyncReport)
     }
 
     func testKanbanMoveRightButtonTransitionsTask() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -100,7 +100,7 @@ final class NotesViewsTests: XCTestCase {
         let inspected = try view.inspect()
 
         try inspected.find(viewWithAccessibilityIdentifier: "moveRight_\(task.id.uuidString)").button().tap()
-        try await _Concurrency.Task.sleep(nanoseconds: 120_000_000)
+        await waitUntil { viewModel.tasks.first(where: { $0.id == task.id })?.status == .next }
 
         await viewModel.setTaskFilter(.all)
         let moved = viewModel.tasks.first { $0.id == task.id }
@@ -108,7 +108,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testRootViewRendersErrorBannerWhenViewModelHasError() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         viewModel.syncCalendarID = "   "
         await viewModel.runSync()
@@ -120,7 +120,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorNoteRowTapSelectsNote() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         guard let target = viewModel.notes.dropFirst().first else {
@@ -136,7 +136,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorRendersSearchSnippetForMatchedNote() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
 
@@ -151,7 +151,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorRendersWikiSuggestionsBarWhenTypingWikilink() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         viewModel.updateSelectedNoteBody("See [[launch")
 
@@ -162,7 +162,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorSaveAndQuickTaskButtonsTriggerActions() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
         let initialCount = viewModel.tasks.count
@@ -183,8 +183,22 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorRendersBacklinksListWhenPresent() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
+
+        // "Vendor Notes" is referenced by "Q2 Launch Plan" via [[Vendor Notes]],
+        // so it has at least one backlink. Select it explicitly so the backlinks
+        // section is guaranteed to be non-empty when we inspect the view.
+        guard let vendorNote = viewModel.notes.first(where: { $0.title == "Vendor Notes" }) else {
+            return XCTFail("Expected 'Vendor Notes' note in mock data")
+        }
+        await viewModel.selectNote(id: vendorNote.id)
+
+        // Verify the view model agrees that backlinks are present before inspecting.
+        XCTAssertFalse(
+            viewModel.backlinks.isEmpty,
+            "Backlinks must be non-empty for the selected note before asserting the list renders"
+        )
 
         let view = NotesEditorView(viewModel: viewModel)
         let inspected = try view.inspect()
@@ -193,7 +207,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testNotesEditorRendersBacklinksEmptyStateWhenNoSelection() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.selectNote(id: nil)
 
@@ -204,7 +218,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testTasksListPickerSelectionUpdatesFilter() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let view = TasksListView(viewModel: viewModel)
@@ -219,7 +233,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testTasksListTaskRowToggleButtonUpdatesTaskStatus() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -234,11 +248,14 @@ final class NotesViewsTests: XCTestCase {
         try await flushAsyncActions()
 
         await viewModel.setTaskFilter(.completed)
-        XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == target.id }))
+        XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == target.id }),
+                      "Toggled task must appear in completed filter")
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == target.id })?.status, .done,
+                       "Toggled task must have status .done")
     }
 
     func testTasksListDeleteButtonRemovesTask() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -256,7 +273,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testKanbanMoveLeftButtonTransitionsTask() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -276,7 +293,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testKanbanDeleteButtonRemovesTask() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -298,7 +315,7 @@ final class NotesViewsTests: XCTestCase {
     /// Tapping moveRight on a backlog card and then moveLeft on the resulting next card
     /// leaves the column ordering stable and the task ends back in backlog.
     func testKanbanMoveRightThenLeftRestoresOriginalColumn() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -328,7 +345,7 @@ final class NotesViewsTests: XCTestCase {
     /// After moving a task cross-column via the drop API, the KanbanBoardView renders
     /// a card for that task inside the target column's accessibility container.
     func testKanbanDropCrossColumnCardAppearsInTargetColumn() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -356,7 +373,7 @@ final class NotesViewsTests: XCTestCase {
     /// Moving two tasks from backlog into the same target column via beforeTaskID preserves
     /// the requested insertion order: the second card lands before the first.
     func testKanbanDropCrossColumnRelativePositionIsPreserved() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -400,7 +417,7 @@ final class NotesViewsTests: XCTestCase {
     /// state that KanbanBoardView reads from, verifying the ordering requirement end-to-end
     /// from the view layer.
     func testKanbanDropSameColumnReorderIsReflectedInColumnOrder() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
@@ -430,7 +447,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testSyncDashboardShowsReportSectionAfterSync() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
 
         let first = SyncDashboardView(viewModel: viewModel)
@@ -446,7 +463,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testSyncDashboardShowsRecurrenceConflictBannerWhenDetected() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.runSync()
 
@@ -457,7 +474,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testSyncDashboardExportDiagnosticsButtonWritesExportPath() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.runSync()
 
@@ -470,7 +487,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testSyncDashboardShowsExportedPathAfterExport() async throws {
-        let viewModel = makeViewModel()
+        let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.runSync()
         await viewModel.exportSyncDiagnostics()
@@ -480,14 +497,34 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticsExportPath"))
     }
 
-    private func makeViewModel() -> AppViewModel {
-        let service = MockWorkspaceService()
+    private func makeViewModel() throws -> AppViewModel {
+        let service = try MockWorkspaceService()
         let provider = InMemoryCalendarProvider()
         return AppViewModel(
             service: service,
             calendarProviderFactory: { provider },
             syncCalendarID: "dev-calendar"
         )
+    }
+
+    /// Polls `condition` up to `deadline` seconds (default 2 s), yielding every
+    /// 20 ms.  Fails the test if the condition is still false at the deadline.
+    /// Use this instead of fixed-duration sleeps so CI machines with variable
+    /// scheduler latency don't cause flaky timeouts.
+    private func waitUntil(
+        deadline: TimeInterval = 2.0,
+        file: StaticString = #file,
+        line: UInt = #line,
+        condition: @MainActor () -> Bool
+    ) async {
+        let start = Date()
+        while !condition() {
+            if Date().timeIntervalSince(start) >= deadline {
+                XCTFail("Condition not met within \(deadline) s", file: file, line: line)
+                return
+            }
+            try? await _Concurrency.Task.sleep(nanoseconds: 20_000_000) // 20 ms
+        }
     }
 
     private func flushAsyncActions() async throws {
@@ -499,11 +536,15 @@ actor MockWorkspaceService: WorkspaceServicing {
     private var notes: [Note]
     private var tasks: [Task]
 
-    init() {
+    /// Builds the shared fixture notes and tasks.  Throws on programmer error
+    /// (malformed hardcoded values) rather than crashing the test process.
+    static func makeFixture() throws -> (notes: [Note], tasks: [Task]) {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        self.notes = [
+        let noteID1 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+        let noteID2 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
+        let notes: [Note] = [
             Note(
-                id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                id: noteID1,
                 title: "Q2 Launch Plan",
                 body: "References [[Vendor Notes]]",
                 updatedAt: now,
@@ -511,7 +552,7 @@ actor MockWorkspaceService: WorkspaceServicing {
                 deletedAt: nil
             ),
             Note(
-                id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                id: noteID2,
                 title: "Vendor Notes",
                 body: "Connected to [[Q2 Launch Plan]]",
                 updatedAt: now,
@@ -519,11 +560,10 @@ actor MockWorkspaceService: WorkspaceServicing {
                 deletedAt: nil
             )
         ]
-
-        self.tasks = [
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
-                noteID: notes[0].id,
+        let tasks: [Task] = [
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000001")),
+                noteID: noteID1,
                 stableID: "task-backlog",
                 title: "Research",
                 status: .backlog,
@@ -531,9 +571,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 kanbanOrder: 1,
                 updatedAt: now
             ),
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000006")!,
-                noteID: notes[0].id,
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000006")),
+                noteID: noteID1,
                 stableID: "task-backlog-2",
                 title: "Design",
                 status: .backlog,
@@ -541,9 +581,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 kanbanOrder: 2,
                 updatedAt: now
             ),
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
-                noteID: notes[0].id,
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000002")),
+                noteID: noteID1,
                 stableID: "task-next",
                 title: "Call supplier",
                 dueStart: now.addingTimeInterval(3600),
@@ -553,9 +593,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 kanbanOrder: 1,
                 updatedAt: now
             ),
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
-                noteID: notes[0].id,
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000003")),
+                noteID: noteID1,
                 stableID: "task-doing",
                 title: "Draft email",
                 status: .doing,
@@ -563,9 +603,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 kanbanOrder: 1,
                 updatedAt: now
             ),
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000004")!,
-                noteID: notes[0].id,
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000004")),
+                noteID: noteID1,
                 stableID: "task-waiting",
                 title: "Await feedback",
                 status: .waiting,
@@ -573,9 +613,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 kanbanOrder: 1,
                 updatedAt: now
             ),
-            try! Task(
-                id: UUID(uuidString: "10000000-0000-0000-0000-000000000005")!,
-                noteID: notes[0].id,
+            try Task(
+                id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000005")),
+                noteID: noteID1,
                 stableID: "task-done",
                 title: "Kickoff",
                 status: .done,
@@ -585,6 +625,13 @@ actor MockWorkspaceService: WorkspaceServicing {
                 updatedAt: now
             )
         ]
+        return (notes, tasks)
+    }
+
+    init() throws {
+        let fixture = try MockWorkspaceService.makeFixture()
+        self.notes = fixture.notes
+        self.tasks = fixture.tasks
     }
 
     func listNotes() async throws -> [Note] {
@@ -656,7 +703,7 @@ actor MockWorkspaceService: WorkspaceServicing {
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
         switch filter {
         case .all:
-            return tasks.filter { $0.status != .done }
+            return tasks
         case .today:
             return tasks.filter { $0.status != .done && $0.dueStart != nil }
         case .upcoming:

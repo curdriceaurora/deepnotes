@@ -57,6 +57,7 @@ Record the build number, device/OS version, and tester initials next to each pas
 ## 5. Notes Tab — Quick Open
 
 - [ ] Press ⌘O or tap the search icon (`quickOpenButton`): Quick Open sheet appears.
+- [ ] Quick Open search field (`quickOpenSearchField`) is focused and accepts keyboard input.
 - [ ] Type a partial title: results list updates in real time.
 - [ ] Select a result (`quickOpenRow_*`): sheet dismisses and that note is selected in the editor.
 - [ ] Tap "Close" (`quickOpenCloseButton`): sheet dismisses with no note change.
@@ -76,7 +77,7 @@ Record the build number, device/OS version, and tester initials next to each pas
 
 ## 7. Notes Tab — Quick Task Creation
 
-- [ ] Select a note, type a title in the quick task field (`quickTaskField`), tap "Add Task" (`quickTaskButton`): task appears in Tasks tab.
+- [ ] Select a note, type a title in the quick task field (`` `quickTaskField` ``), tap "Add Task" (`quickTaskButton`): task appears in Tasks tab.
 - [ ] Created task has the linked note's ID set (visible via Tasks tab row or Kanban card).
 - [ ] Quick task field is cleared after successful creation.
 
@@ -85,9 +86,9 @@ Record the build number, device/OS version, and tester initials next to each pas
 ## 8. Tasks Tab — List and Filter
 
 - [ ] Tasks tab shows all non-deleted tasks when filter is "All".
-- [ ] Filter picker (`taskFilterPicker`) segments match: All, Active (or equivalent), Done.
-- [ ] Selecting "Done" filter shows only completed tasks.
-- [ ] Active filter hides completed tasks.
+- [ ] Filter picker (`taskFilterPicker`) segments match: All, Today, Upcoming, Overdue, Completed.
+- [ ] Selecting "Completed" filter shows only tasks with `.done` status.
+- [ ] "Today" filter shows only tasks with a due date today; "Upcoming" shows future-dated tasks; "Overdue" shows past-due tasks.
 - [ ] Filter selection persists within the session (no reset on tab switch).
 
 ---
@@ -120,6 +121,7 @@ Record the build number, device/OS version, and tester initials next to each pas
 
 ## 12. Kanban Board Tab — Card Actions
 
+- [ ] Each card is rendered with identifier `kanbanCard_*` (where `*` is the task UUID).
 - [ ] Cards display task title; due date shown when set.
 - [ ] Left arrow button (`moveLeft_*`) is visible on all columns except Backlog.
 - [ ] Right arrow button (`moveRight_*`) is visible on all columns except Done.

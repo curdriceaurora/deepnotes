@@ -29,57 +29,79 @@ final class SQLiteMigrationTests: XCTestCase {
             XCTAssertEqual(fetched?.kanbanOrder, 1)
         }
 
-        let versions = try fetchMetaVersions(databaseURL: dbURL)
-        XCTAssertNotNil(versions["task_version"])
-        XCTAssertNotNil(versions["note_version"])
+        let versionsAfterSecondOpen = try fetchMetaVersions(databaseURL: dbURL)
+        XCTAssertNotNil(versionsAfterSecondOpen["task_version"])
+        XCTAssertNotNil(versionsAfterSecondOpen["note_version"])
+
+        // Third open with no writes — version cursors must not drift (true idempotency).
+        do {
+            _ = try SQLiteStore(databaseURL: dbURL)
+        }
+        let versionsAfterThirdOpen = try fetchMetaVersions(databaseURL: dbURL)
+        XCTAssertEqual(versionsAfterThirdOpen["task_version"], versionsAfterSecondOpen["task_version"],
+                       "Reopening without writes must not increment task_version cursor")
+        XCTAssertEqual(versionsAfterThirdOpen["note_version"], versionsAfterSecondOpen["note_version"],
+                       "Reopening without writes must not increment note_version cursor")
+
+        // FTS rebuild on every open must not produce duplicate rows.
+        do {
+            let store3 = try SQLiteStore(databaseURL: dbURL)
+            let hits = try await store3.searchNotes(query: "Fresh", limit: 20)
+            XCTAssertEqual(hits.count, 0, "No notes matching 'Fresh' — FTS must not produce phantom rows from re-runs")
+        }
     }
 
     // MARK: - Large-data migration perf test
 
     /// Builds a large Era 1 fixture (50k notes, 10k tasks, 5k calendar bindings)
     /// then opens the store, triggering the full migration path.  Asserts:
-    ///  - Migration completes within the latency budget (p95 ≤ 3 000 ms across 3 runs).
+    ///  - Migration completes within the latency budget (p95 ≤ 3 000 ms across 5 runs).
     ///  - All data survives: task count unchanged, FTS search returns results.
     ///  - A write (upsertTask) and checkpoint save succeed immediately after migration.
     ///  - A failed write during the post-migration session leaves the DB consistent
-    ///    (rollback/recovery path).
+    ///    (pre-transaction validation rejection leaves previously committed data intact).
     func testLargeDataMigrationPerfAndRecovery() async throws {
         let noteCount = 50_000
         let taskCount = 10_000
         let bindingCount = 5_000
         let budgetMS: Double = 3_000
-        let runs = 3
+        let runs = 5
 
-        // ── Build Era 1 fixture ───────────────────────────────────────────────
-        let dbURL = try makeDatabaseURL()
-        try buildLargeEra1Fixture(databaseURL: dbURL, noteCount: noteCount, taskCount: taskCount, bindingCount: bindingCount)
+        // ── Build Era 1 fixture template ──────────────────────────────────────
+        // Build the fixture once, then copy the file for each timing run so that
+        // every sample measures a genuine first-open migration (FTS rebuild over
+        // 50k notes) and not the idempotent no-op path.
+        let templateURL = try makeDatabaseURL()
+        try buildLargeEra1Fixture(databaseURL: templateURL, noteCount: noteCount, taskCount: taskCount, bindingCount: bindingCount)
 
-        // ── Time migration across `runs` reopens ─────────────────────────────
-        // We only time the first open (real migration). Subsequent reopens are
-        // a no-op ALTER since columns already exist, so they measure the fixed
-        // overhead of running the idempotent migration path.
+        // ── Time migration — fresh copy per run ───────────────────────────────
         var samples: [Double] = []
         samples.reserveCapacity(runs)
         let clock = ContinuousClock()
 
         for _ in 0..<runs {
+            let runURL = try makeDatabaseURL()
+            try FileManager.default.copyItem(at: templateURL, to: runURL)
+
             let start = clock.now
-            let s = try SQLiteStore(databaseURL: dbURL)
+            let s = try SQLiteStore(databaseURL: runURL)
             let elapsed = start.duration(to: clock.now)
             samples.append(ms(elapsed))
-            // Let the store deinit to close the connection before the next run.
-            _ = s
+            _ = s // let the store deinit to close the connection
         }
 
+        // p95 over `runs` independent samples, each measuring real migration cost.
         let sorted = samples.sorted()
-        let p95 = sorted[min(sorted.count - 1, Int(ceil(0.95 * Double(sorted.count))) - 1)]
+        let p95Index = max(0, Int(ceil(0.95 * Double(sorted.count))) - 1)
+        let p95 = sorted[min(sorted.count - 1, p95Index)]
         XCTAssertLessThanOrEqual(
             p95, budgetMS,
-            String(format: "Migration p95 %.1f ms exceeds budget %.0f ms", p95, budgetMS)
+            String(format: "Migration p95 %.1f ms exceeds budget %.0f ms (samples: %@)",
+                   p95, budgetMS, samples.map { String(format: "%.1f", $0) }.joined(separator: ", "))
         )
 
-        // ── Post-migration correctness ────────────────────────────────────────
-        let store = try SQLiteStore(databaseURL: dbURL)
+        // ── Post-migration correctness (open the already-migrated template) ─────
+        let store = try SQLiteStore(databaseURL: templateURL)
 
         // FTS must be valid: notes were inserted with title "PerfNote <n>".
         let hits = try await store.searchNotes(query: "PerfNote", limit: 5)
@@ -113,9 +135,14 @@ final class SQLiteMigrationTests: XCTestCase {
         let fetchedCP = try await store.fetchCheckpoint(id: "post-migration-cp")
         XCTAssertEqual(fetchedCP?.taskVersionCursor, saved.version)
 
-        // ── Rollback/recovery: failed write leaves DB consistent ──────────────
+        // ── Pre-transaction validation rejection leaves DB consistent ────────
+        // Note: DomainValidationError.missingStableID is thrown by the guard
+        // clause in SQLiteStore.upsertTask *before* BEGIN TRANSACTION is reached.
+        // This verifies that the validation layer does not corrupt previously
+        // committed data, not that the SQLite ROLLBACK path is exercised.
+        // (The actual ROLLBACK path is covered in SQLiteCrashRecoveryTests.)
         let badTask = try Task(
-            stableID: "",   // triggers validation error before any transaction
+            stableID: "",   // guard fires before any transaction is opened
             title: "Bad",
             status: .backlog,
             kanbanOrder: 2,
@@ -125,12 +152,12 @@ final class SQLiteMigrationTests: XCTestCase {
             _ = try await store.upsertTask(badTask)
             XCTFail("Expected DomainValidationError.missingStableID")
         } catch DomainValidationError.missingStableID {
-            // Expected — no transaction was opened
+            // Expected — no transaction was opened, DB unchanged
         }
 
         // The post-migration task and checkpoint must still be intact.
         let refetched = try await store.fetchTaskByStableID("post-migration-task")
-        XCTAssertNotNil(refetched, "Post-migration task must survive a failed-write recovery path")
+        XCTAssertNotNil(refetched, "Post-migration task must survive a pre-transaction validation rejection")
         let refetchedCP = try await store.fetchCheckpoint(id: "post-migration-cp")
         XCTAssertEqual(refetchedCP?.calendarToken, "token-after-migration")
     }
@@ -419,7 +446,9 @@ final class SQLiteMigrationTests: XCTestCase {
         XCTAssertEqual(checkpoint?.noteVersionCursor, 0, "note_version_cursor defaults to 0 after column is added")
 
         // Upsert through the store to confirm the column is writable
-        var updated = checkpoint!
+        guard var updated = checkpoint else {
+            return XCTFail("era3-checkpoint must be fetchable before write-back test")
+        }
         updated.noteVersionCursor = 7
         updated.updatedAt = Date()
         try await store.saveCheckpoint(updated)
@@ -870,6 +899,12 @@ final class SQLiteMigrationTests: XCTestCase {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open for column inspection")
         }
         defer { sqlite3_close(dbPointer) }
+        // PRAGMA table_info does not support bound parameters; use an allowlist
+        // of known table names rather than interpolating caller-supplied strings.
+        let allowedTables: Set<String> = ["notes", "tasks", "calendar_bindings", "sync_checkpoints", "meta"]
+        guard allowedTables.contains(table) else {
+            throw StorageError.executeStatement(reason: "tableColumns: unknown table '\(table)'")
+        }
         let sql = "PRAGMA table_info(\(table));"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(dbPointer, sql, -1, &statement, nil) == SQLITE_OK, let statement else {

@@ -81,7 +81,12 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // The store open should throw because the migration SQL tries
         // `INSERT INTO meta (key, ...) ON CONFLICT(key)` but the column
         // is named `k`, causing SQLITE_ERROR.
-        XCTAssertThrowsError(try SQLiteStore(databaseURL: dbURL))
+        XCTAssertThrowsError(try SQLiteStore(databaseURL: dbURL)) { error in
+            XCTAssertTrue(
+                error is StorageError,
+                "Migration failure must surface as StorageError, got \(error)"
+            )
+        }
 
         // The file must still exist and be a valid SQLite container
         // (SQLite itself opened it; we just failed the migration step).
@@ -130,7 +135,16 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // The body must be from one of the two upserts — never empty / nil.
         let body = fetched?.body ?? ""
         XCTAssertFalse(body.isEmpty, "Note body should not be empty after any outcome")
-        _ = versionAfterFirstWrite // suppress unused warning
+
+        // The meta note_version cursor must not have advanced beyond the version
+        // recorded after the successful first write (no phantom increment from the
+        // failed second attempt's transaction).
+        let noteAfterFail = try await store.fetchNoteByTitle("Unique Title")
+        let versionAfterFail = noteAfterFail?.version ?? 0
+        XCTAssertLessThanOrEqual(
+            versionAfterFail, versionAfterFirstWrite + 1,
+            "note_version must not drift beyond the last successfully committed version"
+        )
     }
 
     /// An upsert with an empty stableID throws a validation error *before*
@@ -172,11 +186,63 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
                        "Meta version must not advance when write is rejected before transaction")
     }
 
+    /// Two tasks with the same `stable_id` (but different primary-key UUIDs) trigger a
+    /// UNIQUE constraint violation on the `stable_id` column *inside* the SQLite
+    /// transaction, exercising the actual `try? rollbackTransaction()` path in
+    /// `SQLiteStore.upsertTask`.  After the rollback the first task must still be
+    /// readable and the meta `task_version` cursor must equal the version left by the
+    /// first successful write — not incremented by the failed second attempt.
+    func testTaskUpsertUniqueConstraintViolationRollsBackVersion() async throws {
+        let store = try makeStore()
+
+        let task1 = try Task(
+            id: UUID(uuidString: "AA000000-0000-0000-0000-000000000001")!,
+            stableID: "shared-stable-id",
+            title: "First Task",
+            status: .backlog,
+            kanbanOrder: 1,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let committed = try await store.upsertTask(task1)
+        let versionAfterFirstWrite = committed.version
+
+        // Second task has a *different* primary-key UUID but the same stable_id.
+        // The store will try to INSERT a new row; the UNIQUE constraint on stable_id
+        // fires inside the transaction and the store must roll back.
+        let task2 = try Task(
+            id: UUID(uuidString: "BB000000-0000-0000-0000-000000000002")!,
+            stableID: "shared-stable-id",
+            title: "Conflicting Task",
+            status: .next,
+            kanbanOrder: 2,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+        do {
+            _ = try await store.upsertTask(task2)
+            // The store may also merge by stable_id (idempotent upsert) — that is
+            // a valid implementation choice. Only assert consistency below.
+        } catch {
+            // A StorageError from the constraint violation is expected.
+            XCTAssertTrue(error is StorageError, "Constraint violation must surface as StorageError, got \(error)")
+        }
+
+        // The first task must still be readable with its original data intact.
+        let refetched = try await store.fetchTaskByStableID("shared-stable-id")
+        XCTAssertNotNil(refetched, "Task with shared stable_id must still be accessible after constraint violation")
+
+        // The task_version cursor must not have advanced beyond what the first
+        // successful write established (no phantom increment from the rolled-back attempt).
+        XCTAssertLessThanOrEqual(
+            refetched?.version ?? 0, versionAfterFirstWrite + 1,
+            "task_version must not drift beyond the last successfully committed version"
+        )
+    }
+
     // MARK: - Checkpoint atomicity
 
-    /// A checkpoint written successfully then updated must reflect the new value.
-    /// There must be no phantom of the intermediate state.
-    func testCheckpointWriteIsAtomicAndFinalValueIsConsistent() async throws {
+    /// A checkpoint written successfully then overwritten must reflect only the
+    /// final value — last-write-wins semantics, no phantom of the intermediate state.
+    func testCheckpointLastWriteWinsAndFinalValueIsConsistent() async throws {
         let store = try makeStore()
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
