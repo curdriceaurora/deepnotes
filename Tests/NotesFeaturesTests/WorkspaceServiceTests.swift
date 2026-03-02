@@ -72,6 +72,35 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(matches.first?.title, "Roadmap")
     }
 
+    func testSearchNotesPageReturnsSnippetsAndPagination() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        _ = try await service.createNote(title: "Roadmap", body: "Discuss launch milestones")
+        _ = try await service.createNote(title: "Launch Risks", body: "Launch blockers and mitigations")
+        _ = try await service.createNote(title: "Vendor", body: "No match content")
+
+        let firstPage = try await service.searchNotesPage(
+            query: "launch",
+            mode: .smart,
+            limit: 1,
+            offset: 0
+        )
+        XCTAssertEqual(firstPage.totalCount, 2)
+        XCTAssertEqual(firstPage.hits.count, 1)
+        XCTAssertEqual(firstPage.nextOffset, 1)
+        XCTAssertNotNil(firstPage.hits.first?.snippet)
+
+        let secondPage = try await service.searchNotesPage(
+            query: "launch",
+            mode: .smart,
+            limit: 1,
+            offset: 1
+        )
+        XCTAssertEqual(secondPage.totalCount, 2)
+        XCTAssertEqual(secondPage.hits.count, 1)
+        XCTAssertNil(secondPage.nextOffset)
+    }
+
     func testTaskFiltersReturnExpectedSlices() async throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let service = try makeService(now: now)
@@ -135,6 +164,16 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertGreaterThan(second.kanbanOrder, first.kanbanOrder)
     }
 
+    func testDeleteTaskTombstonesAndRemovesFromActiveLists() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let created = try await service.createTask(NewTaskInput(title: "Delete me", status: .next, priority: 2))
+
+        try await service.deleteTask(taskID: created.id)
+
+        let all = try await service.listTasks(filter: .all)
+        XCTAssertFalse(all.contains(where: { $0.id == created.id }))
+    }
+
     func testMoveTaskBeforeSiblingUpdatesKanbanOrder() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
         let first = try await service.createTask(NewTaskInput(title: "First", status: .backlog, priority: 2))
@@ -144,6 +183,49 @@ final class WorkspaceServiceTests: XCTestCase {
 
         XCTAssertEqual(moved.status, .backlog)
         XCTAssertLessThan(moved.kanbanOrder, first.kanbanOrder)
+    }
+
+    func testKanbanOrderingStaysStableWithThousandTasksAndRepeatedMoves() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let store = try makeStore()
+        let service = WorkspaceService(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store,
+            clock: FixedClock(current: now)
+        )
+
+        var created: [Task] = []
+        created.reserveCapacity(1_000)
+        for idx in 0..<1_000 {
+            let task = try await service.createTask(
+                NewTaskInput(title: "Task \(idx)", status: .backlog, priority: 2)
+            )
+            created.append(task)
+        }
+
+        let first = try XCTUnwrap(created.first)
+        let middle = try XCTUnwrap(created[safe: created.count / 2])
+        let last = try XCTUnwrap(created.last)
+
+        _ = try await service.moveTask(taskID: last.id, to: .backlog, beforeTaskID: first.id)
+        _ = try await service.moveTask(taskID: middle.id, to: .backlog, beforeTaskID: first.id)
+        _ = try await service.moveTask(taskID: first.id, to: .backlog, beforeTaskID: nil)
+
+        let backlogTasks = try await store.fetchTasks(includeDeleted: false)
+            .filter { $0.status == .backlog }
+            .sorted {
+                if $0.kanbanOrder != $1.kanbanOrder {
+                    return $0.kanbanOrder < $1.kanbanOrder
+                }
+                return $0.id.uuidString < $1.id.uuidString
+            }
+
+        XCTAssertEqual(backlogTasks.count, 1_000)
+        XCTAssertEqual(Set(backlogTasks.map(\.id)).count, 1_000)
+        XCTAssertTrue(backlogTasks.allSatisfy { $0.kanbanOrder.isFinite && !$0.kanbanOrder.isNaN })
+        XCTAssertEqual(backlogTasks.last?.id, first.id)
     }
 
     func testToggleTaskCompletionBranches() async throws {
@@ -258,5 +340,11 @@ private struct FixedClock: Clock {
 
     func now() -> Date {
         current
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

@@ -4,3 +4,5 @@
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+perf-artifacts/

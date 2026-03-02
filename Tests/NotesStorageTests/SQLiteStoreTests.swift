@@ -150,6 +150,89 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertTrue(afterDelete.isEmpty)
     }
 
+    func testSearchNotesPhraseModeMatchesOnlyAdjacentTerms() async throws {
+        let store = try makeStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let phraseMatch = try await store.upsertNote(
+            Note(title: "Release", body: "launch checklist and owners", updatedAt: now)
+        )
+        _ = try await store.upsertNote(
+            Note(title: "Non Phrase", body: "launch prep then checklist later", updatedAt: now.addingTimeInterval(1))
+        )
+
+        let page = try await store.searchNotes(
+            query: "launch checklist",
+            mode: .phrase,
+            limit: 10,
+            offset: 0
+        )
+
+        XCTAssertEqual(page.totalCount, 1)
+        XCTAssertEqual(page.hits.first?.note.id, phraseMatch.id)
+    }
+
+    func testSearchNotesPrefixModeMatchesWordPrefixes() async throws {
+        let store = try makeStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let planning = try await store.upsertNote(
+            Note(title: "Planning Board", body: "Project plan details", updatedAt: now)
+        )
+        _ = try await store.upsertNote(
+            Note(title: "Execution", body: "Build and ship", updatedAt: now.addingTimeInterval(1))
+        )
+
+        let page = try await store.searchNotes(
+            query: "plan",
+            mode: .prefix,
+            limit: 10,
+            offset: 0
+        )
+
+        XCTAssertEqual(page.totalCount, 1)
+        XCTAssertEqual(page.hits.first?.note.id, planning.id)
+    }
+
+    func testSearchNotesPageIncludesHighlightSnippetAndOffsetPagination() async throws {
+        let store = try makeStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let first = try await store.upsertNote(
+            Note(title: "One", body: "launch alpha details", updatedAt: now)
+        )
+        let second = try await store.upsertNote(
+            Note(title: "Two", body: "launch beta notes", updatedAt: now.addingTimeInterval(1))
+        )
+        let third = try await store.upsertNote(
+            Note(title: "Three", body: "launch gamma timeline", updatedAt: now.addingTimeInterval(2))
+        )
+
+        let page1 = try await store.searchNotes(
+            query: "launch",
+            mode: .smart,
+            limit: 2,
+            offset: 0
+        )
+        XCTAssertEqual(page1.totalCount, 3)
+        XCTAssertEqual(page1.hits.count, 2)
+        XCTAssertEqual(page1.nextOffset, 2)
+        XCTAssertTrue(page1.hits.allSatisfy { $0.snippet?.lowercased().contains("<mark>launch</mark>") == true })
+
+        let page2 = try await store.searchNotes(
+            query: "launch",
+            mode: .smart,
+            limit: 2,
+            offset: 2
+        )
+        XCTAssertEqual(page2.totalCount, 3)
+        XCTAssertEqual(page2.hits.count, 1)
+        XCTAssertNil(page2.nextOffset)
+
+        let allIDs = (page1.hits + page2.hits).map(\.note.id)
+        XCTAssertEqual(Set(allIDs), Set([first.id, second.id, third.id]))
+    }
+
     private func makeStore() throws -> SQLiteStore {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("notes-engine-tests")

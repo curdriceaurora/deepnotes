@@ -56,7 +56,27 @@ This command runs test coverage and enforces these minimums:
 - Functional coverage: `>= 90%`
 - Integration coverage: `>= 99%`
 - Error description assertion coverage: `>= 99%`
-- UI interaction coverage: `>= 95%`
+- UI interaction coverage: `>= 95%` (interaction orchestration in `Sources/NotesUI/AppViewModel.swift`)
+- UI view-layer coverage: `>= 85%` (`Sources/NotesUI/Views.swift`)
+
+### Run performance gates (release, with ProMotion rendering gate)
+
+```bash
+./Scripts/run-perf-gates.sh
+```
+
+This command runs the release perf harness and enforces:
+
+- Launch-to-interactive p95 gate at `<= 900ms`
+- Open-note p95 gate at `<= 40ms`
+- Save-note-edit p95 gate at `<= 30ms`
+- Wiki-link/backlinks refresh p95 gate at `<= 50ms`
+- Kanban render p95 frame-time gate at `<= 8.333ms` (120Hz budget)
+- Kanban p95 FPS gate at `>= 120`
+- Kanban drag reorder commit p95 gate at `<= 50ms`
+- Create-note p95 gate at `<= 30ms`
+- Search-at-50k-notes p95 gate at `<= 80ms`
+- Regression rule: measured p95 values must remain within `+10%` of the baseline in [Docs/perf-baseline.env](/Users/rahul/Projects/notes-placeholder/Docs/perf-baseline.env)
 
 ### Build app target
 
@@ -93,9 +113,11 @@ Coverage gate scripts:
 
 - [Scripts/coverage-gates.sh](/Users/rahul/Projects/notes-placeholder/Scripts/coverage-gates.sh)
 - [Scripts/run-coverage-gates.sh](/Users/rahul/Projects/notes-placeholder/Scripts/run-coverage-gates.sh)
+- [Scripts/perf-gates.sh](/Users/rahul/Projects/notes-placeholder/Scripts/perf-gates.sh)
+- [Scripts/run-perf-gates.sh](/Users/rahul/Projects/notes-placeholder/Scripts/run-perf-gates.sh)
 - CI workflow: [.github/workflows/coverage-gates.yml](/Users/rahul/Projects/notes-placeholder/.github/workflows/coverage-gates.yml)
 
-Total passing tests: 96.
+Total passing tests: 157.
 
 ## Important gotchas
 

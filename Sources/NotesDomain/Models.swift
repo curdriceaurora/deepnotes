@@ -59,6 +59,54 @@ public struct Note: Codable, Equatable, Sendable {
     }
 }
 
+public enum NoteSearchMode: String, Codable, CaseIterable, Sendable {
+    case smart
+    case phrase
+    case prefix
+}
+
+public struct NoteSearchHit: Codable, Equatable, Sendable {
+    public var note: Note
+    public var snippet: String?
+    public var rank: Double
+
+    public init(note: Note, snippet: String?, rank: Double) {
+        self.note = note
+        self.snippet = snippet
+        self.rank = rank
+    }
+}
+
+public struct NoteSearchPage: Codable, Equatable, Sendable {
+    public var query: String
+    public var mode: NoteSearchMode
+    public var offset: Int
+    public var limit: Int
+    public var totalCount: Int
+    public var hits: [NoteSearchHit]
+
+    public var nextOffset: Int? {
+        let candidate = offset + hits.count
+        return candidate < totalCount ? candidate : nil
+    }
+
+    public init(
+        query: String,
+        mode: NoteSearchMode,
+        offset: Int,
+        limit: Int,
+        totalCount: Int,
+        hits: [NoteSearchHit]
+    ) {
+        self.query = query
+        self.mode = mode
+        self.offset = max(0, offset)
+        self.limit = max(1, limit)
+        self.totalCount = max(0, totalCount)
+        self.hits = hits
+    }
+}
+
 public struct Task: Codable, Equatable, Sendable {
     public var id: UUID
     public var noteID: UUID?

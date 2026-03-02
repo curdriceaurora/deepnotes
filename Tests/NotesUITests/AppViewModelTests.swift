@@ -144,6 +144,72 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.notes.count, 2)
     }
 
+    func testWikiLinkAutocompleteSuggestsAndAppliesReplacement() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.updateSelectedNoteBody("Linking to [[be")
+        XCTAssertTrue(viewModel.isWikiLinkSuggestionVisible)
+        XCTAssertTrue(viewModel.wikiLinkSuggestions.contains("Beta"))
+
+        viewModel.applyWikiLinkSuggestion("Beta")
+        XCTAssertEqual(viewModel.selectedNoteBody, "Linking to [[Beta]]")
+        XCTAssertFalse(viewModel.isWikiLinkSuggestionVisible)
+    }
+
+    func testQuickOpenFiltersAndSelectsNote() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.openQuickSwitcher()
+        XCTAssertTrue(viewModel.isQuickOpenPresented)
+        XCTAssertEqual(viewModel.quickOpenResults.count, 2)
+
+        viewModel.setQuickOpenQuery("beta")
+        XCTAssertEqual(viewModel.quickOpenResults.map(\.title), ["Beta"])
+
+        guard let target = viewModel.quickOpenResults.first else {
+            return XCTFail("Expected quick open match")
+        }
+        await viewModel.selectQuickOpenResult(noteID: target.id)
+
+        XCTAssertFalse(viewModel.isQuickOpenPresented)
+        XCTAssertEqual(viewModel.selectedNoteID, target.id)
+    }
+
+    func testMarkdownInsertActionsAppendExpectedPrefixes() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.updateSelectedNoteBody("Start")
+
+        viewModel.insertMarkdownHeading()
+        XCTAssertTrue(viewModel.selectedNoteBody.contains("\n# "))
+
+        viewModel.insertMarkdownBullet()
+        XCTAssertTrue(viewModel.selectedNoteBody.contains("\n- "))
+
+        viewModel.insertMarkdownCheckbox()
+        XCTAssertTrue(viewModel.selectedNoteBody.contains("\n- [ ] "))
+    }
+
+    func testSetNoteSearchQueryStoresSnippetsAndClearsWhenReset() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.setNoteSearchQuery("alpha")
+        guard let firstID = viewModel.notes.first?.id else {
+            return XCTFail("Expected at least one note")
+        }
+        XCTAssertNotNil(viewModel.noteSearchSnippet(for: firstID))
+
+        await viewModel.setNoteSearchQuery("")
+        XCTAssertNil(viewModel.noteSearchSnippet(for: firstID))
+    }
+
     func testHandleTaskDropMovesTaskToTargetStatus() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
@@ -183,23 +249,102 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(moved)
     }
 
-    func testHandleTaskDropSameStatusWithoutBeforeIsNoOp() async {
+    func testPerformTaskDropRejectsInvalidPayload() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.performTaskDrop(taskPayloads: ["bad-payload"], to: .doing, beforeTaskID: nil))
+    }
+
+    func testPerformTaskDropReturnsFalseWhenTaskMissing() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.performTaskDrop(taskPayloads: [UUID().uuidString], to: .doing, beforeTaskID: nil))
+    }
+
+    func testPerformTaskDropReturnsTrueForNoOpSelfDrop() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
 
-        guard let backlogA = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }) else {
+        guard let backlog = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }) else {
             return XCTFail("Missing backlog fixture")
         }
 
+        XCTAssertTrue(viewModel.performTaskDrop(taskPayloads: [backlog.id.uuidString], to: .backlog, beforeTaskID: backlog.id))
+    }
+
+    func testPerformTaskDropDetachedOccurrenceShowsPromptAndReturnsFalse() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        let accepted = viewModel.performTaskDrop(
+            taskPayloads: [detached.id.uuidString],
+            to: .doing,
+            beforeTaskID: nil
+        )
+        XCTAssertFalse(accepted)
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+    }
+
+    func testPerformTaskDropQueuesMoveAndClearsDragTargets() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let backlog = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }) else {
+            return XCTFail("Missing backlog fixture")
+        }
+
+        viewModel.beginTaskDrag(taskID: backlog.id)
+        viewModel.setDropTargetStatus(.waiting)
+        viewModel.setDropTargetTaskID(backlog.id)
+
+        let accepted = viewModel.performTaskDrop(
+            taskPayloads: [backlog.id.uuidString],
+            to: .waiting,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(accepted)
+        XCTAssertNil(viewModel.draggingTaskID)
+        XCTAssertNil(viewModel.dropTargetStatus)
+        XCTAssertNil(viewModel.dropTargetTaskID)
+
+        try? await _Concurrency.Task.sleep(nanoseconds: 120_000_000)
+        XCTAssertTrue(viewModel.tasks(for: .waiting).contains { $0.id == backlog.id })
+    }
+
+    func testHandleTaskDropSameStatusWithoutBeforeIsNoOpWhenAlreadyLastInColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let backlogB = viewModel.tasks.first(where: { $0.stableID == "t-backlog-b" }) else {
+            return XCTFail("Missing backlog fixture")
+        }
+
+        let before = viewModel.tasks(for: .backlog).map(\.stableID)
         let moved = await viewModel.handleTaskDrop(
-            taskPayloads: [backlogA.id.uuidString],
+            taskPayloads: [backlogB.id.uuidString],
             to: .backlog,
             beforeTaskID: nil
         )
         XCTAssertTrue(moved)
         XCTAssertNil(viewModel.errorMessage)
+        let after = viewModel.tasks(for: .backlog).map(\.stableID)
+        XCTAssertEqual(after, before)
     }
 
     func testHandleTaskDropReordersWithinSameColumn() async {
@@ -230,6 +375,122 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(after, ["t-backlog-b", "t-backlog-a"])
     }
 
+    func testKanbanDropMatrixReordersTopMiddleBottomWithinSameColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard
+            let backlogA = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }),
+            let backlogB = viewModel.tasks.first(where: { $0.stableID == "t-backlog-b" }),
+            let next = viewModel.tasks.first(where: { $0.stableID == "t-next" })
+        else {
+            return XCTFail("Missing fixtures")
+        }
+
+        // Build three cards in one column to validate top/middle/bottom placements.
+        await viewModel.moveTask(taskID: next.id, to: .backlog)
+        XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-backlog-a", "t-backlog-b", "t-next"])
+
+        // Top: move the last card before the current top card.
+        let topMoved = await viewModel.handleTaskDrop(
+            taskPayloads: [next.id.uuidString],
+            to: .backlog,
+            beforeTaskID: backlogA.id
+        )
+        XCTAssertTrue(topMoved)
+        XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-next", "t-backlog-a", "t-backlog-b"])
+
+        // Middle: move bottom card before the current middle card.
+        let middleMoved = await viewModel.handleTaskDrop(
+            taskPayloads: [backlogB.id.uuidString],
+            to: .backlog,
+            beforeTaskID: backlogA.id
+        )
+        XCTAssertTrue(middleMoved)
+        XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-next", "t-backlog-b", "t-backlog-a"])
+
+        // Bottom: drop top card on column body (beforeTaskID=nil) to move it to end.
+        let bottomMoved = await viewModel.handleTaskDrop(
+            taskPayloads: [next.id.uuidString],
+            to: .backlog,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(bottomMoved)
+        XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-backlog-b", "t-backlog-a", "t-next"])
+    }
+
+    func testKanbanDropToEmptyColumnAndCrossColumnRelativeOrder() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard
+            let backlogA = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }),
+            let backlogB = viewModel.tasks.first(where: { $0.stableID == "t-backlog-b" })
+        else {
+            return XCTFail("Missing backlog fixtures")
+        }
+
+        // Waiting starts empty in fixtures; first drop validates empty-column handling.
+        let firstMove = await viewModel.handleTaskDrop(
+            taskPayloads: [backlogA.id.uuidString],
+            to: .waiting,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(firstMove)
+        XCTAssertEqual(viewModel.tasks(for: .waiting).map(\.stableID), ["t-backlog-a"])
+
+        // Second drop into same target column should preserve relative order.
+        let secondMove = await viewModel.handleTaskDrop(
+            taskPayloads: [backlogB.id.uuidString],
+            to: .waiting,
+            beforeTaskID: nil
+        )
+        XCTAssertTrue(secondMove)
+        XCTAssertEqual(viewModel.tasks(for: .waiting).map(\.stableID), ["t-backlog-a", "t-backlog-b"])
+    }
+
+    func testKanbanRapidRepeatedDragActionsRemainDeterministic() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let backlogA = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }) else {
+            return XCTFail("Missing backlog fixture")
+        }
+
+        for _ in 0..<20 {
+            let movedToNext = await viewModel.handleTaskDrop(
+                taskPayloads: [backlogA.id.uuidString],
+                to: .next,
+                beforeTaskID: nil
+            )
+            XCTAssertTrue(movedToNext)
+
+            let movedToDoing = await viewModel.handleTaskDrop(
+                taskPayloads: [backlogA.id.uuidString],
+                to: .doing,
+                beforeTaskID: nil
+            )
+            XCTAssertTrue(movedToDoing)
+
+            let movedToBacklog = await viewModel.handleTaskDrop(
+                taskPayloads: [backlogA.id.uuidString],
+                to: .backlog,
+                beforeTaskID: nil
+            )
+            XCTAssertTrue(movedToBacklog)
+        }
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.tasks.filter { $0.id == backlogA.id }.count, 1)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == backlogA.id })?.status, .backlog)
+    }
+
     func testToggleTaskCompletionUpdatesTaskState() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
@@ -258,6 +519,191 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.setTaskFilter(.all)
 
         XCTAssertTrue(viewModel.tasks.contains { $0.id == first.id && $0.status == .waiting })
+    }
+
+    func testKanbanDoneColumnRetainsMovedTaskWhenListFilterIsAll() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let first = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Missing backlog task")
+        }
+
+        await viewModel.moveTask(taskID: first.id, to: .done)
+        await viewModel.setTaskFilter(.all)
+
+        XCTAssertFalse(viewModel.tasks.contains { $0.id == first.id })
+        XCTAssertTrue(viewModel.tasks(for: .done).contains { $0.id == first.id })
+    }
+
+    func testMoveTaskDetachedOccurrenceRequiresScopeSelection() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.moveTask(taskID: detached.id, to: .doing)
+
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == detached.id })?.status, .next)
+
+        await viewModel.resolveRecurrenceEditPrompt(scope: .thisOccurrence)
+
+        XCTAssertNil(viewModel.recurrenceEditPrompt)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == detached.id })?.status, .doing)
+    }
+
+    func testDismissRecurrenceEditPromptClearsPendingMutationAndResolveNoops() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.moveTask(taskID: detached.id, to: .doing)
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+
+        viewModel.dismissRecurrenceEditPrompt()
+        XCTAssertNil(viewModel.recurrenceEditPrompt)
+
+        await viewModel.resolveRecurrenceEditPrompt(scope: .thisOccurrence)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == detached.id })?.status, .next)
+    }
+
+    func testMoveTaskIgnoresMissingTaskID() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.moveTask(taskID: UUID(), to: .doing)
+
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.recurrenceEditPrompt)
+    }
+
+    func testHandleTaskDropDetachedOccurrenceReturnsFalseUntilScopeResolved() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        let moved = await viewModel.handleTaskDrop(
+            taskPayloads: [detached.id.uuidString],
+            to: .doing,
+            beforeTaskID: nil
+        )
+        XCTAssertFalse(moved)
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+
+        await viewModel.resolveRecurrenceEditPrompt(scope: .thisOccurrence)
+        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == detached.id })?.status, .doing)
+    }
+
+    func testResolveRecurrenceEditPromptEntireSeriesStripsExceptionMarker() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.moveTask(taskID: detached.id, to: .waiting)
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+
+        await viewModel.resolveRecurrenceEditPrompt(scope: .entireSeries)
+
+        guard let updated = viewModel.tasks.first(where: { $0.id == detached.id }) else {
+            return XCTFail("Missing updated detached task")
+        }
+        XCTAssertEqual(updated.status, .waiting)
+        XCTAssertFalse(updated.details.contains("event-recurrence-exception:"))
+
+        let sharedSeries = viewModel.tasks.filter { $0.stableID == "t-series-shared" }
+        XCTAssertEqual(sharedSeries.count, 2)
+        XCTAssertTrue(sharedSeries.allSatisfy { $0.status == .waiting })
+    }
+
+    func testResolveRecurrenceEditPromptEntireSeriesWithoutAnchorShowsError() async {
+        let service = WorkspaceServiceSpy()
+        await service.clearSeriesAnchorRecurrenceRule(stableID: "t-series-shared")
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.moveTask(taskID: detached.id, to: .waiting)
+        XCTAssertNotNil(viewModel.recurrenceEditPrompt)
+
+        await viewModel.resolveRecurrenceEditPrompt(scope: .entireSeries)
+        XCTAssertEqual(viewModel.errorMessage, "Could not resolve a parent recurring series for this occurrence.")
+    }
+
+    func testDeleteTaskRemovesTaskWithoutPromptWhenNotDetached() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.stableID == "t-backlog-a" }) else {
+            return XCTFail("Missing non-detached task")
+        }
+
+        await viewModel.deleteTask(taskID: task.id)
+
+        XCTAssertNil(viewModel.recurrenceDeletePrompt)
+        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == task.id }))
+    }
+
+    func testDeleteTaskDetachedOccurrenceRequiresScopeAndDeletesAfterResolve() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.deleteTask(taskID: detached.id)
+        XCTAssertNotNil(viewModel.recurrenceDeletePrompt)
+        XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == detached.id }))
+
+        await viewModel.resolveRecurrenceDeletePrompt(scope: .thisOccurrence)
+        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == detached.id }))
+    }
+
+    func testDeleteTaskEntireSeriesClearsExceptionMarkerBeforeDelete() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let detached = viewModel.tasks.first(where: { TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) != nil }) else {
+            return XCTFail("Missing detached occurrence fixture")
+        }
+
+        await viewModel.deleteTask(taskID: detached.id)
+        await viewModel.resolveRecurrenceDeletePrompt(scope: .entireSeries)
+
+        let updateTaskCalls = await service.updateTaskCallCount
+        let deleteTaskCalls = await service.deleteTaskCallCount
+        XCTAssertEqual(updateTaskCalls, 0)
+        XCTAssertEqual(deleteTaskCalls, 2)
+        XCTAssertFalse(viewModel.tasks.contains(where: { $0.stableID == detached.stableID }))
     }
 
     func testTasksForDoneReturnsOnlyDone() async {
@@ -327,6 +773,32 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isSyncing)
     }
 
+    func testRunSyncSurfacesRecurrenceConflictMessage() async {
+        let service = WorkspaceServiceSpy()
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        await viewModel.runSync()
+
+        XCTAssertNotNil(viewModel.recurrenceConflictMessage)
+        XCTAssertTrue(viewModel.recurrenceConflictMessage?.localizedCaseInsensitiveContains("detached recurrence exception") == true)
+    }
+
+    func testRunSyncClearsRecurrenceConflictWhenDetachedDiagnosticMissing() async {
+        let service = WorkspaceServiceSpy()
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        await viewModel.runSync()
+        XCTAssertNotNil(viewModel.recurrenceConflictMessage)
+
+        await service.setIncludeDetachedDiagnostic(false)
+        await viewModel.runSync()
+        XCTAssertNil(viewModel.recurrenceConflictMessage)
+    }
+
     func testRunSyncFailureSetsErrorAndStopsSync() async {
         let service = WorkspaceServiceSpy()
         await service.setFailure(.sync)
@@ -368,6 +840,19 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.syncStatusText.contains("Diagnostics exported to"))
     }
 
+    func testExportSyncDiagnosticsFailsWhenLastReportHasNoDiagnostics() async {
+        let service = WorkspaceServiceSpy()
+        await service.setIncludeDiagnostics(false)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.runSync()
+
+        await viewModel.exportSyncDiagnostics()
+
+        XCTAssertEqual(viewModel.errorMessage, "No diagnostics available to export.")
+        XCTAssertNil(viewModel.lastDiagnosticsExportURL)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -381,8 +866,12 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     private var failure: FailureMode?
+    private var includeDiagnostics: Bool = true
+    private var includeDetachedDiagnostic: Bool = true
 
     private(set) var updateNoteCallCount: Int = 0
+    private(set) var updateTaskCallCount: Int = 0
+    private(set) var deleteTaskCallCount: Int = 0
     private(set) var createTaskCallCount: Int = 0
 
     private var notes: [Note]
@@ -399,6 +888,8 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             try! Task(id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!, noteID: notes[0].id, stableID: "t-backlog-a", title: "Backlog A", status: .backlog, kanbanOrder: 1, updatedAt: now),
             try! Task(id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!, noteID: notes[0].id, stableID: "t-backlog-b", title: "Backlog B", status: .backlog, kanbanOrder: 2, updatedAt: now),
             try! Task(id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!, noteID: notes[0].id, stableID: "t-next", title: "Next", dueStart: now.addingTimeInterval(3600), dueEnd: now.addingTimeInterval(7200), status: .next, kanbanOrder: 1, updatedAt: now),
+            try! Task(id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!, noteID: notes[0].id, stableID: "t-series-shared", title: "Series parent", details: "", dueStart: now.addingTimeInterval(5000), dueEnd: now.addingTimeInterval(8600), status: .next, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", kanbanOrder: 2, updatedAt: now),
+            try! Task(id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!, noteID: notes[0].id, stableID: "t-series-shared", title: "Detached occurrence", details: "event-recurrence-exception:1700000123", dueStart: now.addingTimeInterval(5400), dueEnd: now.addingTimeInterval(9000), status: .next, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", kanbanOrder: 3, updatedAt: now),
             try! Task(id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, noteID: notes[0].id, stableID: "t-done", title: "Done", status: .done, kanbanOrder: 1, completedAt: now, updatedAt: now)
         ]
     }
@@ -407,21 +898,66 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         self.failure = mode
     }
 
+    func setIncludeDiagnostics(_ include: Bool) {
+        includeDiagnostics = include
+    }
+
+    func setIncludeDetachedDiagnostic(_ include: Bool) {
+        includeDetachedDiagnostic = include
+    }
+
+    func clearSeriesAnchorRecurrenceRule(stableID: String) {
+        for idx in tasks.indices where tasks[idx].stableID == stableID {
+            if TaskCalendarMapper.recurrenceExceptionDate(in: tasks[idx].details) == nil {
+                tasks[idx].recurrenceRule = nil
+            }
+        }
+    }
+
     func listNotes() async throws -> [Note] {
         notes.sorted { $0.updatedAt > $1.updatedAt }
     }
 
     func searchNotes(query: String, limit: Int) async throws -> [Note] {
+        let page = try await searchNotesPage(query: query, mode: .smart, limit: limit, offset: 0)
+        return page.hits.map(\.note)
+    }
+
+    func searchNotesPage(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLimit = max(1, limit)
+        let normalizedOffset = max(0, offset)
         guard !normalized.isEmpty else {
-            return try await listNotes()
+            let all = try await listNotes()
+            let start = min(normalizedOffset, all.count)
+            let end = min(all.count, start + normalizedLimit)
+            return NoteSearchPage(
+                query: normalized,
+                mode: mode,
+                offset: normalizedOffset,
+                limit: normalizedLimit,
+                totalCount: all.count,
+                hits: Array(all[start..<end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+            )
         }
 
-        return notes
+        let filtered = notes
             .filter { $0.title.localizedCaseInsensitiveContains(normalized) || $0.body.localizedCaseInsensitiveContains(normalized) }
             .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(max(1, limit))
-            .map { $0 }
+
+        let start = min(normalizedOffset, filtered.count)
+        let end = min(filtered.count, start + normalizedLimit)
+        let hits = Array(filtered[start..<end]).map { note in
+            NoteSearchHit(note: note, snippet: "<mark>\(normalized)</mark> in \(note.title)", rank: 0)
+        }
+        return NoteSearchPage(
+            query: normalized,
+            mode: mode,
+            offset: normalizedOffset,
+            limit: normalizedLimit,
+            totalCount: filtered.count,
+            hits: hits
+        )
     }
 
     func createNote(title: String, body: String) async throws -> Note {
@@ -463,6 +999,10 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         }
     }
 
+    func listAllTasks() async throws -> [Task] {
+        tasks
+    }
+
     func createTask(_ input: NewTaskInput) async throws -> Task {
         createTaskCallCount += 1
         let task = try Task(
@@ -483,11 +1023,17 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func updateTask(_ task: Task) async throws -> Task {
+        updateTaskCallCount += 1
         guard let idx = tasks.firstIndex(where: { $0.id == task.id }) else {
             throw NSError(domain: "workspace-spy", code: 404)
         }
         tasks[idx] = task
         return tasks[idx]
+    }
+
+    func deleteTask(taskID: UUID) async throws {
+        deleteTaskCallCount += 1
+        tasks.removeAll { $0.id == taskID }
     }
 
     func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task {
@@ -533,20 +1079,42 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         report.tasksImported = 1
         report.finalTaskVersionCursor = Int64(tasks.count)
         report.finalCalendarToken = "token-1"
-        report.diagnostics = [
-            SyncDiagnosticEntry(
-                operation: .pullCalendarChanges,
-                severity: .warning,
-                message: "provider timeout",
-                taskID: nil,
-                eventIdentifier: "evt-1",
-                externalIdentifier: "ext-1",
-                calendarID: configuration.calendarID,
-                providerError: "timeout",
-                timestamp: Date(timeIntervalSince1970: 1_700_000_123),
-                attempt: 1
-            )
-        ]
+        if includeDiagnostics {
+            report.diagnostics = [
+                SyncDiagnosticEntry(
+                    operation: .pullCalendarChanges,
+                    severity: .warning,
+                    message: "provider timeout",
+                    taskID: nil,
+                    eventIdentifier: "evt-1",
+                    externalIdentifier: "ext-1",
+                    calendarID: configuration.calendarID,
+                    providerError: "timeout",
+                    timestamp: Date(timeIntervalSince1970: 1_700_000_123),
+                    attempt: 1
+                )
+            ]
+            if includeDetachedDiagnostic {
+                report.diagnostics.append(
+                    SyncDiagnosticEntry(
+                        operation: .pullEventUpsert,
+                        severity: .warning,
+                        message: "Skipped detached recurrence exception without an existing task binding.",
+                        entityType: .task,
+                        entityID: tasks.first?.id,
+                        taskID: tasks.first?.id,
+                        eventIdentifier: "evt-detached",
+                        externalIdentifier: "ext-detached",
+                        calendarID: configuration.calendarID,
+                        providerError: nil,
+                        timestamp: Date(timeIntervalSince1970: 1_700_000_124),
+                        attempt: 1
+                    )
+                )
+            }
+        } else {
+            report.diagnostics = []
+        }
         return report
     }
 

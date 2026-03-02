@@ -65,12 +65,15 @@ public struct NewTaskInput: Sendable {
 public protocol WorkspaceServicing: Sendable {
     func listNotes() async throws -> [Note]
     func searchNotes(query: String, limit: Int) async throws -> [Note]
+    func searchNotesPage(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage
+    func listAllTasks() async throws -> [Task]
     func createNote(title: String, body: String) async throws -> Note
     func updateNote(id: UUID, title: String, body: String) async throws -> Note
     func backlinks(for noteID: UUID) async throws -> [NoteBacklink]
     func listTasks(filter: TaskListFilter) async throws -> [Task]
     func createTask(_ input: NewTaskInput) async throws -> Task
     func updateTask(_ task: Task) async throws -> Task
+    func deleteTask(taskID: UUID) async throws
     func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task
     func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task
     func toggleTaskCompletion(taskID: UUID, isCompleted: Bool) async throws -> Task
@@ -119,11 +122,44 @@ public actor WorkspaceService: WorkspaceServicing {
     }
 
     public func searchNotes(query: String, limit: Int = 50) async throws -> [Note] {
+        let page = try await searchNotesPage(
+            query: query,
+            mode: .smart,
+            limit: limit,
+            offset: 0
+        )
+        return page.hits.map(\.note)
+    }
+
+    public func searchNotesPage(
+        query: String,
+        mode: NoteSearchMode = .smart,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> NoteSearchPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLimit = max(1, limit)
+        let normalizedOffset = max(0, offset)
         guard !trimmed.isEmpty else {
-            return try await listNotes()
+            let notes = try await listNotes()
+            let start = min(normalizedOffset, notes.count)
+            let end = min(notes.count, start + normalizedLimit)
+            let pageNotes = Array(notes[start..<end])
+            return NoteSearchPage(
+                query: trimmed,
+                mode: mode,
+                offset: normalizedOffset,
+                limit: normalizedLimit,
+                totalCount: notes.count,
+                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+            )
         }
-        return try await noteStore.searchNotes(query: trimmed, limit: max(1, limit))
+        return try await noteStore.searchNotes(
+            query: trimmed,
+            mode: mode,
+            limit: normalizedLimit,
+            offset: normalizedOffset
+        )
     }
 
     public func createNote(title: String, body: String) async throws -> Note {
@@ -143,11 +179,49 @@ public actor WorkspaceService: WorkspaceServicing {
             throw StorageError.dataCorruption(reason: "Cannot update missing note \(id)")
         }
 
+        let previousTitle = existing.title
+        let normalizedPreviousTitle = normalizedWikiLinkTitle(previousTitle)
+        let normalizedUpdatedTitle = normalizedWikiLinkTitle(title)
+        let shouldPropagateRename =
+            !normalizedPreviousTitle.isEmpty &&
+            normalizedPreviousTitle != normalizedUpdatedTitle &&
+            !normalizedUpdatedTitle.isEmpty
+
         var next = existing
         next.title = title
         next.body = body
         next.updatedAt = clock.now()
-        return try await noteStore.upsertNote(next)
+        let updatedNote = try await noteStore.upsertNote(next)
+
+        guard shouldPropagateRename else {
+            return updatedNote
+        }
+
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        let conflictingOldTitleCount = notes
+            .filter { $0.id != id && normalizedWikiLinkTitle($0.title) == normalizedPreviousTitle }
+            .count
+        guard conflictingOldTitleCount == 0 else {
+            return updatedNote
+        }
+
+        for note in notes where note.id != id {
+            let rewrittenBody = rewriteWikiLinks(
+                in: note.body,
+                fromNormalizedTitle: normalizedPreviousTitle,
+                toTitle: title
+            )
+            guard rewrittenBody != note.body else {
+                continue
+            }
+
+            var rewritten = note
+            rewritten.body = rewrittenBody
+            rewritten.updatedAt = clock.now()
+            _ = try await noteStore.upsertNote(rewritten)
+        }
+
+        return updatedNote
     }
 
     public func backlinks(for noteID: UUID) async throws -> [NoteBacklink] {
@@ -231,10 +305,21 @@ public actor WorkspaceService: WorkspaceServicing {
         return try await taskStore.upsertTask(task)
     }
 
+    public func listAllTasks() async throws -> [Task] {
+        try await taskStore.fetchTasks(includeDeleted: false)
+    }
+
     public func updateTask(_ task: Task) async throws -> Task {
         var copy = task
         copy.updatedAt = clock.now()
         return try await taskStore.upsertTask(copy)
+    }
+
+    public func deleteTask(taskID: UUID) async throws {
+        guard let task = try await taskStore.fetchTask(id: taskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot delete missing task \(taskID)")
+        }
+        try await taskStore.tombstoneTask(id: taskID, at: clock.now())
     }
 
     public func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task {
@@ -427,5 +512,58 @@ public actor WorkspaceService: WorkspaceServicing {
             return lhs.updatedAt > rhs.updatedAt
         }
         return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    private func normalizedWikiLinkTitle(_ title: String) -> String {
+        title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private func rewriteWikiLinks(
+        in body: String,
+        fromNormalizedTitle: String,
+        toTitle: String
+    ) -> String {
+        guard !fromNormalizedTitle.isEmpty else {
+            return body
+        }
+        guard let regex = try? NSRegularExpression(pattern: #"\[\[([^\]|]+)(\|[^\]]+)?\]\]"#) else {
+            return body
+        }
+
+        let nsRange = NSRange(body.startIndex..<body.endIndex, in: body)
+        let matches = regex.matches(in: body, range: nsRange)
+        guard !matches.isEmpty else {
+            return body
+        }
+
+        var rewritten = body
+        for match in matches.reversed() {
+            guard
+                match.numberOfRanges >= 3,
+                let fullRange = Range(match.range(at: 0), in: rewritten),
+                let titleRange = Range(match.range(at: 1), in: rewritten)
+            else {
+                continue
+            }
+
+            let linkedTitle = rewritten[titleRange]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            guard linkedTitle == fromNormalizedTitle else {
+                continue
+            }
+
+            let alias: String
+            if let aliasRange = Range(match.range(at: 2), in: rewritten) {
+                alias = String(rewritten[aliasRange])
+            } else {
+                alias = ""
+            }
+
+            rewritten.replaceSubrange(fullRange, with: "[[\(toTitle)\(alias)]]")
+        }
+        return rewritten
     }
 }

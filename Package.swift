@@ -28,7 +28,11 @@ let package = Package(
         .target(name: "NotesUI", dependencies: ["NotesDomain", "NotesFeatures"]),
         .executableTarget(name: "NotesApp", dependencies: ["NotesUI", "NotesFeatures", "NotesDomain", "NotesStorage", "NotesSync"]),
         .executableTarget(name: "NotesCLI", dependencies: ["NotesSync", "NotesStorage", "NotesDomain"]),
-        .executableTarget(name: "NotesPerfHarness", dependencies: ["NotesFeatures", "NotesStorage", "NotesDomain"], path: "Sources/NotesPerfHarness"),
+        .executableTarget(
+            name: "NotesPerfHarness",
+            dependencies: ["NotesFeatures", "NotesStorage", "NotesDomain", "NotesUI", "NotesSync"],
+            path: "Sources/NotesPerfHarness"
+        ),
         .testTarget(name: "NotesStorageTests", dependencies: ["NotesStorage", "NotesDomain"]),
         .testTarget(name: "NotesSyncTests", dependencies: ["NotesSync", "NotesStorage", "NotesDomain"]),
         .testTarget(name: "NotesDomainTests", dependencies: ["NotesDomain"]),
@@ -36,4 +40,3 @@ let package = Package(
         .testTarget(name: "NotesUITests", dependencies: ["NotesUI", "NotesFeatures", "NotesDomain", .product(name: "ViewInspector", package: "ViewInspector")])
     ]
 )
-

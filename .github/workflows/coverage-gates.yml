@@ -27,3 +27,16 @@ jobs:
         with:
           name: coverage-artifacts
           path: coverage-artifacts
+
+  performance:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run performance gates (release)
+        run: ./Scripts/run-perf-gates.sh
+      - name: Upload perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-artifacts
+          path: perf-artifacts

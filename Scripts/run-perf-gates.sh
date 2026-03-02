@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ARTIFACT_DIR="${1:-$ROOT_DIR/perf-artifacts}"
+REPORT_TXT="$ARTIFACT_DIR/perf-report.txt"
+REPORT_JSON="$ARTIFACT_DIR/perf-report.json"
+
+RUNS="${PERF_RUNS:-240}"
+WARMUP_RUNS="${PERF_WARMUP_RUNS:-40}"
+KANBAN_CARDS="${PERF_KANBAN_CARDS:-1000}"
+LAUNCH_DATASET_NOTES="${PERF_LAUNCH_DATASET_NOTES:-2000}"
+LAUNCH_DATASET_TASKS="${PERF_LAUNCH_DATASET_TASKS:-1000}"
+EDITOR_DATASET_NOTES="${PERF_EDITOR_DATASET_NOTES:-10000}"
+SEARCH_DATASET_NOTES="${PERF_SEARCH_DATASET_NOTES:-50000}"
+SEARCH_RUNS="${PERF_SEARCH_RUNS:-40}"
+TARGET_FPS="${PERF_TARGET_FPS:-120}"
+MAX_LAUNCH_P95_MS="${PERF_MAX_LAUNCH_P95_MS:-900}"
+MAX_OPEN_NOTE_P95_MS="${PERF_MAX_OPEN_NOTE_P95_MS:-40}"
+MAX_SAVE_NOTE_P95_MS="${PERF_MAX_SAVE_NOTE_P95_MS:-30}"
+MAX_WIKILINK_BACKLINKS_P95_MS="${PERF_MAX_WIKILINK_BACKLINKS_P95_MS:-50}"
+MAX_KANBAN_P95_MS="${PERF_MAX_KANBAN_P95_MS:-8.333333}"
+MAX_KANBAN_DRAG_COMMIT_P95_MS="${PERF_MAX_KANBAN_DRAG_COMMIT_P95_MS:-50}"
+MAX_CREATE_NOTE_P95_MS="${PERF_MAX_CREATE_NOTE_P95_MS:-30}"
+MAX_SEARCH_50K_P95_MS="${PERF_MAX_SEARCH_50K_P95_MS:-80}"
+
+mkdir -p "$ARTIFACT_DIR"
+
+swift run -c release notes-perf-harness \
+  --runs "$RUNS" \
+  --warmup-runs "$WARMUP_RUNS" \
+  --kanban-cards "$KANBAN_CARDS" \
+  --launch-dataset-notes "$LAUNCH_DATASET_NOTES" \
+  --launch-dataset-tasks "$LAUNCH_DATASET_TASKS" \
+  --editor-dataset-notes "$EDITOR_DATASET_NOTES" \
+  --search-dataset-notes "$SEARCH_DATASET_NOTES" \
+  --search-runs "$SEARCH_RUNS" \
+  --target-fps "$TARGET_FPS" \
+  --max-launch-p95-ms "$MAX_LAUNCH_P95_MS" \
+  --max-open-note-p95-ms "$MAX_OPEN_NOTE_P95_MS" \
+  --max-save-note-p95-ms "$MAX_SAVE_NOTE_P95_MS" \
+  --max-wikilink-backlinks-p95-ms "$MAX_WIKILINK_BACKLINKS_P95_MS" \
+  --max-kanban-frame-p95-ms "$MAX_KANBAN_P95_MS" \
+  --max-kanban-drag-commit-p95-ms "$MAX_KANBAN_DRAG_COMMIT_P95_MS" \
+  --max-create-note-p95-ms "$MAX_CREATE_NOTE_P95_MS" \
+  --max-search-50k-p95-ms "$MAX_SEARCH_50K_P95_MS" \
+  --report-json "$REPORT_JSON" \
+  | tee "$REPORT_TXT"
+
+"$ROOT_DIR/Scripts/perf-gates.sh" "$REPORT_TXT"

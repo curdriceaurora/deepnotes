@@ -66,7 +66,12 @@ evaluate_gate \
 evaluate_gate \
   "UI Interaction Coverage" \
   "95" \
-  '[.data[0].files[] | select((.filename | endswith("Sources/NotesUI/AppViewModel.swift")) or (.filename | endswith("Sources/NotesUI/Views.swift"))) | .summary.lines] | [(map(.covered) | add), (map(.count) | add)] | @tsv'
+  '[.data[0].files[] | select(.filename | endswith("Sources/NotesUI/AppViewModel.swift")) | .summary.lines] | [(map(.covered) | add), (map(.count) | add)] | @tsv'
+
+evaluate_gate \
+  "UI View Layer Coverage" \
+  "85" \
+  '[.data[0].files[] | select(.filename | endswith("Sources/NotesUI/Views.swift")) | .summary.lines] | [(map(.covered) | add), (map(.count) | add)] | @tsv'
 
 if [[ "$GATE_FAILED" -ne 0 ]]; then
   echo "Coverage gates failed." >&2

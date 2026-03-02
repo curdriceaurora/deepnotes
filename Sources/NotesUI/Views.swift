@@ -36,6 +36,74 @@ public struct NotesRootView: View {
                     .accessibilityIdentifier("globalErrorBanner")
             }
         }
+        .confirmationDialog(
+            "Recurring Task Edit",
+            isPresented: Binding(
+                get: { viewModel.recurrenceEditPrompt != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.dismissRecurrenceEditPrompt()
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("This Occurrence") {
+                _Concurrency.Task {
+                    await viewModel.resolveRecurrenceEditPrompt(scope: .thisOccurrence)
+                }
+            }
+
+            Button("Entire Series") {
+                _Concurrency.Task {
+                    await viewModel.resolveRecurrenceEditPrompt(scope: .entireSeries)
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                viewModel.dismissRecurrenceEditPrompt()
+            }
+        } message: {
+            if let occurrenceDate = viewModel.recurrenceEditPrompt?.occurrenceDate {
+                Text("Choose whether to update only the detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or the parent series.")
+            } else {
+                Text("Choose whether to update only the detached occurrence or the parent series.")
+            }
+        }
+        .confirmationDialog(
+            "Recurring Task Delete",
+            isPresented: Binding(
+                get: { viewModel.recurrenceDeletePrompt != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        viewModel.dismissRecurrenceDeletePrompt()
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("This Occurrence", role: .destructive) {
+                _Concurrency.Task {
+                    await viewModel.resolveRecurrenceDeletePrompt(scope: .thisOccurrence)
+                }
+            }
+
+            Button("Entire Series", role: .destructive) {
+                _Concurrency.Task {
+                    await viewModel.resolveRecurrenceDeletePrompt(scope: .entireSeries)
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                viewModel.dismissRecurrenceDeletePrompt()
+            }
+        } message: {
+            if let occurrenceDate = viewModel.recurrenceDeletePrompt?.occurrenceDate {
+                Text("Delete only detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or delete the entire recurring series.")
+            } else {
+                Text("Delete only this detached occurrence or the entire recurring series.")
+            }
+        }
     }
 }
 
@@ -64,6 +132,14 @@ public struct NotesEditorView: View {
                     .font(.headline)
                 Spacer()
                 Button {
+                    viewModel.openQuickSwitcher()
+                } label: {
+                    Image(systemName: "magnifyingglass.circle")
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("o", modifiers: [.command])
+                .accessibilityIdentifier("quickOpenButton")
+                Button {
                     _Concurrency.Task { await viewModel.createNote() }
                 } label: {
                     Image(systemName: "plus.circle")
@@ -85,13 +161,59 @@ public struct NotesEditorView: View {
                 Button {
                     _Concurrency.Task { await viewModel.selectNote(id: note.id) }
                 } label: {
-                    Label(note.title, systemImage: note.id == viewModel.selectedNoteID ? "doc.text.fill" : "doc.text")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(note.title, systemImage: note.id == viewModel.selectedNoteID ? "doc.text.fill" : "doc.text")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if let snippet = viewModel.noteSearchSnippet(for: note.id) {
+                            Text(highlightedSearchSnippet(snippet))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityIdentifier("noteSnippet_\(note.id.uuidString)")
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("noteRow_\(note.id.uuidString)")
             }
         }
+    }
+
+    private func highlightedSearchSnippet(_ snippet: String) -> AttributedString {
+        let openTag = "<mark>"
+        let closeTag = "</mark>"
+
+        var result = AttributedString()
+        var searchStart = snippet.startIndex
+        while let openRange = snippet.range(of: openTag, range: searchStart..<snippet.endIndex) {
+            let prefix = String(snippet[searchStart..<openRange.lowerBound])
+            if !prefix.isEmpty {
+                result.append(AttributedString(prefix))
+            }
+
+            let markedStart = openRange.upperBound
+            guard let closeRange = snippet.range(of: closeTag, range: markedStart..<snippet.endIndex) else {
+                let remainder = String(snippet[openRange.lowerBound..<snippet.endIndex])
+                result.append(AttributedString(remainder))
+                return result
+            }
+
+            let markedValue = String(snippet[markedStart..<closeRange.lowerBound])
+            if !markedValue.isEmpty {
+                var highlighted = AttributedString(markedValue)
+                highlighted.foregroundColor = .accentColor
+                highlighted.inlinePresentationIntent = .stronglyEmphasized
+                result.append(highlighted)
+            }
+            searchStart = closeRange.upperBound
+        }
+
+        let tail = String(snippet[searchStart..<snippet.endIndex])
+        if !tail.isEmpty {
+            result.append(AttributedString(tail))
+        }
+        return result
     }
 
     private var noteEditor: some View {
@@ -101,12 +223,32 @@ public struct NotesEditorView: View {
                 .accessibilityIdentifier("noteTitleField")
 
             TextEditor(text: $viewModel.selectedNoteBody)
+                .onChange(of: viewModel.selectedNoteBody) { _, newValue in
+                    viewModel.updateSelectedNoteBody(newValue)
+                }
                 .font(.body)
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.secondary.opacity(0.2))
                 }
                 .accessibilityIdentifier("noteBodyEditor")
+
+            if viewModel.isWikiLinkSuggestionVisible {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(viewModel.wikiLinkSuggestions.enumerated()), id: \.offset) { index, suggestion in
+                            Button {
+                                viewModel.applyWikiLinkSuggestion(suggestion)
+                            } label: {
+                                Label(suggestion, systemImage: "link")
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("wikiSuggestion_\(index)")
+                        }
+                    }
+                }
+                .accessibilityIdentifier("wikiSuggestionsBar")
+            }
 
             HStack(spacing: 10) {
                 Button {
@@ -130,6 +272,35 @@ public struct NotesEditorView: View {
                 .accessibilityIdentifier("quickTaskButton")
             }
 
+            HStack(spacing: 8) {
+                Button {
+                    viewModel.insertMarkdownHeading()
+                } label: {
+                    Label("Heading", systemImage: "textformat.size.larger")
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut("1", modifiers: [.command, .shift])
+                .accessibilityIdentifier("insertHeadingButton")
+
+                Button {
+                    viewModel.insertMarkdownBullet()
+                } label: {
+                    Label("Bullet", systemImage: "list.bullet")
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut("8", modifiers: [.command, .shift])
+                .accessibilityIdentifier("insertBulletButton")
+
+                Button {
+                    viewModel.insertMarkdownCheckbox()
+                } label: {
+                    Label("Checkbox", systemImage: "checklist")
+                }
+                .buttonStyle(.bordered)
+                .keyboardShortcut("x", modifiers: [.command, .shift])
+                .accessibilityIdentifier("insertCheckboxButton")
+            }
+
             Divider()
 
             Text("Backlinks")
@@ -151,6 +322,51 @@ public struct NotesEditorView: View {
             Spacer(minLength: 0)
         }
         .padding()
+        .sheet(isPresented: $viewModel.isQuickOpenPresented) {
+            QuickOpenSheetView(viewModel: viewModel)
+        }
+    }
+}
+
+private struct QuickOpenSheetView: View {
+    @Bindable var viewModel: AppViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Quick Open", systemImage: "magnifyingglass")
+                    .font(.headline)
+                Spacer()
+                Button("Close") {
+                    viewModel.closeQuickSwitcher()
+                }
+                .accessibilityIdentifier("quickOpenCloseButton")
+            }
+
+            TextField("Search notes", text: $viewModel.quickOpenQuery)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: viewModel.quickOpenQuery) { _, newValue in
+                    viewModel.setQuickOpenQuery(newValue)
+                }
+                .accessibilityIdentifier("quickOpenSearchField")
+
+            List(viewModel.quickOpenResults, id: \.id) { note in
+                Button {
+                    _Concurrency.Task { await viewModel.selectQuickOpenResult(noteID: note.id) }
+                } label: {
+                    Label(note.title, systemImage: "doc.text")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("quickOpenRow_\(note.id.uuidString)")
+            }
+            .accessibilityIdentifier("quickOpenResultsList")
+        }
+        .padding()
+        .frame(minWidth: 520, minHeight: 420)
+        .onAppear {
+            viewModel.setQuickOpenQuery(viewModel.quickOpenQuery)
+        }
     }
 }
 
@@ -205,6 +421,17 @@ public struct TasksListView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+
+            Spacer(minLength: 0)
+
+            Button(role: .destructive) {
+                _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("deleteTask_\(task.id.uuidString)")
         }
         .accessibilityIdentifier("taskRow_\(task.id.uuidString)")
     }
@@ -218,17 +445,19 @@ public struct KanbanBoardView: View {
     }
 
     public var body: some View {
-        ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 16) {
-                ForEach(TaskStatus.allCases, id: \.self) { status in
-                    columnView(status: status)
+        GeometryReader { geometry in
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    ForEach(TaskStatus.allCases, id: \.self) { status in
+                        columnView(status: status, boardHeight: geometry.size.height)
+                    }
                 }
+                .padding()
             }
-            .padding()
         }
     }
 
-    private func columnView(status: TaskStatus) -> some View {
+    private func columnView(status: TaskStatus, boardHeight: CGFloat) -> some View {
         let isDropTarget = viewModel.dropTargetStatus == status
 
         return VStack(alignment: .leading, spacing: 10) {
@@ -236,22 +465,26 @@ public struct KanbanBoardView: View {
                 .font(.headline)
 
             let cards = viewModel.tasks(for: status)
-            if cards.isEmpty {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.secondary.opacity(0.08))
-                    .frame(height: 48)
-                    .overlay(
-                        Text("No cards")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    )
-            } else {
-                ForEach(cards, id: \.id) { task in
-                    taskCard(task: task, status: status)
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    if cards.isEmpty {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.secondary.opacity(0.08))
+                            .frame(height: 48)
+                            .overlay(
+                                Text("No cards")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            )
+                    } else {
+                        ForEach(cards, id: \.id) { task in
+                            taskCard(task: task, status: status)
+                        }
+                    }
                 }
+                .padding(.bottom, 4)
             }
-
-            Spacer(minLength: 0)
+            .frame(height: max(180, boardHeight - 78), alignment: .top)
         }
         .padding(12)
         .frame(width: 250)
@@ -264,13 +497,7 @@ public struct KanbanBoardView: View {
                 .stroke(isDropTarget ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isDropTarget ? 2 : 1)
         )
         .dropDestination(for: String.self) { payloads, _ in
-            guard payloads.contains(where: { UUID(uuidString: $0) != nil }) else {
-                return false
-            }
-            _Concurrency.Task {
-                _ = await viewModel.handleTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: nil)
-            }
-            return true
+            viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: nil)
         } isTargeted: { targeted in
             if targeted {
                 viewModel.setDropTargetStatus(status)
@@ -283,6 +510,14 @@ public struct KanbanBoardView: View {
 
     private func taskCard(task: Task, status: TaskStatus) -> some View {
         let isDropTarget = viewModel.dropTargetTaskID == task.id
+        let moveLeftAction = {
+            guard let previous = status.previous else { return }
+            _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: previous) }
+        }
+        let moveRightAction = {
+            guard let next = status.next else { return }
+            _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: next) }
+        }
 
         return VStack(alignment: .leading, spacing: 8) {
             Text(task.title)
@@ -297,9 +532,9 @@ public struct KanbanBoardView: View {
             }
 
             HStack {
-                if let previous = status.previous {
+                if status.previous != nil {
                     Button {
-                        _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: previous) }
+                        moveLeftAction()
                     } label: {
                         Image(systemName: "arrow.left.circle")
                     }
@@ -309,9 +544,17 @@ public struct KanbanBoardView: View {
 
                 Spacer(minLength: 0)
 
-                if let next = status.next {
+                Button(role: .destructive) {
+                    _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("deleteKanbanTask_\(task.id.uuidString)")
+
+                if status.next != nil {
                     Button {
-                        _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: next) }
+                        moveRightAction()
                     } label: {
                         Image(systemName: "arrow.right.circle")
                     }
@@ -332,13 +575,7 @@ public struct KanbanBoardView: View {
                 )
         )
         .dropDestination(for: String.self) { payloads, _ in
-            guard payloads.contains(where: { UUID(uuidString: $0) != nil }) else {
-                return false
-            }
-            _Concurrency.Task {
-                _ = await viewModel.handleTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: task.id)
-            }
-            return true
+            viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: task.id)
         } isTargeted: { targeted in
             if targeted {
                 viewModel.setDropTargetStatus(status)
@@ -351,6 +588,19 @@ public struct KanbanBoardView: View {
             viewModel.beginTaskDrag(taskID: task.id)
             return NSItemProvider(object: task.id.uuidString as NSString)
         }
+        .focusable()
+        #if os(macOS)
+        .onMoveCommand { direction in
+            switch direction {
+            case .left:
+                moveLeftAction()
+            case .right:
+                moveRightAction()
+            default:
+                break
+            }
+        }
+        #endif
         .accessibilityIdentifier("kanbanCard_\(task.id.uuidString)")
     }
 }
@@ -435,6 +685,14 @@ public struct SyncDashboardView: View {
                     }
                 }
                 .accessibilityIdentifier("syncDiagnosticsSection")
+            }
+
+            if let recurrenceConflictMessage = viewModel.recurrenceConflictMessage {
+                Section("Recurrence Conflicts") {
+                    Label(recurrenceConflictMessage, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .accessibilityIdentifier("recurrenceConflictBanner")
+                }
             }
         }
     }

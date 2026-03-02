@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-01
+Last updated: 2026-03-02
 
 ## Decision: migration stress tests now?
 
@@ -42,29 +42,29 @@ Acceptance criteria:
 - Failed syncs are explainable from diagnostics without reproducing.
 
 ### 3. Kanban completion (ordering)
-- [ ] Add persistent in-column ordering key for tasks.
-- [ ] Implement drag reorder inside each status column.
-- [ ] Preserve ordering through app relaunch and sync cycles.
+- [x] Add persistent in-column ordering key for tasks.
+- [x] Implement drag reorder inside each status column.
+- [x] Preserve ordering through app relaunch and sync cycles.
 - [ ] Add UI tests for reorder in same column and cross-column move + position.
 
 Acceptance criteria:
 - Reordered cards remain stable after restart and after sync.
 
 ### 4. Search quality and scale
-- [ ] Add phrase search support.
-- [ ] Add prefix search support.
-- [ ] Add result snippets with match highlighting.
-- [ ] Add paginated search API (offset/cursor + limit).
-- [ ] Add perf tests at 50k+ notes with latency budget assertions.
+- [x] Add phrase search support.
+- [x] Add prefix search support.
+- [x] Add result snippets with match highlighting.
+- [x] Add paginated search API (offset/cursor + limit).
+- [x] Add perf tests at 50k+ notes with latency budget assertions.
 
 Acceptance criteria:
 - Typical query returns within defined latency budget on target hardware.
 
 ### 5. Calendar recurrence UX
-- [ ] Expose recurrence-exception state in task/event UI.
-- [ ] Add edit flow choice: this occurrence vs entire series.
-- [ ] Add delete flow choice: this occurrence vs entire series.
-- [ ] Add conflict messaging for detached occurrences edited externally.
+- [x] Expose recurrence-exception state in task/event UI.
+- [x] Add edit flow choice: this occurrence vs entire series.
+- [x] Add delete flow choice: this occurrence vs entire series.
+- [x] Add conflict messaging for detached occurrences edited externally.
 
 Acceptance criteria:
 - Users can intentionally modify one occurrence without corrupting series rules.

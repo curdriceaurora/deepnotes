@@ -125,6 +125,34 @@ final class TaskCalendarMapperTests: XCTestCase {
         XCTAssertEqual(task.recurrenceRule, "FREQ=WEEKLY")
     }
 
+    func testEventFromTaskPropagatesRecurrenceExceptionDateMarker() throws {
+        let exceptionTimestamp = 1_700_000_123
+        let task = try Task(
+            stableID: "recurring-2",
+            title: "Detached occurrence",
+            details: "event-recurrence-exception:\(exceptionTimestamp)",
+            recurrenceRule: "FREQ=DAILY",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+
+        let event = try mapper.event(from: task, calendarID: "cal", existing: nil)
+
+        XCTAssertEqual(event.recurrenceExceptionDate, Date(timeIntervalSince1970: TimeInterval(exceptionTimestamp)))
+    }
+
+    func testRemovingRecurrenceExceptionMarkerStripsOnlyExceptionLine() {
+        let details = """
+        Prepare launch update
+        event-recurrence-exception:1700000123
+        Keep this line
+        """
+
+        let stripped = TaskCalendarMapper.removingRecurrenceExceptionMarker(from: details)
+
+        XCTAssertEqual(stripped, "Prepare launch update\nKeep this line")
+        XCTAssertNil(TaskCalendarMapper.recurrenceExceptionDate(in: stripped))
+    }
+
     func testResolveWithoutBindingReturnsEventWins() throws {
         let task = try makeTask(updatedAt: 100, stableID: "s", title: "task")
         let event = try makeEvent(updatedAt: 100, sourceStableID: "s", title: "event")

@@ -20,6 +20,10 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteTitleField"))
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "saveNoteButton"))
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenButton"))
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertHeadingButton"))
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertBulletButton"))
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertCheckboxButton"))
     }
 
     func testTasksListContainsPickerAndRows() async throws {
@@ -131,6 +135,32 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedNoteID, target.id)
     }
 
+    func testNotesEditorRendersSearchSnippetForMatchedNote() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setNoteSearchQuery("launch")
+
+        guard let first = viewModel.notes.first else {
+            return XCTFail("Expected searched note")
+        }
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteSnippet_\(first.id.uuidString)"))
+    }
+
+    func testNotesEditorRendersWikiSuggestionsBarWhenTypingWikilink() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        viewModel.updateSelectedNoteBody("See [[launch")
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "wikiSuggestionsBar"))
+    }
+
     func testNotesEditorSaveAndQuickTaskButtonsTriggerActions() async throws {
         let viewModel = makeViewModel()
         await viewModel.load()
@@ -207,6 +237,24 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == target.id }))
     }
 
+    func testTasksListDeleteButtonRemovesTask() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let target = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let view = TasksListView(viewModel: viewModel)
+        let inspected = try view.inspect()
+        try inspected.find(viewWithAccessibilityIdentifier: "deleteTask_\(target.id.uuidString)").button().tap()
+        try await flushAsyncActions()
+
+        await viewModel.setTaskFilter(.all)
+        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == target.id }))
+    }
+
     func testKanbanMoveLeftButtonTransitionsTask() async throws {
         let viewModel = makeViewModel()
         await viewModel.load()
@@ -227,6 +275,24 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertEqual(moved?.status, .next)
     }
 
+    func testKanbanDeleteButtonRemovesTask() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let target = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let view = KanbanBoardView(viewModel: viewModel)
+        let inspected = try view.inspect()
+        try inspected.find(viewWithAccessibilityIdentifier: "deleteKanbanTask_\(target.id.uuidString)").button().tap()
+        try await flushAsyncActions()
+
+        await viewModel.setTaskFilter(.all)
+        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == target.id }))
+    }
+
     func testSyncDashboardShowsReportSectionAfterSync() async throws {
         let viewModel = makeViewModel()
         await viewModel.load()
@@ -241,6 +307,17 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try secondInspected.find(viewWithAccessibilityIdentifier: "syncReportSection"))
         XCTAssertNoThrow(try secondInspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticsSection"))
         XCTAssertNoThrow(try secondInspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticRow_0"))
+    }
+
+    func testSyncDashboardShowsRecurrenceConflictBannerWhenDetected() async throws {
+        let viewModel = makeViewModel()
+        await viewModel.load()
+        await viewModel.runSync()
+
+        let view = SyncDashboardView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "recurrenceConflictBanner"))
     }
 
     func testSyncDashboardExportDiagnosticsButtonWritesExportPath() async throws {
@@ -369,15 +446,42 @@ actor MockWorkspaceService: WorkspaceServicing {
     }
 
     func searchNotes(query: String, limit: Int) async throws -> [Note] {
+        let page = try await searchNotesPage(query: query, mode: .smart, limit: limit, offset: 0)
+        return page.hits.map(\.note)
+    }
+
+    func searchNotesPage(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLimit = max(1, limit)
+        let normalizedOffset = max(0, offset)
         guard !trimmed.isEmpty else {
-            return notes
+            let start = min(normalizedOffset, notes.count)
+            let end = min(notes.count, start + normalizedLimit)
+            return NoteSearchPage(
+                query: trimmed,
+                mode: mode,
+                offset: normalizedOffset,
+                limit: normalizedLimit,
+                totalCount: notes.count,
+                hits: Array(notes[start..<end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+            )
         }
 
-        return notes
+        let filtered = notes
             .filter { $0.title.localizedCaseInsensitiveContains(trimmed) || $0.body.localizedCaseInsensitiveContains(trimmed) }
-            .prefix(max(1, limit))
-            .map { $0 }
+        let start = min(normalizedOffset, filtered.count)
+        let end = min(filtered.count, start + normalizedLimit)
+        let hits = Array(filtered[start..<end]).map { note in
+            NoteSearchHit(note: note, snippet: "<mark>\(trimmed)</mark> in \(note.title)", rank: 0)
+        }
+        return NoteSearchPage(
+            query: trimmed,
+            mode: mode,
+            offset: normalizedOffset,
+            limit: normalizedLimit,
+            totalCount: filtered.count,
+            hits: hits
+        )
     }
 
     func createNote(title: String, body: String) async throws -> Note {
@@ -418,6 +522,10 @@ actor MockWorkspaceService: WorkspaceServicing {
         }
     }
 
+    func listAllTasks() async throws -> [Task] {
+        tasks
+    }
+
     func createTask(_ input: NewTaskInput) async throws -> Task {
         let nextOrder = (tasks.filter { $0.status == input.status }.map(\.kanbanOrder).max() ?? 0) + 1
         let task = try Task(
@@ -444,6 +552,10 @@ actor MockWorkspaceService: WorkspaceServicing {
         }
         tasks[idx] = task
         return tasks[idx]
+    }
+
+    func deleteTask(taskID: UUID) async throws {
+        tasks.removeAll { $0.id == taskID }
     }
 
     func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task {
@@ -489,8 +601,8 @@ actor MockWorkspaceService: WorkspaceServicing {
         report.diagnostics = [
             SyncDiagnosticEntry(
                 operation: .pullCalendarChanges,
-                severity: .info,
-                message: "mock diagnostics",
+                severity: .warning,
+                message: "Skipped detached recurrence exception without an existing task binding.",
                 taskID: tasks.first?.id,
                 eventIdentifier: "mock-event",
                 externalIdentifier: "mock-external",

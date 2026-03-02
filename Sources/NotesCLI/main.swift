@@ -124,6 +124,7 @@ struct NotesCLI {
 
         let engine = TwoWaySyncEngine(
             taskStore: store,
+            noteStore: store,
             bindingStore: store,
             checkpointStore: store,
             calendarProvider: provider
@@ -160,6 +161,7 @@ struct NotesCLI {
         let provider = EventKitCalendarProvider()
         let engine = TwoWaySyncEngine(
             taskStore: store,
+            noteStore: store,
             bindingStore: store,
             checkpointStore: store,
             calendarProvider: provider

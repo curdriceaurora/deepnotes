@@ -2,6 +2,8 @@ import Foundation
 import NotesDomain
 
 public struct TaskCalendarMapper: Sendable {
+    public static let recurrenceExceptionMarkerPrefix = "event-recurrence-exception:"
+
     public init() {}
 
     public func event(from task: Task, calendarID: String, existing: CalendarBinding?) throws -> CalendarEvent {
@@ -29,7 +31,7 @@ public struct TaskCalendarMapper: Sendable {
             endDate: task.dueEnd,
             isAllDay: false,
             recurrenceRule: task.recurrenceRule,
-            recurrenceExceptionDate: nil,
+            recurrenceExceptionDate: Self.recurrenceExceptionDate(in: task.details),
             isCompleted: task.completedAt != nil || task.status == .done,
             updatedAt: task.updatedAt,
             sourceEntityType: .task,
@@ -143,6 +145,39 @@ public struct TaskCalendarMapper: Sendable {
                 return parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
             }
             .first
+    }
+
+    public static func recurrenceExceptionDate(in details: String?) -> Date? {
+        guard let details else {
+            return nil
+        }
+
+        return details
+            .split(separator: "\n")
+            .compactMap { line -> Date? in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.hasPrefix(recurrenceExceptionMarkerPrefix) else {
+                    return nil
+                }
+                let rawValue = trimmed.dropFirst(recurrenceExceptionMarkerPrefix.count)
+                guard let timestamp = TimeInterval(rawValue.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                    return nil
+                }
+                return Date(timeIntervalSince1970: timestamp)
+            }
+            .first
+    }
+
+    public static func removingRecurrenceExceptionMarker(from details: String) -> String {
+        details
+            .split(separator: "\n")
+            .filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !trimmed.hasPrefix(recurrenceExceptionMarkerPrefix)
+            }
+            .map(String.init)
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func stripStableIDMarker(from notes: String) -> String {

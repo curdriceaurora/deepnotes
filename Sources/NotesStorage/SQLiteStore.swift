@@ -165,34 +165,94 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
     }
 
     public func searchNotes(query: String, limit: Int = 50) async throws -> [Note] {
+        let page = try await searchNotes(
+            query: query,
+            mode: .smart,
+            limit: limit,
+            offset: 0
+        )
+        return page.hits.map(\.note)
+    }
+
+    public func searchNotes(
+        query: String,
+        mode: NoteSearchMode = .smart,
+        limit: Int = 50,
+        offset: Int = 0
+    ) async throws -> NoteSearchPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedLimit = max(1, limit)
+        let normalizedOffset = max(0, offset)
         guard !trimmed.isEmpty else {
-            return try await fetchNotes(includeDeleted: false)
+            let notes = try await fetchNotes(includeDeleted: false)
+            let start = min(normalizedOffset, notes.count)
+            let end = min(notes.count, start + normalizedLimit)
+            let pageNotes = Array(notes[start..<end])
+            return NoteSearchPage(
+                query: trimmed,
+                mode: mode,
+                offset: normalizedOffset,
+                limit: normalizedLimit,
+                totalCount: notes.count,
+                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+            )
         }
-        guard let matchExpression = ftsMatchExpression(from: trimmed) else {
-            return []
+        guard let matchExpression = ftsMatchExpression(from: trimmed, mode: mode) else {
+            return NoteSearchPage(
+                query: trimmed,
+                mode: mode,
+                offset: normalizedOffset,
+                limit: normalizedLimit,
+                totalCount: 0,
+                hits: []
+            )
         }
 
         let sql = """
         SELECT n.id, n.stable_id, n.title, n.body, n.date_start, n.date_end, n.is_all_day, n.recurrence_rule,
-               n.calendar_sync_enabled, n.updated_at, n.version, n.deleted_at
+               n.calendar_sync_enabled, n.updated_at, n.version, n.deleted_at,
+               snippet(notes_fts, 2, '<mark>', '</mark>', '…', 16),
+               0.0
         FROM notes_fts
         JOIN notes n ON n.id = notes_fts.note_id
         WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
-        ORDER BY bm25(notes_fts), n.updated_at DESC
-        LIMIT ?;
+        ORDER BY n.updated_at DESC
+        LIMIT ? OFFSET ?;
         """
 
-        return try withStatement(sql) { statement in
+        let fetchLimit = normalizedLimit + 1
+        let rawHits = try withStatement(sql) { statement in
             bindText(matchExpression, to: 1, in: statement)
-            bindInt(Int32(max(1, limit)), to: 2, in: statement)
+            bindInt(Int32(fetchLimit), to: 2, in: statement)
+            bindInt(Int32(normalizedOffset), to: 3, in: statement)
 
-            var notes: [Note] = []
+            var hits: [NoteSearchHit] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                notes.append(try note(from: statement))
+                let matchedNote = try note(from: statement)
+                let snippet = columnOptionalText(statement, at: 12)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                hits.append(
+                    NoteSearchHit(
+                        note: matchedNote,
+                        snippet: snippet?.isEmpty == false ? snippet : nil,
+                        rank: sqlite3_column_double(statement, 13)
+                    )
+                )
             }
-            return notes
+            return hits
         }
+        let hasMore = rawHits.count > normalizedLimit
+        let hits = hasMore ? Array(rawHits.prefix(normalizedLimit)) : rawHits
+        let inferredTotalCount = normalizedOffset + hits.count + (hasMore ? 1 : 0)
+
+        return NoteSearchPage(
+            query: trimmed,
+            mode: mode,
+            offset: normalizedOffset,
+            limit: normalizedLimit,
+            totalCount: inferredTotalCount,
+            hits: hits
+        )
     }
 
     public func tombstoneNote(id: UUID, at date: Date) async throws {
@@ -1026,18 +1086,93 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
-    private func ftsMatchExpression(from query: String) -> String? {
+    private enum FTSSearchSegment {
+        case phrase(String)
+        case token(String)
+    }
+
+    private func ftsMatchExpression(from query: String, mode: NoteSearchMode) -> String? {
+        switch mode {
+        case .prefix:
+            let tokens = tokenizeSearchTerms(query)
+            guard !tokens.isEmpty else {
+                return nil
+            }
+            return tokens.map { "\"\(escapeFTSValue($0))\"*" }.joined(separator: " AND ")
+        case .phrase:
+            let phrase = query
+                .split(whereSeparator: \.isWhitespace)
+                .map(String.init)
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !phrase.isEmpty else {
+                return nil
+            }
+            return "\"\(escapeFTSValue(phrase))\""
+        case .smart:
+            let segments = parseSmartSearchSegments(query)
+            guard !segments.isEmpty else {
+                return nil
+            }
+            return segments.map { segment in
+                switch segment {
+                case let .phrase(phrase):
+                    return "\"\(escapeFTSValue(phrase))\""
+                case let .token(token):
+                    return "\"\(escapeFTSValue(token))\"*"
+                }
+            }.joined(separator: " AND ")
+        }
+    }
+
+    private func tokenizeSearchTerms(_ query: String) -> [String] {
         let tokenSeparators = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_")).inverted
-        let tokens = query
+        return query
             .lowercased()
             .components(separatedBy: tokenSeparators)
             .filter { !$0.isEmpty }
+    }
 
-        guard !tokens.isEmpty else {
-            return nil
+    private func parseSmartSearchSegments(_ query: String) -> [FTSSearchSegment] {
+        var segments: [FTSSearchSegment] = []
+        var buffer = ""
+        var inQuote = false
+
+        func flushBuffer() {
+            guard !buffer.isEmpty else {
+                return
+            }
+            if inQuote {
+                let phrase = buffer
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init)
+                    .joined(separator: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !phrase.isEmpty {
+                    segments.append(.phrase(phrase))
+                }
+            } else {
+                let tokens = tokenizeSearchTerms(buffer)
+                segments.append(contentsOf: tokens.map(FTSSearchSegment.token))
+            }
+            buffer = ""
         }
 
-        return tokens.map { "\"\($0)\"*" }.joined(separator: " AND ")
+        for character in query {
+            if character == "\"" {
+                flushBuffer()
+                inQuote.toggle()
+                continue
+            }
+            buffer.append(character)
+        }
+        flushBuffer()
+
+        return segments
+    }
+
+    private func escapeFTSValue(_ value: String) -> String {
+        value.replacingOccurrences(of: "\"", with: "\"\"")
     }
 
     private func withStatement<T>(_ sql: String, _ work: (OpaquePointer) throws -> T) throws -> T {

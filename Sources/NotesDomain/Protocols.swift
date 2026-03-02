@@ -29,6 +29,7 @@ public protocol NoteStore: Sendable {
     func fetchNotes(includeDeleted: Bool) async throws -> [Note]
     func fetchNotesUpdated(afterVersion version: Int64, limit: Int) async throws -> [Note]
     func searchNotes(query: String, limit: Int) async throws -> [Note]
+    func searchNotes(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage
     func tombstoneNote(id: UUID, at date: Date) async throws
 }
 
