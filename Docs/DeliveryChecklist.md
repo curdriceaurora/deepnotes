@@ -72,7 +72,7 @@ Acceptance criteria:
 ### 6. Release prep
 - [x] Add schema upgrade matrix tests for all released DB versions.
 - [x] Add crash-safe recovery tests around migration and sync checkpoint writes.
-- [ ] Create macOS + iOS smoke checklist for pre-release validation.
+- [x] Create macOS + iOS smoke checklist for pre-release validation.
 - [ ] Add release checklist runbook with rollback plan.
 
 Acceptance criteria:
