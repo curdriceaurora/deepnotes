@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-02
+Last updated: 2026-03-03
 
 ## Decision: migration stress tests now?
 
@@ -78,3 +78,105 @@ Acceptance criteria:
 
 Acceptance criteria:
 - Release candidate can be validated by checklist with reproducible pass/fail evidence.
+
+---
+
+## Product Gap Closure
+
+The sections below are organized MECE against the four pillars of the original brief.
+Each pillar has a Foundation tier (minimum to close the gap) and a Polish tier (parity with the reference app).
+
+### 7. Speed of Apple Notes (perceived performance)
+
+Foundation:
+- [ ] Add 300 ms search debounce on note search and Quick Open inputs.
+- [ ] Implement optimistic UI updates for task status toggle and kanban moves (update local state before persisting).
+- [ ] Lazy-load note bodies; fetch metadata-only for the sidebar list and load body on selection.
+- [ ] Add background/automatic sync trigger on app-activate and on a configurable interval.
+
+Polish:
+- [ ] Add cursor-based pagination to the notes list UI (render in pages of 50).
+- [ ] Cache last N search results to avoid redundant FTS queries on re-type.
+- [ ] Pre-compute and cache backlinks in an in-memory index; invalidate on note save.
+- [ ] Profile and instrument launch-to-interactive with Instruments; set 200 ms cold-launch budget.
+
+Acceptance criteria:
+- No user-perceptible delay between keystroke and search result update.
+- Task toggle and kanban moves reflect in the UI within one frame before persistence completes.
+- App with 10 k notes uses < 50 MB resident memory at idle.
+- Sync runs automatically without manual button press.
+
+### 8. Writing and linking experience of Obsidian
+
+Foundation:
+- [ ] Add a markdown renderer/preview pane (toggle between edit and rendered view).
+- [ ] Make wiki links clickable: tapping `[[Title]]` navigates to the target note.
+- [ ] Add `#tag` support: parse tags from note body, store in a tags index, expose filter-by-tag.
+- [ ] Upgrade link autocomplete from substring to fuzzy matching with relevance ranking.
+
+Polish:
+- [ ] Add unlinked mentions: surface paragraphs that mention a note title but aren't wrapped in `[[…]]`.
+- [ ] Add a graph view visualizing note-to-note connections.
+- [ ] Add daily notes: auto-create a note titled with today's date, accessible via shortcut.
+- [ ] Add note templates: user-defined starter content selectable on note creation.
+
+Acceptance criteria:
+- A user can write markdown, preview it rendered, and click a `[[link]]` to navigate — without leaving the app.
+- Tags are searchable and filterable across notes.
+- Fuzzy autocomplete surfaces the correct target within the top 3 suggestions for partial/misspelled input.
+
+### 9. Kanban board view of Notion
+
+Foundation:
+- [ ] Display priority badge and tags/labels on kanban cards.
+- [ ] Add a card detail modal: tapping a kanban card opens an editable detail sheet (title, details, due date, priority, status, linked note).
+- [ ] Add due-date color coding to kanban cards (overdue red, today orange, future muted).
+- [ ] Expose the existing `priority` field in the task creation and edit flows.
+
+Polish:
+- [ ] Allow user-defined kanban columns (custom statuses beyond the fixed five).
+- [ ] Add optional WIP limits per column with a visual warning when exceeded.
+- [ ] Add card-level labels/tags (multi-select, color-coded chips on cards).
+- [ ] Add swimlane grouping option (group cards by priority, note, or tag within each column).
+
+Acceptance criteria:
+- Every field on the Task model is visible and editable from the kanban card detail view.
+- Priority and due date are visible at a glance on every card without opening the detail view.
+
+### 10. Task management of TickTick
+
+Foundation:
+- [ ] Add a subtask model: tasks can have ordered child tasks with independent completion state.
+- [ ] Add local notifications/reminders tied to task due dates (UserNotifications framework).
+- [ ] Add bulk status change: multi-select tasks in the list view and move to a chosen status.
+- [ ] Add sort options in the task list: by due date, priority, title, or creation date.
+
+Polish:
+- [ ] Add natural language date parsing for due dates (e.g., "next Friday", "in 2 hours").
+- [ ] Add time estimates field on tasks and display total estimated time per kanban column.
+- [ ] Add task dependencies: mark a task as blocked-by another task, prevent status advance until dependency resolves.
+- [ ] Add smart lists / saved filters (e.g., "High priority + overdue", "My Day" equivalent).
+
+Acceptance criteria:
+- A task can have 1-N subtasks; completing all subtasks optionally marks the parent complete.
+- A local notification fires at the task's due date without requiring the app to be in the foreground.
+- A user can select 5+ tasks and move them to Done in a single action.
+
+### 11. Calendar sync — differentiator hardening
+
+Foundation:
+- [ ] Add multi-calendar support: store a `calendarID` per task/note, sync each to its designated calendar.
+- [ ] Complete recurrence exception round-trip: verify a detached-occurrence edit syncs back to calendar and re-imports cleanly.
+- [ ] Add automatic periodic sync (e.g., every 5 minutes when app is active) with a manual refresh fallback.
+- [ ] Add EventKit permission request flow and graceful degradation when permission is denied.
+
+Polish:
+- [ ] Add calendar picker UI: let the user choose which Apple Calendar each task or note syncs to.
+- [ ] Surface sync conflict details inline on the affected task/note, not only in the Sync tab.
+- [ ] Add push-notification-triggered sync: respond to EKEventStoreChanged to pull calendar edits immediately.
+- [ ] Add an iCloud-based note sync layer so notes persist across devices (not just calendar events).
+
+Acceptance criteria:
+- Tasks and notes can target different calendars; each syncs independently.
+- A recurring calendar event edited externally round-trips cleanly through pull → update → re-push.
+- Sync runs without user intervention; changes appear within 60 seconds of the originating edit.
