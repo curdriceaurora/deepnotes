@@ -82,6 +82,7 @@ public protocol WorkspaceServicing: Sendable {
     func allTags() async throws -> [String]
     func listNoteListItems() async throws -> [NoteListItem]
     func listNoteListItems(tag: String) async throws -> [NoteListItem]
+    func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage
     func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport
     func seedDemoDataIfNeeded() async throws
     func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink]
@@ -104,6 +105,21 @@ public actor WorkspaceService: WorkspaceServicing {
     private let clock: Clock
     private let linkParser: WikiLinkParser
     private let tagParser: TagParser
+
+    // Search result cache (LRU, max 8)
+    private struct SearchCacheKey: Hashable {
+        let query: String; let mode: NoteSearchMode; let offset: Int; let limit: Int
+    }
+    private var searchCache: [SearchCacheKey: NoteSearchPage] = [:]
+    private var searchCacheOrder: [SearchCacheKey] = []
+
+    // Backlinks link index — precomputed from all notes
+    private struct LinkIndex {
+        let titleToID: [String: UUID]
+        let noteLinks: [UUID: Set<String>]
+        let noteTitles: [UUID: String]
+    }
+    private var linkIndex: LinkIndex?
 
     public init(
         taskStore: TaskStore,
@@ -178,12 +194,31 @@ public actor WorkspaceService: WorkspaceServicing {
                 hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
             )
         }
-        return try await noteStore.searchNotes(
+
+        let cacheKey = SearchCacheKey(query: trimmed, mode: mode, offset: normalizedOffset, limit: normalizedLimit)
+        if let cached = searchCache[cacheKey] {
+            if let idx = searchCacheOrder.firstIndex(of: cacheKey) {
+                searchCacheOrder.remove(at: idx)
+                searchCacheOrder.append(cacheKey)
+            }
+            return cached
+        }
+
+        let result = try await noteStore.searchNotes(
             query: trimmed,
             mode: mode,
             limit: normalizedLimit,
             offset: normalizedOffset
         )
+
+        searchCache[cacheKey] = result
+        searchCacheOrder.append(cacheKey)
+        if searchCacheOrder.count > 8 {
+            let evicted = searchCacheOrder.removeFirst()
+            searchCache.removeValue(forKey: evicted)
+        }
+
+        return result
     }
 
     public func createNote(title: String, body: String) async throws -> Note {
@@ -197,7 +232,9 @@ public actor WorkspaceService: WorkspaceServicing {
             tags: tags,
             updatedAt: clock.now()
         )
-        return try await noteStore.upsertNote(note)
+        let created = try await noteStore.upsertNote(note)
+        invalidateCaches()
+        return created
     }
 
     public func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
@@ -230,6 +267,7 @@ public actor WorkspaceService: WorkspaceServicing {
         next.tags = tagParser.extractTags(from: body)
         next.updatedAt = clock.now()
         let updatedNote = try await noteStore.upsertNote(next)
+        invalidateCaches()
 
         guard shouldPropagateRename else {
             return updatedNote
@@ -263,24 +301,22 @@ public actor WorkspaceService: WorkspaceServicing {
     }
 
     public func backlinks(for noteID: UUID) async throws -> [NoteBacklink] {
-        let notes = try await noteStore.fetchNotes(includeDeleted: false)
-        guard let targetNote = notes.first(where: { $0.id == noteID }) else {
+        let index = try await getOrBuildLinkIndex()
+        guard let targetTitle = index.noteTitles[noteID] else {
+            return []
+        }
+        let normalizedTarget = targetTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedTarget.isEmpty else {
             return []
         }
 
-        let targetTitle = targetNote.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !targetTitle.isEmpty else {
-            return []
-        }
-
-        return notes
-            .filter { note in
-                note.id != noteID && linkParser
-                    .linkedTitles(in: note.body)
-                    .contains { $0.lowercased() == targetTitle }
+        var results: [NoteBacklink] = []
+        for (sourceID, linkedTitles) in index.noteLinks where sourceID != noteID {
+            if linkedTitles.contains(normalizedTarget), let sourceTitle = index.noteTitles[sourceID] {
+                results.append(NoteBacklink(sourceNoteID: sourceID, sourceTitle: sourceTitle))
             }
-            .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
-            .sorted { $0.sourceTitle.localizedCaseInsensitiveCompare($1.sourceTitle) == .orderedAscending }
+        }
+        return results.sorted { $0.sourceTitle.localizedCaseInsensitiveCompare($1.sourceTitle) == .orderedAscending }
     }
 
     public func notesByTag(_ tag: String) async throws -> [Note] {
@@ -309,6 +345,38 @@ public actor WorkspaceService: WorkspaceServicing {
 
     public func listNoteListItems(tag: String) async throws -> [NoteListItem] {
         try await noteStore.fetchNoteListItemsByTag(tag)
+    }
+
+    public func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage {
+        try await noteStore.fetchNoteListItems(includeDeleted: false, limit: limit, offset: offset)
+    }
+
+    private func invalidateCaches() {
+        searchCache.removeAll()
+        searchCacheOrder.removeAll()
+        linkIndex = nil
+    }
+
+    private func getOrBuildLinkIndex() async throws -> LinkIndex {
+        if let existing = linkIndex {
+            return existing
+        }
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        var titleToID: [String: UUID] = [:]
+        var noteLinks: [UUID: Set<String>] = [:]
+        var noteTitles: [UUID: String] = [:]
+        for note in notes {
+            let normalized = note.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !normalized.isEmpty {
+                titleToID[normalized] = note.id
+            }
+            noteTitles[note.id] = note.title
+            let linked = linkParser.linkedTitles(in: note.body)
+            noteLinks[note.id] = Set(linked.map { $0.lowercased() })
+        }
+        let index = LinkIndex(titleToID: titleToID, noteLinks: noteLinks, noteTitles: noteTitles)
+        linkIndex = index
+        return index
     }
 
     public func listTasks(filter: TaskListFilter) async throws -> [Task] {
@@ -689,22 +757,15 @@ public actor WorkspaceService: WorkspaceServicing {
     }
 
     public func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
-        let notes = try await noteStore.fetchNotes(includeDeleted: false)
-        var titleToID: [String: UUID] = [:]
-        for note in notes {
-            titleToID[note.title.lowercased()] = note.id
-        }
-
+        let index = try await getOrBuildLinkIndex()
         var edges: [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] = []
 
-        for note in notes {
-            let linkedTitles = linkParser.linkedTitles(in: note.body)
+        for (sourceID, linkedTitles) in index.noteLinks {
+            guard let fromTitle = index.noteTitles[sourceID] else { continue }
             for linkedTitle in linkedTitles {
-                let normalized = linkedTitle.lowercased()
-                if let toID = titleToID[normalized], toID != note.id {
-                    if let targetNote = notes.first(where: { $0.id == toID }) {
-                        edges.append((from: note.id, to: toID, fromTitle: note.title, toTitle: targetNote.title))
-                    }
+                if let toID = index.titleToID[linkedTitle], toID != sourceID,
+                   let toTitle = index.noteTitles[toID] {
+                    edges.append((from: sourceID, to: toID, fromTitle: fromTitle, toTitle: toTitle))
                 }
             }
         }

@@ -253,6 +253,50 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
+    public func fetchNoteListItems(includeDeleted: Bool, limit: Int, offset: Int) async throws -> NoteListItemPage {
+        let normalizedLimit = max(1, limit)
+        let normalizedOffset = max(0, offset)
+
+        let countSQL = "SELECT COUNT(*) FROM notes\(includeDeleted ? "" : " WHERE deleted_at IS NULL");"
+        let totalCount: Int = try withStatement(countSQL) { statement in
+            guard sqlite3_step(statement) == SQLITE_ROW else {
+                return 0
+            }
+            return Int(sqlite3_column_int64(statement, 0))
+        }
+
+        let sql = """
+        SELECT id, stable_id, title, tags, updated_at
+        FROM notes
+        \(includeDeleted ? "" : "WHERE deleted_at IS NULL")
+        ORDER BY updated_at DESC
+        LIMIT ? OFFSET ?;
+        """
+
+        let items: [NoteListItem] = try withStatement(sql) { statement in
+            sqlite3_bind_int64(statement, 1, Int64(normalizedLimit))
+            sqlite3_bind_int64(statement, 2, Int64(normalizedOffset))
+            var items: [NoteListItem] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard
+                    let idText = columnOptionalText(statement, at: 0),
+                    let id = UUID(uuidString: idText),
+                    let stableID = columnOptionalText(statement, at: 1),
+                    let title = columnOptionalText(statement, at: 2)
+                else {
+                    throw StorageError.dataCorruption(reason: "Invalid note list item row values")
+                }
+                let tagsJSON = columnOptionalText(statement, at: 3) ?? "[]"
+                let tags = (try? JSONDecoder().decode([String].self, from: tagsJSON.data(using: .utf8) ?? Data())) ?? []
+                let updatedAt = columnDate(statement, at: 4)
+                items.append(NoteListItem(id: id, stableID: stableID, title: title, tags: tags, updatedAt: updatedAt))
+            }
+            return items
+        }
+
+        return NoteListItemPage(offset: normalizedOffset, limit: normalizedLimit, totalCount: totalCount, items: items)
+    }
+
     public func searchNotes(query: String, limit: Int = 50) async throws -> [Note] {
         let page = try await searchNotes(
             query: query,

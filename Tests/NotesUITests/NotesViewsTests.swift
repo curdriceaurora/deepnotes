@@ -828,6 +828,13 @@ actor MockWorkspaceService: WorkspaceServicing {
         notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }.map(\.listItem)
     }
 
+    func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage {
+        let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
+        let start = min(max(0, offset), allItems.count)
+        let end = min(allItems.count, start + max(1, limit))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
+    }
+
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
         let now = Date()
         let calendar = Calendar.current

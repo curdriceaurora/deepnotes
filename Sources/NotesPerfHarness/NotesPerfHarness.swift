@@ -202,7 +202,7 @@ struct NotesPerfHarness {
             do {
                 let store = try SQLiteStore(databaseURL: dbURL)
                 let workspace = WorkspaceService(store: store)
-                _ = try await workspace.listNotes()
+                _ = try await workspace.listNoteListItems(limit: 50, offset: 0)
                 _ = try await workspace.listTasks(filter: .all)
             }
             let elapsed = start.duration(to: clock.now)
@@ -748,7 +748,7 @@ private struct Options: Codable {
     var searchDatasetNotes: Int = 50_000
     var searchRuns: Int = 40
     var targetFPS: Double = 120
-    var maxLaunchToInteractiveP95MS: Double = 900
+    var maxLaunchToInteractiveP95MS: Double = 200
     var maxOpenNoteP95MS: Double = 40
     var maxSaveNoteEditP95MS: Double = 30
     var maxWikilinkBacklinksRefreshP95MS: Double = 50
@@ -881,7 +881,7 @@ notes-perf-harness options:
   --search-dataset-notes <n>         Number of notes used for search benchmark (default: 50000)
   --search-runs <n>                  Number of measured search samples (default: 40)
   --target-fps <hz>                  Target refresh rate for gating (default: 120)
-  --max-launch-p95-ms <ms>           Launch-to-interactive p95 gate (default: 900)
+  --max-launch-p95-ms <ms>           Launch-to-interactive p95 gate (default: 200)
   --max-open-note-p95-ms <ms>        Open-note p95 gate (default: 40)
   --max-save-note-p95-ms <ms>        Save-note-edit p95 gate (default: 30)
   --max-wikilink-backlinks-p95-ms <ms> Wiki-link/backlinks refresh p95 gate (default: 50)

@@ -1125,6 +1125,120 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.templates.isEmpty)
     }
 
+    // MARK: - Pagination
+
+    func testLoadPaginatesNotesListTo50() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.notes.count, 50)
+        XCTAssertNotNil(viewModel.notesNextOffset)
+        XCTAssertEqual(viewModel.notesTotalCount, 62) // 60 + 2 initial
+    }
+
+    func testLoadMoreNotesAppendsNextPage() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.loadMoreNotes()
+
+        XCTAssertEqual(viewModel.notes.count, 62) // 50 + 12 remaining
+        XCTAssertNil(viewModel.notesNextOffset)
+    }
+
+    func testLoadMoreNotesNoOpDuringSearch() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.noteSearchQuery = "Alpha"
+        await viewModel.loadMoreNotes()
+
+        // Should still be 50 from initial load (loadMore is a no-op during search)
+        XCTAssertEqual(viewModel.notes.count, 50)
+    }
+
+    func testLoadMoreNotesNoOpWhenExhausted() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // Only 2 notes, all on first page
+        XCTAssertNil(viewModel.notesNextOffset)
+
+        await viewModel.loadMoreNotes()
+
+        XCTAssertEqual(viewModel.notes.count, 2)
+    }
+
+    func testBacklinksCachedAcrossSelections() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Gamma", body: "[[Alpha]] reference", tags: [])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let alphaID = viewModel.notes.first(where: { $0.title == "Alpha" })?.id
+        let betaID = viewModel.notes.first(where: { $0.title == "Beta" })?.id
+        XCTAssertNotNil(alphaID)
+
+        await viewModel.selectNote(id: alphaID)
+        let firstBacklinks = viewModel.backlinks
+
+        await viewModel.selectNote(id: betaID)
+        await viewModel.selectNote(id: alphaID)
+
+        XCTAssertEqual(viewModel.backlinks.count, firstBacklinks.count)
+    }
+
+    func testLoadParallelizesPhases() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        // Functional verification: all data should be populated
+        XCTAssertFalse(viewModel.notes.isEmpty)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testReloadNotesResetsPageOnNewSearch() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertNotNil(viewModel.notesNextOffset)
+
+        // Trigger search (which resets pagination)
+        await viewModel.setNoteSearchQuery("Alpha")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+
+        // Search path does not use pagination
+        XCTAssertNil(viewModel.notesNextOffset)
+    }
+
+    func testLoadMoreNotesNoOpWithTagFilter() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("bulk")
+        let countAfterFilter = viewModel.notes.count
+
+        await viewModel.loadMoreNotes()
+
+        // Tag filter bypasses pagination, so loadMore is a no-op
+        XCTAssertEqual(viewModel.notes.count, countAfterFilter)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -1171,6 +1285,14 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     func addTaggedNote(title: String, body: String, tags: [String]) {
         let note = Note(id: UUID(), title: title, body: body, tags: tags, updatedAt: Date(), version: 1)
         notes.insert(note, at: 0)
+    }
+
+    func addBulkNotes(count: Int) {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 0..<count {
+            let note = Note(id: UUID(), title: "Bulk Note \(i)", body: "Body \(i)", tags: ["bulk"], updatedAt: base.addingTimeInterval(Double(i)), version: 1)
+            notes.append(note)
+        }
     }
 
     func setFailure(_ mode: FailureMode?) {
@@ -1296,6 +1418,13 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     func listNoteListItems(tag: String) async throws -> [NoteListItem] {
         notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }.map(\.listItem)
+    }
+
+    func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage {
+        let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
+        let start = min(max(0, offset), allItems.count)
+        let end = min(allItems.count, start + max(1, limit))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {

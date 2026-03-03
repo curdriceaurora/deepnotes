@@ -33,6 +33,7 @@ public protocol NoteStore: Sendable {
     func fetchNotesByTag(_ tag: String) async throws -> [Note]
     func fetchNoteListItems(includeDeleted: Bool) async throws -> [NoteListItem]
     func fetchNoteListItemsByTag(_ tag: String) async throws -> [NoteListItem]
+    func fetchNoteListItems(includeDeleted: Bool, limit: Int, offset: Int) async throws -> NoteListItemPage
     func tombstoneNote(id: UUID, at date: Date) async throws
 }
 

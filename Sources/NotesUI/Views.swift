@@ -281,6 +281,11 @@ public struct NotesEditorView: View {
                         .padding(.horizontal, 4)
                 )
                 .accessibilityIdentifier("noteRow_\(note.id.uuidString)")
+                .onAppear {
+                    if note.id == viewModel.notes.last?.id {
+                        _Concurrency.Task { await viewModel.loadMoreNotes() }
+                    }
+                }
             }
             .listStyle(.sidebar)
         }

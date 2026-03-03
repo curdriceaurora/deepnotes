@@ -82,6 +82,26 @@ public struct NoteListItem: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct NoteListItemPage: Equatable, Sendable {
+    public var offset: Int
+    public var limit: Int
+    public var totalCount: Int
+    public var items: [NoteListItem]
+
+    public var nextOffset: Int? {
+        guard !items.isEmpty else { return nil }
+        let candidate = offset + items.count
+        return candidate < totalCount ? candidate : nil
+    }
+
+    public init(offset: Int, limit: Int, totalCount: Int, items: [NoteListItem]) {
+        self.offset = max(0, offset)
+        self.limit = max(1, limit)
+        self.totalCount = max(0, totalCount)
+        self.items = items
+    }
+}
+
 public enum NoteSearchMode: String, Codable, CaseIterable, Sendable {
     case smart
     case phrase

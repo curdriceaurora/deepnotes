@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 import NotesDomain
 import NotesFeatures
 import NotesSync
@@ -31,6 +32,11 @@ public struct RecurrenceDeletePrompt: Sendable, Equatable {
 @MainActor
 @Observable
 public final class AppViewModel {
+    public private(set) var notesTotalCount: Int = 0
+    public private(set) var notesNextOffset: Int?
+    private static let notesPageSize = 50
+    private static let signposter = OSSignposter(subsystem: "com.notes.app", category: "Launch")
+
     public private(set) var notes: [NoteListItem] = []
     public var selectedNoteID: UUID?
     public var selectedNoteTitle: String = ""
@@ -96,14 +102,18 @@ public final class AppViewModel {
     }
 
     public func load() async {
+        let signpostID = Self.signposter.makeSignpostID()
+        let state = Self.signposter.beginInterval("load", id: signpostID)
         await runTask {
             try await service.seedDemoDataIfNeeded()
-            try await reloadNotes(selectFirstIfNeeded: true)
-            try await reloadTags()
-            try await loadGraph()
-            try await reloadTemplates()
-            await reloadTasks()
+            async let r1: () = reloadNotes(selectFirstIfNeeded: true)
+            async let r2: () = reloadTags()
+            async let r3: () = loadGraph()
+            async let r4: () = reloadTemplates()
+            async let r5: () = reloadTasksWithoutWrapper()
+            try await r1; try await r2; try await r3; try await r4; try await r5
         }
+        Self.signposter.endInterval("load", state)
         // Start periodic auto-sync (every 5 minutes when app is active)
         periodicSyncTask = _Concurrency.Task { [weak self] in
             while !_Concurrency.Task.isCancelled {
@@ -111,6 +121,16 @@ public final class AppViewModel {
                 guard !_Concurrency.Task.isCancelled else { break }
                 await self?.autoSync()
             }
+        }
+    }
+
+    public func loadMoreNotes() async {
+        guard let nextOffset = notesNextOffset, noteSearchQuery.isEmpty, selectedTagFilter == nil else { return }
+        await runTask {
+            let page = try await service.listNoteListItems(limit: Self.notesPageSize, offset: nextOffset)
+            notes.append(contentsOf: page.items)
+            notesTotalCount = page.totalCount
+            notesNextOffset = page.nextOffset
         }
     }
 
@@ -667,8 +687,13 @@ public final class AppViewModel {
         if noteSearchQuery.isEmpty {
             if let tag = selectedTagFilter {
                 notes = try await service.listNoteListItems(tag: tag)
+                notesTotalCount = notes.count
+                notesNextOffset = nil
             } else {
-                notes = try await service.listNoteListItems()
+                let page = try await service.listNoteListItems(limit: Self.notesPageSize, offset: 0)
+                notes = page.items
+                notesTotalCount = page.totalCount
+                notesNextOffset = page.nextOffset
             }
             noteSearchSnippetsByID = [:]
         } else {
@@ -679,6 +704,8 @@ public final class AppViewModel {
                 offset: 0
             )
             notes = page.hits.map { $0.note.listItem }
+            notesTotalCount = page.totalCount
+            notesNextOffset = nil
             noteSearchSnippetsByID = Dictionary(uniqueKeysWithValues: page.hits.compactMap { hit in
                 guard let snippet = hit.snippet else {
                     return nil
