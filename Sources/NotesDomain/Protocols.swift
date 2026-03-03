@@ -54,3 +54,9 @@ public protocol CalendarProvider: Sendable {
     func deleteEvent(eventIdentifier: String, calendarID: String) async throws
     func fetchChanges(since token: String?, calendarID: String) async throws -> CalendarChangeBatch
 }
+
+public protocol TemplateStore: Sendable {
+    func fetchTemplates() async throws -> [NoteTemplate]
+    func upsertTemplate(_ template: NoteTemplate) async throws -> NoteTemplate
+    func deleteTemplate(id: UUID) async throws
+}

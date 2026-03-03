@@ -24,6 +24,7 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
             clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
         )
 
@@ -193,6 +194,7 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
             clock: FixedClock(current: now)
         )
 
@@ -346,6 +348,7 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
             clock: FixedClock(current: now)
         )
     }

@@ -1262,4 +1262,48 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             throw NSError(domain: "workspace-spy", code: 500)
         }
     }
+
+    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+        []
+    }
+
+    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+        guard let note = notes.first(where: { $0.id == sourceNoteID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        return note
+    }
+
+    func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
+        []
+    }
+
+    func createOrOpenDailyNote(date: Date) async throws -> Note {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let title = formatter.string(from: date)
+        if let existing = notes.first(where: { $0.title == title }) {
+            return existing
+        }
+        let note = Note(id: UUID(), title: title, body: "", updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
+        return note
+    }
+
+    func listTemplates() async throws -> [NoteTemplate] {
+        []
+    }
+
+    func createTemplate(name: String, body: String) async throws -> NoteTemplate {
+        NoteTemplate(name: name, body: body, createdAt: Date())
+    }
+
+    func deleteTemplate(id: UUID) async throws {}
+
+    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
+        let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
+        return note
+    }
 }

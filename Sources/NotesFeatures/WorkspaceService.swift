@@ -81,6 +81,14 @@ public protocol WorkspaceServicing: Sendable {
     func allTags() async throws -> [String]
     func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport
     func seedDemoDataIfNeeded() async throws
+    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink]
+    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note
+    func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)]
+    func createOrOpenDailyNote(date: Date) async throws -> Note
+    func listTemplates() async throws -> [NoteTemplate]
+    func createTemplate(name: String, body: String) async throws -> NoteTemplate
+    func deleteTemplate(id: UUID) async throws
+    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note
 }
 
 public actor WorkspaceService: WorkspaceServicing {
@@ -88,6 +96,7 @@ public actor WorkspaceService: WorkspaceServicing {
     private let noteStore: NoteStore
     private let bindingStore: CalendarBindingStore
     private let checkpointStore: SyncCheckpointStore
+    private let templateStore: TemplateStore
     private let mapper: TaskCalendarMapper
     private let clock: Clock
     private let linkParser: WikiLinkParser
@@ -98,6 +107,7 @@ public actor WorkspaceService: WorkspaceServicing {
         noteStore: NoteStore,
         bindingStore: CalendarBindingStore,
         checkpointStore: SyncCheckpointStore,
+        templateStore: TemplateStore,
         mapper: TaskCalendarMapper = TaskCalendarMapper(),
         clock: Clock = SystemClock(),
         linkParser: WikiLinkParser = WikiLinkParser(),
@@ -107,6 +117,7 @@ public actor WorkspaceService: WorkspaceServicing {
         self.noteStore = noteStore
         self.bindingStore = bindingStore
         self.checkpointStore = checkpointStore
+        self.templateStore = templateStore
         self.mapper = mapper
         self.clock = clock
         self.linkParser = linkParser
@@ -118,7 +129,8 @@ public actor WorkspaceService: WorkspaceServicing {
             taskStore: store,
             noteStore: store,
             bindingStore: store,
-            checkpointStore: store
+            checkpointStore: store,
+            templateStore: store
         )
     }
 
@@ -179,6 +191,17 @@ public actor WorkspaceService: WorkspaceServicing {
             updatedAt: clock.now()
         )
         return try await noteStore.upsertNote(note)
+    }
+
+    public func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
+        var finalBody = body
+        if let templateID {
+            let templates = try await templateStore.fetchTemplates()
+            if let template = templates.first(where: { $0.id == templateID }) {
+                finalBody = template.body
+            }
+        }
+        return try await createNote(title: title, body: finalBody)
     }
 
     public func updateNote(id: UUID, title: String, body: String) async throws -> Note {
@@ -593,5 +616,115 @@ public actor WorkspaceService: WorkspaceServicing {
             rewritten.replaceSubrange(fullRange, with: "[[\(toTitle)\(alias)]]")
         }
         return rewritten
+    }
+
+    public func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+        guard let targetNote = try await noteStore.fetchNote(id: noteID), targetNote.deletedAt == nil else {
+            return []
+        }
+
+        let existingBacklinks = try await backlinks(for: noteID)
+        let existingBacklinkTitles = Set(existingBacklinks.map { $0.sourceTitle.lowercased() })
+
+        let escapedTitle = NSRegularExpression.escapedPattern(for: targetNote.title)
+        guard let regex = try? NSRegularExpression(
+            pattern: #"(?<![\[])\b\#(escapedTitle)\b(?![\]])"#,
+            options: [.caseInsensitive]
+        ) else {
+            return []
+        }
+
+        let allNotes = try await noteStore.fetchNotes(includeDeleted: false)
+        var mentions: [NoteBacklink] = []
+
+        for note in allNotes where note.id != noteID {
+            let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+            if regex.firstMatch(in: note.body, options: [], range: range) != nil {
+                let normalizedTitle = note.title.lowercased()
+                if !existingBacklinkTitles.contains(normalizedTitle) {
+                    mentions.append(NoteBacklink(sourceNoteID: note.id, sourceTitle: note.title))
+                }
+            }
+        }
+
+        return mentions
+    }
+
+    public func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+        guard let note = try await noteStore.fetchNote(id: sourceNoteID), note.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot link mention in missing note")
+        }
+
+        let escapedTitle = NSRegularExpression.escapedPattern(for: targetTitle)
+        guard let regex = try? NSRegularExpression(
+            pattern: #"(?<![\[])\b\#(escapedTitle)\b(?![\]])"#,
+            options: [.caseInsensitive]
+        ) else {
+            return note
+        }
+
+        var rewritten = note.body
+        let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+        if let match = regex.firstMatch(in: note.body, options: [], range: range),
+           let matchRange = Range(match.range, in: note.body) {
+            rewritten.replaceSubrange(matchRange, with: "[[\(targetTitle)]]")
+        }
+
+        return try await updateNote(id: sourceNoteID, title: note.title, body: rewritten)
+    }
+
+    public func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        var titleToID: [String: UUID] = [:]
+        for note in notes {
+            titleToID[note.title.lowercased()] = note.id
+        }
+
+        var edges: [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] = []
+
+        for note in notes {
+            let linkedTitles = linkParser.linkedTitles(in: note.body)
+            for linkedTitle in linkedTitles {
+                let normalized = linkedTitle.lowercased()
+                if let toID = titleToID[normalized], toID != note.id {
+                    if let targetNote = notes.first(where: { $0.id == toID }) {
+                        edges.append((from: note.id, to: toID, fromTitle: note.title, toTitle: targetNote.title))
+                    }
+                }
+            }
+        }
+
+        return edges
+    }
+
+    public func createOrOpenDailyNote(date: Date) async throws -> Note {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let dateTitle = formatter.string(from: date)
+
+        if let existing = try await noteStore.fetchNoteByTitle(dateTitle), existing.deletedAt == nil {
+            return existing
+        }
+
+        return try await createNote(title: dateTitle, body: "")
+    }
+
+    public func listTemplates() async throws -> [NoteTemplate] {
+        try await templateStore.fetchTemplates()
+    }
+
+    public func createTemplate(name: String, body: String) async throws -> NoteTemplate {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw StorageError.executeStatement(reason: "Template name cannot be empty")
+        }
+
+        let template = NoteTemplate(name: trimmedName, body: body, createdAt: clock.now())
+        return try await templateStore.upsertTemplate(template)
+    }
+
+    public func deleteTemplate(id: UUID) async throws {
+        try await templateStore.deleteTemplate(id: id)
     }
 }

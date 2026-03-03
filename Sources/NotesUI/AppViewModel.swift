@@ -43,6 +43,14 @@ public final class AppViewModel {
     public var isQuickOpenPresented: Bool = false
     public private(set) var quickOpenResults: [Note] = []
     public private(set) var backlinks: [NoteBacklink] = []
+    public private(set) var unlinkedMentions: [NoteBacklink] = []
+    public private(set) var graphNodes: [GraphNode] = []
+    public private(set) var graphEdges: [GraphEdge] = []
+    public private(set) var templates: [NoteTemplate] = []
+    public var isTemplatePickerPresented: Bool = false
+    public var isTemplateManagerPresented: Bool = false
+    public var newTemplateName: String = ""
+    public var newTemplateBody: String = ""
     public private(set) var allTagsList: [String] = []
     public private(set) var selectedTagFilter: String?
     public var noteEditMode: NoteEditMode = .edit
@@ -90,6 +98,8 @@ public final class AppViewModel {
             try await service.seedDemoDataIfNeeded()
             try await reloadNotes(selectFirstIfNeeded: true)
             try await reloadTags()
+            try await loadGraph()
+            try await reloadTemplates()
             await reloadTasks()
         }
     }
@@ -697,6 +707,7 @@ public final class AppViewModel {
             wikiLinkSuggestions = []
             isWikiLinkSuggestionVisible = false
             backlinks = []
+            unlinkedMentions = []
             return
         }
 
@@ -705,6 +716,7 @@ public final class AppViewModel {
         wikiLinkSuggestions = []
         isWikiLinkSuggestionVisible = false
         try await reloadBacklinks(for: id)
+        unlinkedMentions = try await service.unlinkedMentions(for: id)
     }
 
     private func insertMarkdownLinePrefix(_ prefix: String) {
@@ -789,6 +801,103 @@ public final class AppViewModel {
         let fileURL = folder.appendingPathComponent(filename)
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         return fileURL
+    }
+
+    public func openDailyNote() async {
+        await runTask {
+            let note = try await service.createOrOpenDailyNote(date: Date())
+            noteSearchQuery = ""
+            try await reloadNotes(selectFirstIfNeeded: false)
+            try await loadGraph()
+            await selectNote(id: note.id)
+        }
+    }
+
+    public func linkMention(sourceNoteID: UUID) async {
+        guard !selectedNoteTitle.isEmpty else {
+            return
+        }
+
+        await runTask {
+            _ = try await service.linkMention(in: sourceNoteID, targetTitle: selectedNoteTitle)
+            try await reloadNotes(selectFirstIfNeeded: false)
+            if let selectedNoteID {
+                unlinkedMentions = try await service.unlinkedMentions(for: selectedNoteID)
+            }
+        }
+    }
+
+    public func reloadGraph() async {
+        await runTask {
+            try await loadGraph()
+        }
+    }
+
+    public func createNoteFromTemplate(templateID: UUID) async {
+        await runTask {
+            let created = try await service.createNote(title: "New Note", body: "", templateID: templateID)
+            noteSearchQuery = ""
+            isTemplatePickerPresented = false
+            try await reloadNotes(selectFirstIfNeeded: false)
+            await selectNote(id: created.id)
+        }
+    }
+
+    public func createTemplate() async {
+        let trimmedName = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return
+        }
+
+        await runTask {
+            _ = try await service.createTemplate(name: trimmedName, body: newTemplateBody)
+            newTemplateName = ""
+            newTemplateBody = ""
+            try await reloadTemplates()
+        }
+    }
+
+    public func deleteTemplate(id: UUID) async {
+        await runTask {
+            try await service.deleteTemplate(id: id)
+            try await reloadTemplates()
+        }
+    }
+
+    public func showNewNoteOptions() async {
+        if templates.isEmpty {
+            await createNote()
+        } else {
+            isTemplatePickerPresented = true
+        }
+    }
+
+    private func loadGraph() async throws {
+        let edges = try await service.graphEdges()
+        let notes = try await service.listNotes()
+
+        var nodesByID: [UUID: GraphNode] = [:]
+        for note in notes {
+            let tagCount = note.tags.count
+            nodesByID[note.id] = GraphNode(id: note.id, title: note.title, tagCount: tagCount)
+        }
+
+        graphNodes = Array(nodesByID.values)
+
+        var graphEdgeSet = Set<String>()
+        var graphEdgeArray: [GraphEdge] = []
+        for (fromID, toID, _, _) in edges {
+            let edgeKey = "\(fromID):\(toID)"
+            if !graphEdgeSet.contains(edgeKey) {
+                graphEdgeSet.insert(edgeKey)
+                graphEdgeArray.append(GraphEdge(fromID: fromID, toID: toID))
+            }
+        }
+        graphEdges = graphEdgeArray
+    }
+
+    private func reloadTemplates() async throws {
+        templates = try await service.listTemplates()
     }
 }
 

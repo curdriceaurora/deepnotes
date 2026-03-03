@@ -6,7 +6,7 @@ private struct SQLiteConnection: @unchecked Sendable {
     let raw: OpaquePointer
 }
 
-public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore {
+public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore, TemplateStore {
     private let connection: SQLiteConnection
     private var db: OpaquePointer { connection.raw }
 
@@ -656,6 +656,71 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
+    // MARK: - Templates
+
+    public func fetchTemplates() async throws -> [NoteTemplate] {
+        let sql = """
+        SELECT id, name, body, created_at
+        FROM templates
+        ORDER BY created_at DESC;
+        """
+
+        return try withStatement(sql) { statement in
+            var templates: [NoteTemplate] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                templates.append(try template(from: statement))
+            }
+            return templates
+        }
+    }
+
+    public func upsertTemplate(_ template: NoteTemplate) async throws -> NoteTemplate {
+        let normalizedName = template.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty else {
+            throw StorageError.executeStatement(reason: "Template name cannot be empty")
+        }
+
+        let sql = """
+        INSERT INTO templates (id, name, body, created_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name,
+            body = excluded.body,
+            created_at = excluded.created_at;
+        """
+
+        try withStatement(sql) { statement in
+            bindText(UUIDString(from: template.id), to: 1, in: statement)
+            bindText(normalizedName, to: 2, in: statement)
+            bindText(template.body, to: 3, in: statement)
+            bindDate(template.createdAt, to: 4, in: statement)
+            try stepDone(statement)
+        }
+
+        var persisted = template
+        persisted.name = normalizedName
+        return persisted
+    }
+
+    public func deleteTemplate(id: UUID) async throws {
+        let sql = "DELETE FROM templates WHERE id = ?;"
+
+        try withStatement(sql) { statement in
+            bindText(UUIDString(from: id), to: 1, in: statement)
+            try stepDone(statement)
+        }
+    }
+
+    private func template(from statement: OpaquePointer) throws -> NoteTemplate {
+        let idString = String(cString: sqlite3_column_text(statement, 0))
+        let id = UUID(uuidString: idString) ?? UUID()
+        let name = columnOptionalText(statement, at: 1) ?? ""
+        let body = columnOptionalText(statement, at: 2) ?? ""
+        let createdAt = columnDate(statement, at: 3)
+
+        return NoteTemplate(id: id, name: name, body: body, createdAt: createdAt)
+    }
+
     // MARK: - Internals
 
     private static func runMigrations(on db: OpaquePointer) throws {
@@ -779,6 +844,16 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         try executeOnConnection(db, sql: indexSQL)
         try migrateCalendarBindingsToPolymorphic(on: db)
         try ensureColumnExists(table: "sync_checkpoints", column: "note_version_cursor", definition: "INTEGER NOT NULL DEFAULT 0", on: db)
+
+        let templatesSQL = """
+        CREATE TABLE IF NOT EXISTS templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            body TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
+        """
+        try executeOnConnection(db, sql: templatesSQL)
 
         // Rebuild FTS to include tags content
         let ftsRebuildSQL = """

@@ -21,6 +21,9 @@ public struct NotesRootView: View {
             KanbanBoardView(viewModel: viewModel)
                 .tabItem { Label("Board", systemImage: "square.grid.3x3.fill") }
 
+            GraphView(viewModel: viewModel)
+                .tabItem { Label("Graph", systemImage: "point.3.connected.trianglepath.dotted") }
+
             SyncDashboardView(viewModel: viewModel)
                 .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath.circle") }
         }
@@ -130,6 +133,12 @@ public struct NotesEditorView: View {
         .sheet(isPresented: $viewModel.isQuickOpenPresented) {
             QuickOpenSheetView(viewModel: viewModel)
         }
+        .sheet(isPresented: $viewModel.isTemplatePickerPresented) {
+            TemplatePickerSheetView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.isTemplateManagerPresented) {
+            TemplateManagerView(viewModel: viewModel)
+        }
     }
 
     private var notesList: some View {
@@ -148,7 +157,16 @@ public struct NotesEditorView: View {
                 .keyboardShortcut("o", modifiers: [.command])
                 .accessibilityIdentifier("quickOpenButton")
                 Button {
-                    _Concurrency.Task { await viewModel.createNote() }
+                    _Concurrency.Task { await viewModel.openDailyNote() }
+                } label: {
+                    Image(systemName: "calendar.badge.plus")
+                        .accessibilityHidden(true)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("d", modifiers: [.command, .option])
+                .accessibilityIdentifier("dailyNoteButton")
+                Button {
+                    _Concurrency.Task { await viewModel.showNewNoteOptions() }
                 } label: {
                     Image(systemName: "square.and.pencil")
                         .foregroundStyle(Color.accentColor)
@@ -439,6 +457,49 @@ public struct NotesEditorView: View {
                 }
             } label: {
                 Label("Backlinks", systemImage: "link")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 8)
+
+            DisclosureGroup {
+                if viewModel.unlinkedMentions.isEmpty {
+                    Label("No unlinked mentions", systemImage: "link.badge.minus")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("unlinkedMentionsEmptyState")
+                } else {
+                    List(viewModel.unlinkedMentions, id: \.sourceNoteID) { mention in
+                        HStack {
+                            Button {
+                                _Concurrency.Task { await viewModel.selectNote(id: mention.sourceNoteID) }
+                            } label: {
+                                Label(mention.sourceTitle, systemImage: "text.badge.minus")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                            Button {
+                                _Concurrency.Task { await viewModel.linkMention(sourceNoteID: mention.sourceNoteID) }
+                            } label: {
+                                Text("Link")
+                                    .font(.caption)
+                                    .tint(.accentColor)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        .accessibilityIdentifier("unlinkedMentionRow_\(mention.sourceNoteID.uuidString)")
+                    }
+                    .listStyle(.plain)
+                    .frame(minHeight: 120)
+                    .accessibilityIdentifier("unlinkedMentionsList")
+                }
+            } label: {
+                Label("Unlinked Mentions", systemImage: "link.badge.minus")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
@@ -979,6 +1040,381 @@ private extension SyncDiagnosticSeverity {
         case .warning: return .orange
         case .error: return .red
         }
+    }
+}
+
+struct TemplatePickerSheetView: View {
+    @Bindable var viewModel: AppViewModel
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("New Note")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            List {
+                Section("Start with") {
+                    Button {
+                        _Concurrency.Task {
+                            await viewModel.createNote()
+                            dismiss()
+                        }
+                    } label: {
+                        HStack {
+                            Label("Blank Note", systemImage: "doc.text")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .opacity(0.5)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
+
+                if !viewModel.templates.isEmpty {
+                    Section("Templates") {
+                        ForEach(viewModel.templates, id: \.id) { template in
+                            Button {
+                                _Concurrency.Task {
+                                    await viewModel.createNoteFromTemplate(templateID: template.id)
+                                    dismiss()
+                                }
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(template.name)
+                                            .font(.subheadline.weight(.medium))
+                                        Text(template.body.prefix(60))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .opacity(0.5)
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+            .listStyle(.plain)
+
+            Divider()
+
+            HStack {
+                Button {
+                    viewModel.isTemplatePickerPresented = false
+                    viewModel.isTemplateManagerPresented = true
+                } label: {
+                    Label("Manage Templates", systemImage: "ellipsis.circle")
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+}
+
+struct TemplateManagerView: View {
+    @Bindable var viewModel: AppViewModel
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Manage Templates")
+                    .font(.headline)
+                Spacer()
+                Button("Done") {
+                    dismiss()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            List {
+                ForEach(viewModel.templates, id: \.id) { template in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(template.name)
+                                .font(.subheadline.weight(.medium))
+                            Text(template.body.prefix(60))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            _Concurrency.Task {
+                                await viewModel.deleteTemplate(id: template.id)
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .listStyle(.plain)
+
+            Divider()
+
+            VStack(spacing: 12) {
+                TextField("Template name", text: $viewModel.newTemplateName)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.subheadline)
+
+                TextEditor(text: $viewModel.newTemplateBody)
+                    .border(Color.gray.opacity(0.3), width: 1)
+                    .font(.subheadline)
+                    .frame(height: 100)
+                    .scrollContentBackground(.hidden)
+
+                Button {
+                    _Concurrency.Task { await viewModel.createTemplate() }
+                } label: {
+                    Label("Add Template", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.accentColor)
+                .disabled(viewModel.newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(16)
+        }
+    }
+}
+
+public struct GraphView: View {
+    @Bindable var viewModel: AppViewModel
+    @State private var positions: [UUID: CGPoint] = [:]
+    @State private var velocities: [UUID: CGSize] = [:]
+    @State private var isSimulating: Bool = false
+
+    public init(viewModel: AppViewModel) {
+        self.viewModel = viewModel
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Knowledge Graph")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button {
+                    _Concurrency.Task { await viewModel.reloadGraph() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            GeometryReader { geometry in
+                TimelineView(.animation(minimumInterval: 1/60, paused: !isSimulating)) { _ in
+                    ZStack {
+                        Color.secondary.opacity(0.03)
+
+                        Canvas { context, canvasSize in
+                            var currentPositions = positions
+                            var currentVelocities = velocities
+
+                            if isSimulating && !viewModel.graphNodes.isEmpty {
+                                var simulator = GraphSimulator()
+                                (currentPositions, currentVelocities) = simulator.step(
+                                    nodes: viewModel.graphNodes,
+                                    edges: viewModel.graphEdges,
+                                    positions: currentPositions,
+                                    velocities: currentVelocities,
+                                    canvasSize: canvasSize
+                                )
+                                positions = currentPositions
+                                velocities = currentVelocities
+                            }
+
+                            for edge in viewModel.graphEdges {
+                                guard let fromPos = currentPositions[edge.fromID],
+                                      let toPos = currentPositions[edge.toID] else {
+                                    continue
+                                }
+
+                                var path = Path()
+                                path.move(to: fromPos)
+                                path.addLine(to: toPos)
+
+                                context.stroke(
+                                    path,
+                                    with: .color(.secondary.opacity(0.3)),
+                                    lineWidth: 1
+                                )
+                            }
+
+                            for node in viewModel.graphNodes {
+                                guard let position = currentPositions[node.id] else { continue }
+
+                                let radius = CGFloat(max(14, min(30, Double(node.tagCount) + 14)))
+                                let isSelected = node.id == viewModel.selectedNoteID
+                                let color = isSelected ? Color.accentColor : Color.secondary
+
+                                context.fill(
+                                    Path(ellipseIn: CGRect(
+                                        x: position.x - radius,
+                                        y: position.y - radius,
+                                        width: radius * 2,
+                                        height: radius * 2
+                                    )),
+                                    with: .color(color.opacity(0.2))
+                                )
+
+                                context.stroke(
+                                    Path(ellipseIn: CGRect(
+                                        x: position.x - radius,
+                                        y: position.y - radius,
+                                        width: radius * 2,
+                                        height: radius * 2
+                                    )),
+                                    with: .color(color),
+                                    lineWidth: isSelected ? 2 : 1
+                                )
+
+                                var textContext = context
+                                textContext.draw(
+                                    Text(node.title.prefix(2).uppercased())
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(color),
+                                    at: position,
+                                    anchor: .center
+                                )
+                            }
+                        }
+
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    isSimulating.toggle()
+                                } label: {
+                                    Image(systemName: isSimulating ? "pause.fill" : "play.fill")
+                                        .font(.body)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.accentColor)
+                                        .foregroundStyle(.white)
+                                        .clipShape(Circle())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(16)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .onTapGesture { location in
+                        for node in viewModel.graphNodes {
+                            guard let position = positions[node.id] else { continue }
+                            let radius = CGFloat(max(14, min(30, Double(node.tagCount) + 14)))
+                            let distance = hypot(location.x - position.x, location.y - position.y)
+                            if distance <= radius + 10 {
+                                _Concurrency.Task { await viewModel.selectNote(id: node.id) }
+                                return
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            initializeNodePositions()
+            isSimulating = true
+        }
+        .task {
+            await viewModel.reloadGraph()
+            initializeNodePositions()
+        }
+    }
+
+    private func initializeNodePositions() {
+        var newPositions: [UUID: CGPoint] = [:]
+        for node in viewModel.graphNodes {
+            newPositions[node.id] = CGPoint(
+                x: CGFloat.random(in: 50...400),
+                y: CGFloat.random(in: 50...600)
+            )
+        }
+        positions = newPositions
+        velocities = [:]
+    }
+}
+
+internal struct GraphSimulator {
+    mutating func step(
+        nodes: [GraphNode],
+        edges: [GraphEdge],
+        positions: [UUID: CGPoint],
+        velocities: [UUID: CGSize],
+        canvasSize: CGSize
+    ) -> (positions: [UUID: CGPoint], velocities: [UUID: CGSize]) {
+        var newPositions = positions
+        var newVelocities = velocities
+
+        for node in nodes {
+            guard var pos = newPositions[node.id] else { continue }
+            var vel = newVelocities[node.id] ?? .zero
+
+            for other in nodes where other.id != node.id {
+                guard let otherPos = newPositions[other.id] else { continue }
+                let dx = pos.x - otherPos.x
+                let dy = pos.y - otherPos.y
+                let distance = max(hypot(dx, dy), 1)
+                let repulsion = 4000 / (distance * distance)
+                vel.width += (dx / distance) * repulsion
+                vel.height += (dy / distance) * repulsion
+            }
+
+            for edge in edges {
+                if edge.fromID == node.id, let toPos = newPositions[edge.toID] {
+                    let dx = toPos.x - pos.x
+                    let dy = toPos.y - pos.y
+                    let distance = hypot(dx, dy)
+                    vel.width += (dx / max(distance, 1)) * 0.03
+                    vel.height += (dy / max(distance, 1)) * 0.03
+                } else if edge.toID == node.id, let fromPos = newPositions[edge.fromID] {
+                    let dx = fromPos.x - pos.x
+                    let dy = fromPos.y - pos.y
+                    let distance = hypot(dx, dy)
+                    vel.width += (dx / max(distance, 1)) * 0.03
+                    vel.height += (dy / max(distance, 1)) * 0.03
+                }
+            }
+
+            vel.width *= 0.85
+            vel.height *= 0.85
+            pos.x += vel.width
+            pos.y += vel.height
+
+            pos.x = max(30, min(canvasSize.width - 30, pos.x))
+            pos.y = max(30, min(canvasSize.height - 30, pos.y))
+
+            newPositions[node.id] = pos
+            newVelocities[node.id] = vel
+        }
+
+        return (newPositions, newVelocities)
     }
 }
 

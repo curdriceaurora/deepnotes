@@ -358,3 +358,39 @@ public enum ConflictSource: Sendable {
     case task
     case calendar
 }
+
+public struct NoteTemplate: Codable, Equatable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var body: String
+    public var createdAt: Date
+
+    public init(id: UUID = UUID(), name: String, body: String, createdAt: Date) {
+        self.id = id
+        self.name = name
+        self.body = body
+        self.createdAt = createdAt
+    }
+}
+
+public struct GraphNode: Equatable, Sendable {
+    public var id: UUID
+    public var title: String
+    public var tagCount: Int
+
+    public init(id: UUID, title: String, tagCount: Int) {
+        self.id = id
+        self.title = title
+        self.tagCount = tagCount
+    }
+}
+
+public struct GraphEdge: Equatable, Sendable {
+    public var fromID: UUID
+    public var toID: UUID
+
+    public init(fromID: UUID, toID: UUID) {
+        self.fromID = fromID
+        self.toID = toID
+    }
+}
