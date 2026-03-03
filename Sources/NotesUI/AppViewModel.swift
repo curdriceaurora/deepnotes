@@ -693,7 +693,12 @@ public final class AppViewModel {
         if selectFirstIfNeeded, selectedNoteID == nil {
             try await selectNoteWithoutWrapper(id: notes.first?.id)
         } else if let selectedNoteID {
-            try await selectNoteWithoutWrapper(id: selectedNoteID)
+            let selectedIsInNewList = notes.contains(where: { $0.id == selectedNoteID })
+            if selectedIsInNewList {
+                try await selectNoteWithoutWrapper(id: selectedNoteID)
+            } else {
+                try await selectNoteWithoutWrapper(id: nil)
+            }
         }
     }
 

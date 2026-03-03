@@ -245,6 +245,7 @@ final class NotesSmokeTests: XCTestCase {
         XCTAssertGreaterThan(totalCount, 0, "Fixture must contain notes")
 
         await viewModel.setNoteSearchQuery("Vendor")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         XCTAssertLessThan(
             viewModel.notes.count, totalCount,
@@ -261,6 +262,7 @@ final class NotesSmokeTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         guard let first = viewModel.notes.first else {
             return XCTFail("Expected at least one result for 'launch'")
@@ -284,9 +286,11 @@ final class NotesSmokeTests: XCTestCase {
         let totalCount = viewModel.notes.count
 
         await viewModel.setNoteSearchQuery("Vendor")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertLessThan(viewModel.notes.count, totalCount)
 
         await viewModel.setNoteSearchQuery("")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(viewModel.notes.count, totalCount,
                        "Clearing search must restore the full notes list")
         XCTAssertNil(viewModel.noteSearchQuery.isEmpty ? nil as String? : "non-empty")
@@ -298,6 +302,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("zzz_no_match_zzz")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         XCTAssertTrue(viewModel.notes.isEmpty,
                       "Search for non-matching word must produce empty list without crash")
