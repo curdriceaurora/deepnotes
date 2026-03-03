@@ -988,4 +988,57 @@ actor MockWorkspaceService: WorkspaceServicing {
         let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
         return note
     }
+
+    // MARK: - Kanban Column & Label methods
+
+    private var kanbanColumns: [KanbanColumn] = [
+        KanbanColumn(id: UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!, title: "Backlog", builtInStatus: .backlog, position: 0),
+        KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
+        KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
+        KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+    ]
+
+    func listKanbanColumns() async throws -> [KanbanColumn] {
+        kanbanColumns.sorted { $0.position < $1.position }
+    }
+
+    func createKanbanColumn(title: String) async throws -> KanbanColumn {
+        let position = (kanbanColumns.map(\.position).max() ?? -1) + 1
+        let column = KanbanColumn(title: title, position: position)
+        kanbanColumns.append(column)
+        return column
+    }
+
+    func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        guard let idx = kanbanColumns.firstIndex(where: { $0.id == column.id }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        kanbanColumns[idx] = column
+        return kanbanColumns[idx]
+    }
+
+    func deleteKanbanColumn(id: UUID) async throws {
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else { return }
+        kanbanColumns.removeAll { $0.id == id }
+    }
+
+    func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        if !tasks[idx].labels.contains(where: { $0.name.lowercased() == label.name.lowercased() }) {
+            tasks[idx].labels.append(label)
+        }
+        return tasks[idx]
+    }
+
+    func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
+        return tasks[idx]
+    }
 }

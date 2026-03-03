@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-03 — Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed; ViewModel integration tests + regex cleanup done
+Last updated: 2026-03-03 — Section 9 Polish (Kanban) completed; Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed; ViewModel integration tests + regex cleanup done
 
 ## Decision: migration stress tests now?
 
@@ -240,6 +240,36 @@ Acceptance criteria:
 
 ---
 
+#### Section 9: Kanban Board of Notion — Polish Tier Completion (2026-03-03)
+
+**Status**: ✅ COMPLETE — All 4 Polish features implemented, tested, and integrated.
+
+**Implementation Summary**:
+- [x] **User-defined columns**: `KanbanColumn` model wraps `TaskStatus` (built-in) or custom columns; `KanbanColumnStore` protocol + SQLite table with fixed-UUID seeding for 5 built-ins; create/edit/delete with orphan reassignment to backlog
+- [x] **WIP limits**: Optional `wipLimit` per column; header turns red (8% opacity background + red limit text) when `count >= limit`; editable via column context menu
+- [x] **Card-level labels**: `TaskLabel` (name + colorHex) stored as JSON on Task; colored capsule chips on cards (up to 3); label editor section in card detail sheet with 8-color palette; `allLabels` derived from task data
+- [x] **Swimlane grouping**: `KanbanGrouping` enum (`.none/.priority/.note/.label`); toolbar picker; section headers in each column; purely view-level state (no persistence)
+
+**Test Coverage**:
+- 436 total tests passing (419 XCTest + 17 Swift Testing), 0 failures
+- 6 new storage tests (SQLiteKanbanColumnTests): column seeding, CRUD, built-in guard, labels JSON, columnID persistence
+- 4 new feature tests (WorkspaceServiceTests): column position, orphan reassignment, label dedup, moveTask clears columnID
+- 16 new ViewModel tests: columns (6), WIP limits (2), labels (3), swimlanes (3), drag-drop (2)
+- 2 new E2E integration tests: custom column workflow, backward compat with column-based board
+- All existing tests pass unchanged (backward compatible)
+
+**Architecture**:
+- `KanbanColumn` wraps `TaskStatus` — zero changes to `TaskStatus` enum itself
+- `tasksByColumn: [UUID: [Task]]` replaces `tasksByStatus` cache; `tasks(for: TaskStatus)` preserved as backward-compat facade
+- Labels follow established `Note.tags` JSON pattern (fault-tolerant decode, default `[]`)
+- Built-in columns protected from deletion; orphaned tasks reassigned to backlog
+
+**Known Limitations** (deferred by design):
+- **Drag-drop and move left/right only work with built-in columns.** `moveTask` accepts `TaskStatus`, not a column ID. Cards in or adjacent to custom columns cannot be moved via drag-drop or chevron buttons. Extending this requires a column-ID-based `moveTask` overload and updating `performTaskDrop`/`handleTaskDrop` to resolve custom columns.
+- **`deleteColumn` in SQLiteStore is not transactional.** The check, task reassignment, and column deletion are three separate SQL statements. A crash between the `UPDATE tasks` reassign and the `DELETE FROM kanban_columns` could leave orphaned column rows. Low risk for a single-user local DB; fix by wrapping in `BEGIN IMMEDIATE TRANSACTION / COMMIT / ROLLBACK` if needed.
+
+---
+
 ### 9. Kanban board view of Notion
 
 Foundation:
@@ -251,10 +281,12 @@ Foundation:
 **Section 9 Foundation Summary**: Priority badges (P0-P4 colored capsules, P5 hidden), note tag chips (up to 2 per card), full card detail sheet with editable title/details/status/priority/due dates/linked note, priority picker in quick-task bar, 6 new ViewModel tests. Due-date color coding was already complete from prior work.
 
 Polish:
-- [ ] Allow user-defined kanban columns (custom statuses beyond the fixed five).
-- [ ] Add optional WIP limits per column with a visual warning when exceeded.
-- [ ] Add card-level labels/tags (multi-select, color-coded chips on cards).
-- [ ] Add swimlane grouping option (group cards by priority, note, or tag within each column).
+- [x] Allow user-defined kanban columns (custom statuses beyond the fixed five).
+- [x] Add optional WIP limits per column with a visual warning when exceeded.
+- [x] Add card-level labels/tags (multi-select, color-coded chips on cards).
+- [x] Add swimlane grouping option (group cards by priority, note, or tag within each column).
+
+**Section 9 Polish Summary**: User-defined kanban columns (`KanbanColumn` model with `builtInStatus` wrapping, custom columns with position/WIP limit/color, 5 built-in columns protected), WIP limits (visual red warning on column header when `count >= limit`), card-level labels (`TaskLabel` with name + colorHex, JSON-stored on Task, colored capsule chips on cards, label editor in detail sheet with 8-color palette), swimlane grouping (`KanbanGrouping` enum with `.none/.priority/.note/.label`, toolbar picker, section headers in columns). 28 new tests (6 storage + 4 feature + 16 ViewModel + 2 E2E), 436 total tests passing.
 
 Acceptance criteria:
 - Every field on the Task model is visible and editable from the kanban card detail view.

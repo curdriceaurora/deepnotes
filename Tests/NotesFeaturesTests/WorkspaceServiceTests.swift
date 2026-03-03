@@ -25,6 +25,7 @@ final class WorkspaceServiceTests: XCTestCase {
             bindingStore: store,
             checkpointStore: store,
             templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
         )
 
@@ -195,6 +196,7 @@ final class WorkspaceServiceTests: XCTestCase {
             bindingStore: store,
             checkpointStore: store,
             templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: now)
         )
 
@@ -332,6 +334,100 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(swiftNotes.first?.title, "A")
     }
 
+    // MARK: - Kanban Column & Label feature tests
+
+    func testCreateKanbanColumnAssignsPosition() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let columns = try await service.listKanbanColumns()
+        let maxPosition = columns.map(\.position).max() ?? -1
+
+        let custom = try await service.createKanbanColumn(title: "Review")
+
+        XCTAssertEqual(custom.title, "Review")
+        XCTAssertEqual(custom.position, maxPosition + 1)
+        XCTAssertNil(custom.builtInStatus)
+
+        let allColumns = try await service.listKanbanColumns()
+        XCTAssertTrue(allColumns.contains(where: { $0.id == custom.id }))
+    }
+
+    func testDeleteKanbanColumnReassignsOrphanedTasks() async throws {
+        let store = try makeStore()
+        let service = WorkspaceService(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        let custom = try await service.createKanbanColumn(title: "Review")
+
+        // Create a task assigned to the custom column
+        var task = try await service.createTask(NewTaskInput(title: "Orphan", status: .doing, priority: 2))
+        task.kanbanColumnID = custom.id
+        task = try await service.updateTask(task)
+        XCTAssertEqual(task.kanbanColumnID, custom.id)
+
+        // Delete the custom column
+        try await service.deleteKanbanColumn(id: custom.id)
+
+        // Verify column is gone
+        let columns = try await service.listKanbanColumns()
+        XCTAssertFalse(columns.contains(where: { $0.id == custom.id }))
+
+        // Verify task was reassigned to backlog with nil columnID
+        let allTasks = try await service.listTasks(filter: .all)
+        let orphan = allTasks.first(where: { $0.id == task.id })
+        XCTAssertNotNil(orphan)
+        XCTAssertEqual(orphan?.status, .backlog)
+        XCTAssertNil(orphan?.kanbanColumnID)
+    }
+
+    func testAddLabelToTaskDeduplicatesByName() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let task = try await service.createTask(NewTaskInput(title: "Label test", status: .backlog, priority: 2))
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+
+        let labeled = try await service.addLabelToTask(taskID: task.id, label: label)
+        XCTAssertEqual(labeled.labels.count, 1)
+        XCTAssertEqual(labeled.labels.first?.name, "Bug")
+
+        // Add same label again (case-insensitive) — should not duplicate
+        let dupeLabel = TaskLabel(name: "bug", colorHex: "#FF0000")
+        let afterDupe = try await service.addLabelToTask(taskID: task.id, label: dupeLabel)
+        XCTAssertEqual(afterDupe.labels.count, 1)
+    }
+
+    func testMoveTaskToBuiltInStatusClearsColumnID() async throws {
+        let store = try makeStore()
+        let service = WorkspaceService(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        let custom = try await service.createKanbanColumn(title: "Custom Col")
+
+        var task = try await service.createTask(NewTaskInput(title: "Move test", status: .backlog, priority: 2))
+        task.kanbanColumnID = custom.id
+        task = try await service.updateTask(task)
+        XCTAssertEqual(task.kanbanColumnID, custom.id)
+
+        // Move to a built-in status
+        let moved = try await service.moveTask(taskID: task.id, to: .next, beforeTaskID: nil)
+        XCTAssertEqual(moved.status, .next)
+        XCTAssertNil(moved.kanbanColumnID)
+    }
+
     func testFetchNotesByTagInStorageLayer() async throws {
         let store = try makeStore()
         let note = Note(title: "Tagged", body: "Content", tags: ["swift", "ios"], updatedAt: Date())
@@ -349,6 +445,7 @@ final class WorkspaceServiceTests: XCTestCase {
             bindingStore: store,
             checkpointStore: store,
             templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: now)
         )
     }

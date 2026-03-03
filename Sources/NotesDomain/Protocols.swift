@@ -63,3 +63,9 @@ public protocol TemplateStore: Sendable {
     func upsertTemplate(_ template: NoteTemplate) async throws -> NoteTemplate
     func deleteTemplate(id: UUID) async throws
 }
+
+public protocol KanbanColumnStore: Sendable {
+    func fetchColumns() async throws -> [KanbanColumn]
+    func upsertColumn(_ column: KanbanColumn) async throws -> KanbanColumn
+    func deleteColumn(id: UUID) async throws
+}

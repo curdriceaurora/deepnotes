@@ -93,6 +93,12 @@ public protocol WorkspaceServicing: Sendable {
     func createTemplate(name: String, body: String) async throws -> NoteTemplate
     func deleteTemplate(id: UUID) async throws
     func createNote(title: String, body: String, templateID: UUID?) async throws -> Note
+    func listKanbanColumns() async throws -> [KanbanColumn]
+    func createKanbanColumn(title: String) async throws -> KanbanColumn
+    func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn
+    func deleteKanbanColumn(id: UUID) async throws
+    func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task
+    func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task
 }
 
 public actor WorkspaceService: WorkspaceServicing {
@@ -101,6 +107,7 @@ public actor WorkspaceService: WorkspaceServicing {
     private let bindingStore: CalendarBindingStore
     private let checkpointStore: SyncCheckpointStore
     private let templateStore: TemplateStore
+    private let kanbanColumnStore: KanbanColumnStore
     private let mapper: TaskCalendarMapper
     private let clock: Clock
     private let linkParser: WikiLinkParser
@@ -127,6 +134,7 @@ public actor WorkspaceService: WorkspaceServicing {
         bindingStore: CalendarBindingStore,
         checkpointStore: SyncCheckpointStore,
         templateStore: TemplateStore,
+        kanbanColumnStore: KanbanColumnStore,
         mapper: TaskCalendarMapper = TaskCalendarMapper(),
         clock: Clock = SystemClock(),
         linkParser: WikiLinkParser = WikiLinkParser(),
@@ -137,6 +145,7 @@ public actor WorkspaceService: WorkspaceServicing {
         self.bindingStore = bindingStore
         self.checkpointStore = checkpointStore
         self.templateStore = templateStore
+        self.kanbanColumnStore = kanbanColumnStore
         self.mapper = mapper
         self.clock = clock
         self.linkParser = linkParser
@@ -149,7 +158,8 @@ public actor WorkspaceService: WorkspaceServicing {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
-            templateStore: store
+            templateStore: store,
+            kanbanColumnStore: store
         )
     }
 
@@ -486,6 +496,7 @@ public actor WorkspaceService: WorkspaceServicing {
 
         task.status = status
         task.kanbanOrder = desiredOrder
+        task.kanbanColumnID = nil
         task.updatedAt = clock.now()
         if status == .done {
             task.completedAt = task.completedAt ?? clock.now()
@@ -574,6 +585,47 @@ public actor WorkspaceService: WorkspaceServicing {
                 recurrenceRule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0"
             ))
         }
+    }
+
+    public func listKanbanColumns() async throws -> [KanbanColumn] {
+        try await kanbanColumnStore.fetchColumns()
+    }
+
+    public func createKanbanColumn(title: String) async throws -> KanbanColumn {
+        let existing = try await kanbanColumnStore.fetchColumns()
+        let maxPosition = existing.map(\.position).max() ?? -1
+        let column = KanbanColumn(title: title, position: maxPosition + 1)
+        return try await kanbanColumnStore.upsertColumn(column)
+    }
+
+    public func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        try await kanbanColumnStore.upsertColumn(column)
+    }
+
+    public func deleteKanbanColumn(id: UUID) async throws {
+        let columns = try await kanbanColumnStore.fetchColumns()
+        guard let target = columns.first(where: { $0.id == id }) else { return }
+        guard target.builtInStatus == nil else { return }
+        try await kanbanColumnStore.deleteColumn(id: id)
+    }
+
+    public func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: taskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(taskID)")
+        }
+        let alreadyExists = task.labels.contains(where: { $0.name.lowercased() == label.name.lowercased() })
+        if !alreadyExists {
+            task.labels.append(label)
+        }
+        return try await updateTask(task)
+    }
+
+    public func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: taskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(taskID)")
+        }
+        task.labels.removeAll(where: { $0.name.lowercased() == labelName.lowercased() })
+        return try await updateTask(task)
     }
 
     private func nextKanbanOrderForAppend(status: TaskStatus, tasks: [Task]) -> Double {

@@ -67,8 +67,13 @@ public final class AppViewModel {
     public var quickTaskTitle: String = ""
     public var quickTaskPriority: Int = 3
     public var selectedTaskForEditing: Task?
+    public private(set) var kanbanColumns: [KanbanColumn] = []
+    public var kanbanGrouping: KanbanGrouping = .none
+    public var isColumnEditorPresented: Bool = false
+    public var newColumnTitle: String = ""
+    public private(set) var allLabels: [TaskLabel] = []
     private var allTasks: [Task] = []
-    private var tasksByStatus: [TaskStatus: [Task]] = [:]
+    private var tasksByColumn: [UUID: [Task]] = [:]
 
     public var syncCalendarID: String = ""
     public private(set) var isSyncing: Bool = false
@@ -84,6 +89,7 @@ public final class AppViewModel {
     public private(set) var errorMessage: String?
     public private(set) var draggingTaskID: UUID?
     public private(set) var dropTargetStatus: TaskStatus?
+    public private(set) var dropTargetColumnID: UUID?
     public private(set) var dropTargetTaskID: UUID?
 
     private let service: WorkspaceServicing
@@ -108,6 +114,7 @@ public final class AppViewModel {
         let state = Self.signposter.beginInterval("load", id: signpostID)
         await runTask {
             try await service.seedDemoDataIfNeeded()
+            try await reloadKanbanColumns()
             async let r1: () = reloadNotes(selectFirstIfNeeded: true)
             async let r2: () = reloadTags()
             async let r3: () = loadGraph()
@@ -519,6 +526,20 @@ public final class AppViewModel {
 
     public func setDropTargetStatus(_ status: TaskStatus?) {
         dropTargetStatus = status
+        if let status {
+            dropTargetColumnID = kanbanColumns.first(where: { $0.builtInStatus == status })?.id
+        } else {
+            dropTargetColumnID = nil
+        }
+    }
+
+    public func setDropTargetColumn(_ columnID: UUID?) {
+        dropTargetColumnID = columnID
+        if let columnID, let col = kanbanColumns.first(where: { $0.id == columnID }) {
+            dropTargetStatus = col.builtInStatus
+        } else {
+            dropTargetStatus = nil
+        }
     }
 
     public func setDropTargetTaskID(_ taskID: UUID?) {
@@ -528,6 +549,7 @@ public final class AppViewModel {
     public func endTaskDrag() {
         draggingTaskID = nil
         dropTargetStatus = nil
+        dropTargetColumnID = nil
         dropTargetTaskID = nil
     }
 
@@ -636,7 +658,46 @@ public final class AppViewModel {
     }
 
     public func tasks(for status: TaskStatus) -> [Task] {
-        tasksByStatus[status] ?? []
+        guard let column = kanbanColumns.first(where: { $0.builtInStatus == status }) else { return [] }
+        return tasksForColumn(column.id)
+    }
+
+    public func tasksForColumn(_ columnID: UUID) -> [Task] {
+        tasksByColumn[columnID] ?? []
+    }
+
+    public func groupedTasks(for columnID: UUID) -> [(key: String, tasks: [Task])] {
+        let columnTasks = tasksForColumn(columnID)
+        switch kanbanGrouping {
+        case .none:
+            return [("", columnTasks)]
+        case .priority:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let key = "P\(task.priority)"
+                groups[key, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        case .note:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let noteTitle: String
+                if let noteID = task.noteID, let note = notes.first(where: { $0.id == noteID }) {
+                    noteTitle = note.title
+                } else {
+                    noteTitle = "No Note"
+                }
+                groups[noteTitle, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        case .label:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let key = task.labels.first?.name ?? "No Label"
+                groups[key, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        }
     }
 
     public func runSync() async {
@@ -763,17 +824,34 @@ public final class AppViewModel {
     }
 
     private func rebuildTaskCache(sourceTasks: [Task]) {
-        var next: [TaskStatus: [Task]] = [:]
-        for status in TaskStatus.allCases {
-            next[status] = []
+        var next: [UUID: [Task]] = [:]
+        for column in kanbanColumns {
+            next[column.id] = []
         }
         for task in sourceTasks {
-            next[task.status, default: []].append(task)
+            if let columnID = task.kanbanColumnID, next[columnID] != nil {
+                next[columnID, default: []].append(task)
+            } else if let column = kanbanColumns.first(where: { $0.builtInStatus == task.status }) {
+                next[column.id, default: []].append(task)
+            }
         }
-        for status in TaskStatus.allCases {
-            next[status]?.sort(by: Self.kanbanTaskSort)
+        for columnID in next.keys {
+            next[columnID]?.sort(by: Self.kanbanTaskSort)
         }
-        tasksByStatus = next
+        tasksByColumn = next
+
+        var seen = Set<String>()
+        var labels: [TaskLabel] = []
+        for task in sourceTasks {
+            for label in task.labels {
+                let key = label.name.lowercased()
+                if !seen.contains(key) {
+                    seen.insert(key)
+                    labels.append(label)
+                }
+            }
+        }
+        allLabels = labels.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 
     private func taskByID(_ taskID: UUID) -> Task? {
@@ -909,6 +987,55 @@ public final class AppViewModel {
         let fileURL = folder.appendingPathComponent(filename)
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         return fileURL
+    }
+
+    public func createKanbanColumn() async {
+        let title = newColumnTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        await runTask {
+            _ = try await service.createKanbanColumn(title: title)
+            newColumnTitle = ""
+            try await reloadKanbanColumns()
+            rebuildTaskCache(sourceTasks: allTasks)
+        }
+    }
+
+    public func deleteKanbanColumn(id: UUID) async {
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else {
+            errorMessage = "Cannot delete a built-in column."
+            return
+        }
+        await runTask {
+            try await service.deleteKanbanColumn(id: id)
+            try await reloadKanbanColumns()
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func updateKanbanColumn(_ column: KanbanColumn) async {
+        await runTask {
+            _ = try await service.updateKanbanColumn(column)
+            try await reloadKanbanColumns()
+        }
+    }
+
+    public func addLabelToTask(taskID: UUID, label: TaskLabel) async {
+        await runTask {
+            _ = try await service.addLabelToTask(taskID: taskID, label: label)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func removeLabelFromTask(taskID: UUID, labelName: String) async {
+        await runTask {
+            _ = try await service.removeLabelFromTask(taskID: taskID, labelName: labelName)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    private func reloadKanbanColumns() async throws {
+        kanbanColumns = try await service.listKanbanColumns()
     }
 
     public func openDailyNote() async {

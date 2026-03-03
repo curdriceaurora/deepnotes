@@ -720,28 +720,61 @@ public struct KanbanBoardView: View {
         GeometryReader { geometry in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 12) {
-                    ForEach(TaskStatus.allCases, id: \.self) { status in
-                        columnView(status: status, boardHeight: geometry.size.height)
+                    ForEach(viewModel.kanbanColumns) { column in
+                        columnView(column: column, boardHeight: geometry.size.height)
                     }
                 }
                 .padding(16)
             }
         }
+        .toolbar {
+            ToolbarItemGroup {
+                Menu {
+                    ForEach(KanbanGrouping.allCases, id: \.self) { grouping in
+                        Button {
+                            viewModel.kanbanGrouping = grouping
+                        } label: {
+                            if viewModel.kanbanGrouping == grouping {
+                                Label(grouping.rawValue.capitalized, systemImage: "checkmark")
+                            } else {
+                                Text(grouping.rawValue.capitalized)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Group", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                .accessibilityIdentifier("kanbanGroupingPicker")
+
+                Button {
+                    viewModel.isColumnEditorPresented = true
+                } label: {
+                    Label("Add Column", systemImage: "plus.rectangle.on.rectangle")
+                }
+                .accessibilityIdentifier("addColumnButton")
+            }
+        }
         .sheet(item: $viewModel.selectedTaskForEditing) { task in
             KanbanCardDetailSheet(viewModel: viewModel, task: task)
         }
+        .sheet(isPresented: $viewModel.isColumnEditorPresented) {
+            KanbanColumnEditorSheet(viewModel: viewModel)
+        }
     }
 
-    private func columnView(status: TaskStatus, boardHeight: CGFloat) -> some View {
-        let isDropTarget = viewModel.dropTargetStatus == status
-        let cards = viewModel.tasks(for: status)
+    private func columnView(column: KanbanColumn, boardHeight: CGFloat) -> some View {
+        let isDropTarget = viewModel.dropTargetColumnID == column.id
+        let cards = viewModel.tasksForColumn(column.id)
+        let icon = column.builtInStatus?.uiIcon ?? "rectangle.stack"
+        let accentColor: Color = column.builtInStatus?.accentColor ?? Color(hex: column.colorHex ?? "#888888") ?? .gray
+        let isOverWip = column.wipLimit.map { cards.count >= $0 } ?? false
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: status.uiIcon)
+                Image(systemName: icon)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(status.accentColor)
-                Text(status.uiTitle)
+                    .foregroundStyle(accentColor)
+                Text(column.title)
                     .font(.subheadline.weight(.semibold))
                 Text("\(cards.count)")
                     .font(.caption2.weight(.medium))
@@ -749,8 +782,15 @@ public struct KanbanBoardView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
+                if let limit = column.wipLimit {
+                    Text("/\(limit)")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(isOverWip ? .red : .secondary)
+                }
             }
             .padding(.horizontal, 4)
+            .background(isOverWip ? Color.red.opacity(0.08) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
 
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 8) {
@@ -765,9 +805,23 @@ public struct KanbanBoardView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 60)
-                    } else {
+                    } else if viewModel.kanbanGrouping == .none {
                         ForEach(cards, id: \.id) { task in
-                            taskCard(task: task, status: status)
+                            taskCard(task: task, column: column)
+                        }
+                    } else {
+                        let groups = viewModel.groupedTasks(for: column.id)
+                        ForEach(groups, id: \.key) { group in
+                            if !group.key.isEmpty {
+                                Text(group.key)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 4)
+                                    .padding(.top, 4)
+                            }
+                            ForEach(group.tasks, id: \.id) { task in
+                                taskCard(task: task, column: column)
+                            }
                         }
                     }
                 }
@@ -780,26 +834,52 @@ public struct KanbanBoardView: View {
         .dnColumn(isDropTarget: isDropTarget)
         .animation(.spring(duration: 0.25), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
-            viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: nil)
+            if let status = column.builtInStatus {
+                return viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: nil)
+            }
+            return false
         } isTargeted: { targeted in
             if targeted {
-                viewModel.setDropTargetStatus(status)
-            } else if viewModel.dropTargetStatus == status {
-                viewModel.setDropTargetStatus(nil)
+                viewModel.setDropTargetColumn(column.id)
+            } else if viewModel.dropTargetColumnID == column.id {
+                viewModel.setDropTargetColumn(nil)
             }
         }
-        .accessibilityIdentifier("kanbanColumn_\(status.rawValue)")
+        .contextMenu {
+            if column.builtInStatus == nil {
+                Button("Edit WIP Limit...") {
+                    viewModel.isColumnEditorPresented = true
+                }
+                Button("Delete Column", role: .destructive) {
+                    _Concurrency.Task { await viewModel.deleteKanbanColumn(id: column.id) }
+                }
+            }
+        }
+        .accessibilityIdentifier(
+            column.builtInStatus.map { "kanbanColumn_\($0.rawValue)" }
+                ?? "kanbanColumn_\(column.id.uuidString)"
+        )
     }
 
-    private func taskCard(task: Task, status: TaskStatus) -> some View {
+    private func taskCard(task: Task, column: KanbanColumn) -> some View {
+        let status = column.builtInStatus ?? task.status
         let isDropTarget = viewModel.dropTargetTaskID == task.id
+        let columnIndex = viewModel.kanbanColumns.firstIndex(where: { $0.id == column.id })
+        let hasPrevious = columnIndex.map { $0 > 0 } ?? false
+        let hasNext = columnIndex.map { $0 < viewModel.kanbanColumns.count - 1 } ?? false
         let moveLeftAction = {
-            guard let previous = status.previous else { return }
-            _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: previous) }
+            guard let idx = columnIndex, idx > 0 else { return }
+            let prevCol = viewModel.kanbanColumns[idx - 1]
+            if let prevStatus = prevCol.builtInStatus {
+                _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: prevStatus) }
+            }
         }
         let moveRightAction = {
-            guard let next = status.next else { return }
-            _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: next) }
+            guard let idx = columnIndex, idx < viewModel.kanbanColumns.count - 1 else { return }
+            let nextCol = viewModel.kanbanColumns[idx + 1]
+            if let nextStatus = nextCol.builtInStatus {
+                _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: nextStatus) }
+            }
         }
 
         return HStack(spacing: 0) {
@@ -831,6 +911,20 @@ public struct KanbanBoardView: View {
                     }
                 }
 
+                if !task.labels.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(task.labels.prefix(3), id: \.name) { label in
+                            Text(label.name)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(hex: label.colorHex) ?? .gray, in: Capsule())
+                        }
+                    }
+                    .accessibilityIdentifier("taskLabels_\(task.id.uuidString)")
+                }
+
                 let tags = viewModel.tagsForTask(task)
                 if !tags.isEmpty {
                     HStack(spacing: 4) {
@@ -844,7 +938,7 @@ public struct KanbanBoardView: View {
                 }
 
                 HStack(spacing: 0) {
-                    if status.previous != nil {
+                    if hasPrevious {
                         Button {
                             moveLeftAction()
                         } label: {
@@ -868,7 +962,7 @@ public struct KanbanBoardView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("deleteKanbanTask_\(task.id.uuidString)")
 
-                    if status.next != nil {
+                    if hasNext {
                         Button {
                             moveRightAction()
                         } label: {
@@ -896,10 +990,13 @@ public struct KanbanBoardView: View {
         )
         .animation(.spring(duration: 0.2), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
-            viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: task.id)
+            if let dropStatus = column.builtInStatus {
+                return viewModel.performTaskDrop(taskPayloads: payloads, to: dropStatus, beforeTaskID: task.id)
+            }
+            return false
         } isTargeted: { targeted in
             if targeted {
-                viewModel.setDropTargetStatus(status)
+                viewModel.setDropTargetColumn(column.id)
                 viewModel.setDropTargetTaskID(task.id)
             } else if viewModel.dropTargetTaskID == task.id {
                 viewModel.setDropTargetTaskID(nil)
@@ -926,11 +1023,60 @@ public struct KanbanBoardView: View {
     }
 }
 
+private struct KanbanColumnEditorSheet: View {
+    @Bindable var viewModel: AppViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("New Column")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel") { dismiss() }
+            }
+            .padding()
+
+            Divider()
+
+            Form {
+                Section("Title") {
+                    TextField("Column title", text: $viewModel.newColumnTitle)
+                        .accessibilityIdentifier("columnEditorTitle")
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Save") {
+                    _Concurrency.Task {
+                        await viewModel.createKanbanColumn()
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.newColumnTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("columnEditorSave")
+            }
+            .padding()
+        }
+        .frame(minWidth: 300, minHeight: 200)
+        .accessibilityIdentifier("kanbanColumnEditorSheet")
+    }
+}
+
 private struct KanbanCardDetailSheet: View {
-    var viewModel: AppViewModel
+    private static let labelPalette = ["#FF0000", "#FF8800", "#FFCC00", "#00CC00", "#0088FF", "#8800FF", "#FF00AA", "#888888"]
+
+    @Bindable var viewModel: AppViewModel
     @State private var editedTask: Task
     @State private var hasDueStart: Bool
     @State private var hasDueEnd: Bool
+    @State private var newLabelName: String = ""
+    @State private var newLabelColorHex: String = "#0088FF"
     @Environment(\.dismiss) private var dismiss
 
     init(viewModel: AppViewModel, task: Task) {
@@ -1031,6 +1177,53 @@ private struct KanbanCardDetailSheet: View {
                     }
                     .accessibilityIdentifier("cardDetailLinkedNote")
                 }
+
+                Section("Labels") {
+                    ForEach(editedTask.labels, id: \.name) { label in
+                        HStack {
+                            Circle()
+                                .fill(Color(hex: label.colorHex) ?? .gray)
+                                .frame(width: 10, height: 10)
+                            Text(label.name)
+                            Spacer()
+                            Button(role: .destructive) {
+                                editedTask.labels.removeAll { $0.name == label.name }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    HStack {
+                        TextField("Label name", text: $newLabelName)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 4) {
+                            ForEach(Self.labelPalette, id: \.self) { hex in
+                                Circle()
+                                    .fill(Color(hex: hex) ?? .gray)
+                                    .frame(width: 16, height: 16)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(newLabelColorHex == hex ? Color.primary : Color.clear, lineWidth: 2)
+                                    )
+                                    .onTapGesture { newLabelColorHex = hex }
+                            }
+                        }
+                        Button("Add") {
+                            let name = newLabelName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !name.isEmpty else { return }
+                            let label = TaskLabel(name: name, colorHex: newLabelColorHex)
+                            if !editedTask.labels.contains(where: { $0.name.lowercased() == name.lowercased() }) {
+                                editedTask.labels.append(label)
+                            }
+                            newLabelName = ""
+                        }
+                        .disabled(newLabelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .accessibilityIdentifier("cardDetailLabels")
             }
             .formStyle(.grouped)
 

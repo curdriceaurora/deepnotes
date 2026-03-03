@@ -166,6 +166,8 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
     public var updatedAt: Date
     public var version: Int64
     public var deletedAt: Date?
+    public var labels: [TaskLabel]
+    public var kanbanColumnID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -182,7 +184,9 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
         completedAt: Date? = nil,
         updatedAt: Date,
         version: Int64 = 0,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
+        labels: [TaskLabel] = [],
+        kanbanColumnID: UUID? = nil
     ) throws {
         guard (0...5).contains(priority) else {
             throw DomainValidationError.invalidPriority(priority)
@@ -205,6 +209,8 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
         self.updatedAt = updatedAt
         self.version = version
         self.deletedAt = deletedAt
+        self.labels = labels
+        self.kanbanColumnID = kanbanColumnID
     }
 }
 
@@ -433,4 +439,46 @@ public struct GraphEdge: Equatable, Sendable {
         self.fromID = fromID
         self.toID = toID
     }
+}
+
+public struct TaskLabel: Codable, Equatable, Sendable, Hashable {
+    public var name: String
+    public var colorHex: String
+
+    public init(name: String, colorHex: String) {
+        self.name = name
+        self.colorHex = colorHex
+    }
+}
+
+public struct KanbanColumn: Identifiable, Codable, Equatable, Sendable {
+    public var id: UUID
+    public var title: String
+    public var builtInStatus: TaskStatus?
+    public var position: Int
+    public var wipLimit: Int?
+    public var colorHex: String?
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        builtInStatus: TaskStatus? = nil,
+        position: Int,
+        wipLimit: Int? = nil,
+        colorHex: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.builtInStatus = builtInStatus
+        self.position = position
+        self.wipLimit = wipLimit
+        self.colorHex = colorHex
+    }
+}
+
+public enum KanbanGrouping: String, CaseIterable, Codable, Sendable {
+    case none
+    case priority
+    case note
+    case label
 }

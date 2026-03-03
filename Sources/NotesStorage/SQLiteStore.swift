@@ -6,7 +6,7 @@ private struct SQLiteConnection: @unchecked Sendable {
     let raw: OpaquePointer
 }
 
-public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore, TemplateStore {
+public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore, TemplateStore, KanbanColumnStore {
     private let connection: SQLiteConnection
     private var db: OpaquePointer { connection.raw }
 
@@ -452,6 +452,13 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             let version = try nextVersion(for: "task_version")
             let now = max(task.updatedAt, Date())
 
+            let labelsJSON: String
+            if let data = try? JSONEncoder().encode(task.labels), let str = String(data: data, encoding: .utf8) {
+                labelsJSON = str
+            } else {
+                labelsJSON = "[]"
+            }
+
             let sql = """
             INSERT INTO tasks (
                 id,
@@ -468,8 +475,10 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 completed_at,
                 updated_at,
                 version,
-                deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                deleted_at,
+                labels,
+                kanban_column_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 note_id = excluded.note_id,
                 stable_id = excluded.stable_id,
@@ -484,7 +493,9 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 completed_at = excluded.completed_at,
                 updated_at = excluded.updated_at,
                 version = excluded.version,
-                deleted_at = excluded.deleted_at;
+                deleted_at = excluded.deleted_at,
+                labels = excluded.labels,
+                kanban_column_id = excluded.kanban_column_id;
             """
 
             try withStatement(sql) { statement in
@@ -503,6 +514,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 bindDate(now, to: 13, in: statement)
                 bindInt64(version, to: 14, in: statement)
                 bindOptionalDate(task.deletedAt, to: 15, in: statement)
+                bindText(labelsJSON, to: 16, in: statement)
+                bindOptionalText(task.kanbanColumnID.map(UUIDString), to: 17, in: statement)
                 try stepDone(statement)
             }
 
@@ -531,13 +544,15 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let sql = includeDeleted
         ? """
           SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at
+                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+                 labels, kanban_column_id
           FROM tasks
           ORDER BY updated_at DESC;
           """
         : """
           SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at
+                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+                 labels, kanban_column_id
           FROM tasks
           WHERE deleted_at IS NULL
           ORDER BY updated_at DESC;
@@ -556,7 +571,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let fetchLimit = max(1, limit)
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at
+               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+               labels, kanban_column_id
         FROM tasks
         WHERE version > ?
         ORDER BY version ASC
@@ -813,6 +829,151 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
+    // MARK: - Kanban Columns
+
+    public func fetchColumns() async throws -> [KanbanColumn] {
+        let sql = """
+        SELECT id, title, built_in_status, position, wip_limit, color_hex
+        FROM kanban_columns
+        ORDER BY position ASC;
+        """
+
+        return try withStatement(sql) { statement in
+            var columns: [KanbanColumn] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                columns.append(try kanbanColumn(from: statement))
+            }
+            return columns
+        }
+    }
+
+    public func upsertColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        let sql = """
+        INSERT INTO kanban_columns (id, title, built_in_status, position, wip_limit, color_hex)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            built_in_status = excluded.built_in_status,
+            position = excluded.position,
+            wip_limit = excluded.wip_limit,
+            color_hex = excluded.color_hex;
+        """
+
+        try withStatement(sql) { statement in
+            bindText(UUIDString(from: column.id), to: 1, in: statement)
+            bindText(column.title, to: 2, in: statement)
+            bindOptionalText(column.builtInStatus?.rawValue, to: 3, in: statement)
+            bindInt(Int32(column.position), to: 4, in: statement)
+            if let wipLimit = column.wipLimit {
+                bindInt(Int32(wipLimit), to: 5, in: statement)
+            } else {
+                sqlite3_bind_null(statement, 5)
+            }
+            bindOptionalText(column.colorHex, to: 6, in: statement)
+            try stepDone(statement)
+        }
+
+        return column
+    }
+
+    public func deleteColumn(id: UUID) async throws {
+        // Guard: cannot delete built-in columns
+        let checkSQL = "SELECT built_in_status FROM kanban_columns WHERE id = ?;"
+        let isBuiltIn: Bool = try withStatement(checkSQL) { statement in
+            bindText(UUIDString(from: id), to: 1, in: statement)
+            guard sqlite3_step(statement) == SQLITE_ROW else { return false }
+            return columnOptionalText(statement, at: 0) != nil
+        }
+        guard !isBuiltIn else { return }
+
+        // Reassign orphaned tasks to backlog
+        let reassignSQL = "UPDATE tasks SET kanban_column_id = NULL, status = 'backlog' WHERE kanban_column_id = ?;"
+        try withStatement(reassignSQL) { statement in
+            bindText(UUIDString(from: id), to: 1, in: statement)
+            try stepDone(statement)
+        }
+
+        let deleteSQL = "DELETE FROM kanban_columns WHERE id = ?;"
+        try withStatement(deleteSQL) { statement in
+            bindText(UUIDString(from: id), to: 1, in: statement)
+            try stepDone(statement)
+        }
+    }
+
+    private func kanbanColumn(from statement: OpaquePointer) throws -> KanbanColumn {
+        guard
+            let idText = columnOptionalText(statement, at: 0),
+            let id = UUID(uuidString: idText),
+            let title = columnOptionalText(statement, at: 1)
+        else {
+            throw StorageError.dataCorruption(reason: "Invalid kanban_columns row values")
+        }
+
+        let builtInStatus: TaskStatus?
+        if let statusText = columnOptionalText(statement, at: 2) {
+            builtInStatus = TaskStatus(rawValue: statusText)
+        } else {
+            builtInStatus = nil
+        }
+
+        let wipLimit: Int?
+        if sqlite3_column_type(statement, 4) != SQLITE_NULL {
+            wipLimit = Int(sqlite3_column_int(statement, 4))
+        } else {
+            wipLimit = nil
+        }
+
+        return KanbanColumn(
+            id: id,
+            title: title,
+            builtInStatus: builtInStatus,
+            position: Int(sqlite3_column_int(statement, 3)),
+            wipLimit: wipLimit,
+            colorHex: columnOptionalText(statement, at: 5)
+        )
+    }
+
+    private static let builtInColumnUUIDs: [(UUID, TaskStatus, Int)] = [
+        (UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!, .backlog, 0),
+        (UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, .next, 1),
+        (UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, .doing, 2),
+        (UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, .waiting, 3),
+        (UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, .done, 4),
+    ]
+
+    private static func seedBuiltInKanbanColumns(on db: OpaquePointer) throws {
+        // Check count first (idempotent)
+        let countSQL = "SELECT COUNT(*) FROM kanban_columns WHERE built_in_status IS NOT NULL;"
+        var countStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, countSQL, -1, &countStmt, nil) == SQLITE_OK, let countStmt else {
+            throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
+        }
+        defer { sqlite3_finalize(countStmt) }
+        guard sqlite3_step(countStmt) == SQLITE_ROW else { return }
+        let count = sqlite3_column_int64(countStmt, 0)
+        guard count == 0 else { return }
+
+        for (id, status, position) in builtInColumnUUIDs {
+            let title = status.rawValue.prefix(1).uppercased() + status.rawValue.dropFirst()
+            let sql = """
+            INSERT INTO kanban_columns (id, title, built_in_status, position)
+            VALUES (?, ?, ?, ?);
+            """
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else {
+                throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
+            }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, UUIDString(from: id), -1, sqliteTransientDestructor)
+            sqlite3_bind_text(stmt, 2, title, -1, sqliteTransientDestructor)
+            sqlite3_bind_text(stmt, 3, status.rawValue, -1, sqliteTransientDestructor)
+            sqlite3_bind_int(stmt, 4, Int32(position))
+            if sqlite3_step(stmt) != SQLITE_DONE {
+                throw StorageError.executeStatement(reason: String(cString: sqlite3_errmsg(db)))
+            }
+        }
+    }
+
     private func template(from statement: OpaquePointer) throws -> NoteTemplate {
         let idString = String(cString: sqlite3_column_text(statement, 0))
         let id = UUID(uuidString: idString) ?? UUID()
@@ -956,6 +1117,26 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         );
         """
         try executeOnConnection(db, sql: templatesSQL)
+
+        // Kanban columns table
+        let kanbanColumnsSQL = """
+        CREATE TABLE IF NOT EXISTS kanban_columns (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            built_in_status TEXT,
+            position INTEGER NOT NULL,
+            wip_limit INTEGER,
+            color_hex TEXT
+        );
+        """
+        try executeOnConnection(db, sql: kanbanColumnsSQL)
+
+        // Seed 5 built-in columns (idempotent)
+        try seedBuiltInKanbanColumns(on: db)
+
+        // New task columns for labels and kanban_column_id
+        try ensureColumnExists(table: "tasks", column: "labels", definition: "TEXT NOT NULL DEFAULT '[]'", on: db)
+        try ensureColumnExists(table: "tasks", column: "kanban_column_id", definition: "TEXT", on: db)
 
         // Rebuild FTS to include tags content
         let ftsRebuildSQL = """
@@ -1155,7 +1336,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
     private func fetchTaskInternal(id: UUID) throws -> Task? {
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at
+               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+               labels, kanban_column_id
         FROM tasks
         WHERE id = ?;
         """
@@ -1172,7 +1354,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
     private func fetchTaskByStableIDInternal(_ stableID: String) throws -> Task? {
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at
+               priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+               labels, kanban_column_id
         FROM tasks
         WHERE stable_id = ?;
         """
@@ -1243,6 +1426,22 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             noteID = nil
         }
 
+        let labels: [TaskLabel]
+        if let labelsJSON = columnOptionalText(statement, at: 15),
+           let data = labelsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([TaskLabel].self, from: data) {
+            labels = decoded
+        } else {
+            labels = []
+        }
+
+        let kanbanColumnID: UUID?
+        if let colIDText = columnOptionalText(statement, at: 16) {
+            kanbanColumnID = UUID(uuidString: colIDText)
+        } else {
+            kanbanColumnID = nil
+        }
+
         return try Task(
             id: id,
             noteID: noteID,
@@ -1258,7 +1457,9 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             completedAt: columnOptionalDate(statement, at: 11),
             updatedAt: columnDate(statement, at: 12),
             version: sqlite3_column_int64(statement, 13),
-            deletedAt: columnOptionalDate(statement, at: 14)
+            deletedAt: columnOptionalDate(statement, at: 14),
+            labels: labels,
+            kanbanColumnID: kanbanColumnID
         )
     }
 

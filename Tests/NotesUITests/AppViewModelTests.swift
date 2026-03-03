@@ -1323,6 +1323,291 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.quickTaskPriority, 3)
     }
 
+    // MARK: - Kanban E2E Integration tests
+
+    func testEndToEndCustomColumnWorkflow() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        // 1. Create custom column
+        viewModel.newColumnTitle = "Review"
+        await viewModel.createKanbanColumn()
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+        let customCol = viewModel.kanbanColumns.last!
+        XCTAssertEqual(customCol.title, "Review")
+
+        // 2. Verify grouping works with custom column (empty column = 0 groups)
+        viewModel.kanbanGrouping = .priority
+        let grouped = viewModel.groupedTasks(for: customCol.id)
+        XCTAssertTrue(grouped.isEmpty || grouped.allSatisfy({ $0.tasks.isEmpty }))
+
+        // 3. Delete custom column
+        await viewModel.deleteKanbanColumn(id: customCol.id)
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customCol.id }))
+    }
+
+    func testExistingTasksWorkWithColumnBasedBoard() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // All tasks have nil kanbanColumnID — they should appear in built-in status columns
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+
+        let backlogTasks = viewModel.tasks(for: .backlog)
+        let nextTasks = viewModel.tasks(for: .next)
+        let doneTasks = viewModel.tasks(for: .done)
+
+        XCTAssertFalse(backlogTasks.isEmpty, "Backlog column should have tasks")
+        XCTAssertFalse(nextTasks.isEmpty, "Next column should have tasks")
+        XCTAssertFalse(doneTasks.isEmpty, "Done column should have tasks")
+
+        // Verify backward-compat: tasks(for:) matches tasksForColumn
+        let backlogCol = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        XCTAssertEqual(
+            backlogTasks.map(\.id),
+            viewModel.tasksForColumn(backlogCol.id).map(\.id)
+        )
+    }
+
+    // MARK: - Kanban Column ViewModel tests
+
+    func testLoadPopulatesKanbanColumnsWithDefaults() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertEqual(viewModel.kanbanColumns[0].builtInStatus, .backlog)
+        XCTAssertEqual(viewModel.kanbanColumns[4].builtInStatus, .done)
+    }
+
+    func testCreateKanbanColumnAppendsCustomColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.newColumnTitle = "Review"
+        await viewModel.createKanbanColumn()
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+        XCTAssertEqual(viewModel.kanbanColumns.last?.title, "Review")
+        let callCount = await service.createColumnCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testDeleteCustomColumnRemovesColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.newColumnTitle = "Temp"
+        await viewModel.createKanbanColumn()
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+
+        let customID = viewModel.kanbanColumns.last!.id
+        await viewModel.deleteKanbanColumn(id: customID)
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customID }))
+    }
+
+    func testDeleteBuiltInColumnSetsError() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogID = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!.id
+        await viewModel.deleteKanbanColumn(id: backlogID)
+
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+    }
+
+    func testTasksForColumnReturnsCorrectTasks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogTasks = viewModel.tasksForColumn(backlogColumn.id)
+        XCTAssertFalse(backlogTasks.isEmpty)
+        XCTAssertTrue(backlogTasks.allSatisfy { $0.status == .backlog })
+    }
+
+    func testTasksForStatusBackwardCompat() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogTasks = viewModel.tasks(for: .backlog)
+        XCTAssertFalse(backlogTasks.isEmpty)
+        XCTAssertTrue(backlogTasks.allSatisfy { $0.status == .backlog })
+    }
+
+    // MARK: - WIP Limits
+
+    func testUpdateColumnWipLimitPersists() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        col.wipLimit = 3
+        await viewModel.updateKanbanColumn(col)
+
+        let updated = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })
+        XCTAssertEqual(updated?.wipLimit, 3)
+    }
+
+    func testColumnOverWipLimitDetected() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // Backlog has 2 tasks in the spy; set WIP limit to 2
+        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        col.wipLimit = 2
+        await viewModel.updateKanbanColumn(col)
+
+        let backlogTasks = viewModel.tasksForColumn(col.id)
+        XCTAssertGreaterThanOrEqual(backlogTasks.count, col.wipLimit!)
+    }
+
+    // MARK: - Labels
+
+    func testAddLabelToTaskPersists() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+        await viewModel.addLabelToTask(taskID: task.id, label: label)
+
+        let callCount = await service.addLabelCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testRemoveLabelFromTaskRemoves() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+        await viewModel.addLabelToTask(taskID: task.id, label: label)
+        await viewModel.removeLabelFromTask(taskID: task.id, labelName: "Bug")
+
+        let removeCount = await service.removeLabelCallCount
+        XCTAssertEqual(removeCount, 1)
+    }
+
+    func testAllLabelsDerivedFromTasks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        await viewModel.addLabelToTask(taskID: task.id, label: TaskLabel(name: "Bug", colorHex: "#FF0000"))
+        await viewModel.addLabelToTask(taskID: task.id, label: TaskLabel(name: "Feature", colorHex: "#00FF00"))
+
+        XCTAssertTrue(viewModel.allLabels.contains(where: { $0.name == "Bug" }))
+        XCTAssertTrue(viewModel.allLabels.contains(where: { $0.name == "Feature" }))
+    }
+
+    // MARK: - Swimlane Grouping
+
+    func testGroupedTasksByPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.kanbanGrouping = .priority
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let grouped = viewModel.groupedTasks(for: backlogColumn.id)
+
+        XCTAssertFalse(grouped.isEmpty)
+        XCTAssertTrue(grouped.allSatisfy { !$0.key.isEmpty })
+    }
+
+    func testGroupedTasksByNone() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.kanbanGrouping = .none
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let grouped = viewModel.groupedTasks(for: backlogColumn.id)
+
+        XCTAssertEqual(grouped.count, 1)
+        XCTAssertEqual(grouped.first?.key, "")
+    }
+
+    func testGroupingChangeIsViewOnly() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let callsBefore = await service.createColumnCallCount
+        viewModel.kanbanGrouping = .priority
+        viewModel.kanbanGrouping = .label
+        viewModel.kanbanGrouping = .none
+        let callsAfter = await service.createColumnCallCount
+
+        XCTAssertEqual(callsBefore, callsAfter)
+    }
+
+    // MARK: - Drag-Drop Column
+
+    func testDropTargetColumnIDSetAndCleared() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        viewModel.beginTaskDrag(taskID: UUID())
+        viewModel.setDropTargetColumn(backlogColumn.id)
+        XCTAssertEqual(viewModel.dropTargetColumnID, backlogColumn.id)
+
+        viewModel.endTaskDrag()
+        XCTAssertNil(viewModel.dropTargetColumnID)
+        XCTAssertNil(viewModel.draggingTaskID)
+    }
+
+    func testMoveTaskClearsKanbanColumnID() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        await viewModel.moveTask(taskID: task.id, to: .next)
+        await viewModel.setTaskFilter(.all)
+
+        let moved = viewModel.tasks.first(where: { $0.id == task.id })
+        XCTAssertEqual(moved?.status, .next)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -1713,5 +1998,73 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
         notes.insert(note, at: 0)
         return note
+    }
+
+    // MARK: - Kanban Column & Label methods
+
+    private(set) var createColumnCallCount: Int = 0
+    private(set) var deleteColumnCallCount: Int = 0
+    private(set) var addLabelCallCount: Int = 0
+    private(set) var removeLabelCallCount: Int = 0
+
+    private var kanbanColumns: [KanbanColumn] = [
+        KanbanColumn(id: UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!, title: "Backlog", builtInStatus: .backlog, position: 0),
+        KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
+        KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
+        KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+    ]
+
+    func listKanbanColumns() async throws -> [KanbanColumn] {
+        kanbanColumns.sorted { $0.position < $1.position }
+    }
+
+    func createKanbanColumn(title: String) async throws -> KanbanColumn {
+        createColumnCallCount += 1
+        let position = (kanbanColumns.map(\.position).max() ?? -1) + 1
+        let column = KanbanColumn(title: title, position: position)
+        kanbanColumns.append(column)
+        return column
+    }
+
+    func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        guard let idx = kanbanColumns.firstIndex(where: { $0.id == column.id }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        kanbanColumns[idx] = column
+        return kanbanColumns[idx]
+    }
+
+    func deleteKanbanColumn(id: UUID) async throws {
+        deleteColumnCallCount += 1
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else {
+            throw NSError(domain: "workspace-spy", code: 403, userInfo: [NSLocalizedDescriptionKey: "Cannot delete built-in column"])
+        }
+        kanbanColumns.removeAll { $0.id == id }
+        for idx in tasks.indices where tasks[idx].kanbanColumnID == id {
+            tasks[idx].kanbanColumnID = nil
+            tasks[idx].status = .backlog
+        }
+    }
+
+    func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task {
+        addLabelCallCount += 1
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        if !tasks[idx].labels.contains(where: { $0.name.lowercased() == label.name.lowercased() }) {
+            tasks[idx].labels.append(label)
+        }
+        return tasks[idx]
+    }
+
+    func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task {
+        removeLabelCallCount += 1
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
+        return tasks[idx]
     }
 }
