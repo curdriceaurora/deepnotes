@@ -973,6 +973,158 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.allTagsList.contains("beta"))
     }
 
+    // MARK: - Daily Notes
+
+    func testOpenDailyNoteSelectsDailyNote() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.noteSearchQuery = "Alpha"
+
+        await viewModel.openDailyNote()
+
+        XCTAssertEqual(viewModel.noteSearchQuery, "")
+        XCTAssertNotNil(viewModel.selectedNoteID)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let todayTitle = formatter.string(from: Date())
+        XCTAssertEqual(viewModel.selectedNoteTitle, todayTitle)
+        XCTAssertTrue(viewModel.notes.contains(where: { $0.title == todayTitle }))
+    }
+
+    func testOpenDailyNoteIdempotent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.openDailyNote()
+        let firstID = viewModel.selectedNoteID
+        let countAfterFirst = viewModel.notes.count
+
+        await viewModel.openDailyNote()
+        let secondID = viewModel.selectedNoteID
+
+        XCTAssertEqual(firstID, secondID)
+        XCTAssertEqual(viewModel.notes.count, countAfterFirst)
+    }
+
+    // MARK: - Link Mentions
+
+    func testLinkMentionGuardsEmptyTitle() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.selectNote(id: nil)
+
+        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        await viewModel.linkMention(sourceNoteID: alphaID)
+
+        XCTAssertTrue(viewModel.selectedNoteTitle.isEmpty)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testLinkMentionUpdatesUnlinkedMentions() async {
+        let service = WorkspaceServiceSpy()
+        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let betaID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        await service.setStubbedUnlinkedMentions([
+            NoteBacklink(sourceNoteID: betaID, sourceTitle: "Beta")
+        ])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.selectNote(id: alphaID)
+
+        await viewModel.linkMention(sourceNoteID: betaID)
+
+        XCTAssertEqual(viewModel.unlinkedMentions.count, 1)
+        XCTAssertEqual(viewModel.unlinkedMentions.first?.sourceTitle, "Beta")
+    }
+
+    // MARK: - Graph View
+
+    func testReloadGraphPopulatesNodesAndEdges() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Gamma", body: "", tags: [])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.reloadGraph()
+
+        XCTAssertGreaterThanOrEqual(viewModel.graphNodes.count, 3)
+        XCTAssertEqual(viewModel.graphEdges.count, 1)
+    }
+
+    func testReloadGraphEmptyWhenNoLinks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.reloadGraph()
+
+        XCTAssertGreaterThanOrEqual(viewModel.graphNodes.count, 2)
+        XCTAssertEqual(viewModel.graphEdges.count, 0)
+    }
+
+    // MARK: - Templates
+
+    func testCreateNoteFromTemplateClearsStateAndSelects() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.noteSearchQuery = "search"
+        viewModel.isTemplatePickerPresented = true
+
+        await viewModel.createNoteFromTemplate(templateID: UUID())
+
+        XCTAssertEqual(viewModel.noteSearchQuery, "")
+        XCTAssertFalse(viewModel.isTemplatePickerPresented)
+        XCTAssertEqual(viewModel.selectedNoteTitle, "New Note")
+    }
+
+    func testCreateTemplateGuardsEmptyName() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "   "
+        viewModel.newTemplateBody = "body"
+
+        await viewModel.createTemplate()
+
+        XCTAssertEqual(viewModel.newTemplateName, "   ")
+        XCTAssertEqual(viewModel.newTemplateBody, "body")
+        XCTAssertTrue(viewModel.templates.isEmpty)
+    }
+
+    func testCreateTemplateClearsFormAndReloads() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "Meeting Notes"
+        viewModel.newTemplateBody = "## Agenda\n- "
+
+        await viewModel.createTemplate()
+
+        XCTAssertEqual(viewModel.newTemplateName, "")
+        XCTAssertEqual(viewModel.newTemplateBody, "")
+        XCTAssertEqual(viewModel.templates.count, 1)
+        XCTAssertEqual(viewModel.templates.first?.name, "Meeting Notes")
+    }
+
+    func testDeleteTemplateReloadsTemplates() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "Temp"
+        viewModel.newTemplateBody = "body"
+        await viewModel.createTemplate()
+        let templateID = viewModel.templates.first!.id
+
+        await viewModel.deleteTemplate(id: templateID)
+
+        XCTAssertTrue(viewModel.templates.isEmpty)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -996,6 +1148,8 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     private var notes: [Note]
     private var tasks: [Task]
+    private var templates: [NoteTemplate] = []
+    private var stubbedUnlinkedMentions: [NoteBacklink] = []
 
     init() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -1029,6 +1183,10 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     func setIncludeDetachedDiagnostic(_ include: Bool) {
         includeDetachedDiagnostic = include
+    }
+
+    func setStubbedUnlinkedMentions(_ mentions: [NoteBacklink]) {
+        stubbedUnlinkedMentions = mentions
     }
 
     func clearSeriesAnchorRecurrenceRule(stableID: String) {
@@ -1281,7 +1439,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
-        []
+        stubbedUnlinkedMentions
     }
 
     func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
@@ -1292,7 +1450,21 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
-        []
+        let pattern = try NSRegularExpression(pattern: #"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]"#)
+        var edges: [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] = []
+        for note in notes {
+            let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+            let matches = pattern.matches(in: note.body, range: range)
+            for match in matches {
+                if let targetRange = Range(match.range(at: 1), in: note.body) {
+                    let targetTitle = String(note.body[targetRange])
+                    if let target = notes.first(where: { $0.title.lowercased() == targetTitle.lowercased() }) {
+                        edges.append((from: note.id, to: target.id, fromTitle: note.title, toTitle: target.title))
+                    }
+                }
+            }
+        }
+        return edges
     }
 
     func createOrOpenDailyNote(date: Date) async throws -> Note {
@@ -1309,14 +1481,18 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func listTemplates() async throws -> [NoteTemplate] {
-        []
+        templates
     }
 
     func createTemplate(name: String, body: String) async throws -> NoteTemplate {
-        NoteTemplate(name: name, body: body, createdAt: Date())
+        let template = NoteTemplate(name: name, body: body, createdAt: Date())
+        templates.append(template)
+        return template
     }
 
-    func deleteTemplate(id: UUID) async throws {}
+    func deleteTemplate(id: UUID) async throws {
+        templates.removeAll { $0.id == id }
+    }
 
     func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
         let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)

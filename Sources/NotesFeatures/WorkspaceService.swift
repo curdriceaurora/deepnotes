@@ -643,7 +643,7 @@ public actor WorkspaceService: WorkspaceServicing {
 
         let escapedTitle = NSRegularExpression.escapedPattern(for: targetNote.title)
         guard let regex = try? NSRegularExpression(
-            pattern: #"(?<![\[])\b\#(escapedTitle)\b(?![\]])"#,
+            pattern: #"(?<!\[)\b\#(escapedTitle)\b(?!\])"#,
             options: [.caseInsensitive]
         ) else {
             return []
@@ -672,7 +672,7 @@ public actor WorkspaceService: WorkspaceServicing {
 
         let escapedTitle = NSRegularExpression.escapedPattern(for: targetTitle)
         guard let regex = try? NSRegularExpression(
-            pattern: #"(?<![\[])\b\#(escapedTitle)\b(?![\]])"#,
+            pattern: #"(?<!\[)\b\#(escapedTitle)\b(?!\])"#,
             options: [.caseInsensitive]
         ) else {
             return note
