@@ -251,8 +251,8 @@ final class NotesSmokeTests: XCTestCase {
             "Search must filter the notes list to fewer results"
         )
         XCTAssertTrue(
-            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || $0.body.localizedCaseInsensitiveContains("Vendor") },
-            "All returned notes must match the query"
+            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || viewModel.noteSearchSnippet(for: $0.id) != nil },
+            "All returned notes must match the query by title or have a search snippet"
         )
     }
 
@@ -341,9 +341,9 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.quickOpenResults.allSatisfy {
-                $0.title.localizedCaseInsensitiveContains("Vendor") || $0.body.localizedCaseInsensitiveContains("Vendor")
+                $0.title.localizedCaseInsensitiveContains("Vendor")
             },
-            "Quick Open results must match the typed partial title or body"
+            "Quick Open results must match the typed partial title"
         )
         XCTAssertFalse(viewModel.quickOpenResults.isEmpty,
                        "Quick Open must return at least one result for 'Vendor'")

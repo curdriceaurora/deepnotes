@@ -63,6 +63,7 @@ public struct NewTaskInput: Sendable {
 }
 
 public protocol WorkspaceServicing: Sendable {
+    func fetchNote(id: UUID) async throws -> Note?
     func listNotes() async throws -> [Note]
     func searchNotes(query: String, limit: Int) async throws -> [Note]
     func searchNotesPage(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage
@@ -79,6 +80,8 @@ public protocol WorkspaceServicing: Sendable {
     func toggleTaskCompletion(taskID: UUID, isCompleted: Bool) async throws -> Task
     func notesByTag(_ tag: String) async throws -> [Note]
     func allTags() async throws -> [String]
+    func listNoteListItems() async throws -> [NoteListItem]
+    func listNoteListItems(tag: String) async throws -> [NoteListItem]
     func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport
     func seedDemoDataIfNeeded() async throws
     func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink]
@@ -132,6 +135,10 @@ public actor WorkspaceService: WorkspaceServicing {
             checkpointStore: store,
             templateStore: store
         )
+    }
+
+    public func fetchNote(id: UUID) async throws -> Note? {
+        try await noteStore.fetchNote(id: id)
     }
 
     public func listNotes() async throws -> [Note] {
@@ -294,6 +301,14 @@ public actor WorkspaceService: WorkspaceServicing {
             }
         }
         return result.sorted()
+    }
+
+    public func listNoteListItems() async throws -> [NoteListItem] {
+        try await noteStore.fetchNoteListItems(includeDeleted: false)
+    }
+
+    public func listNoteListItems(tag: String) async throws -> [NoteListItem] {
+        try await noteStore.fetchNoteListItemsByTag(tag)
     }
 
     public func listTasks(filter: TaskListFilter) async throws -> [Task] {

@@ -5,6 +5,7 @@ import NotesSync
 
 public struct NotesRootView: View {
     @Bindable var viewModel: AppViewModel
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(viewModel: AppViewModel) {
         self.viewModel = viewModel
@@ -28,6 +29,11 @@ public struct NotesRootView: View {
                 .tabItem { Label("Sync", systemImage: "arrow.triangle.2.circlepath.circle") }
         }
         .task { await viewModel.load() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                _Concurrency.Task { await viewModel.autoSync() }
+            }
+        }
         .overlay(alignment: .bottom) {
             if let errorMessage = viewModel.errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")

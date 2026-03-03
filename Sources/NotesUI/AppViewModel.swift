@@ -31,7 +31,7 @@ public struct RecurrenceDeletePrompt: Sendable, Equatable {
 @MainActor
 @Observable
 public final class AppViewModel {
-    public private(set) var notes: [Note] = []
+    public private(set) var notes: [NoteListItem] = []
     public var selectedNoteID: UUID?
     public var selectedNoteTitle: String = ""
     public var selectedNoteBody: String = ""
@@ -41,7 +41,7 @@ public final class AppViewModel {
     public private(set) var isWikiLinkSuggestionVisible: Bool = false
     public var quickOpenQuery: String = ""
     public var isQuickOpenPresented: Bool = false
-    public private(set) var quickOpenResults: [Note] = []
+    public private(set) var quickOpenResults: [NoteListItem] = []
     public private(set) var backlinks: [NoteBacklink] = []
     public private(set) var unlinkedMentions: [NoteBacklink] = []
     public private(set) var graphNodes: [GraphNode] = []
@@ -82,6 +82,8 @@ public final class AppViewModel {
     private let calendarProviderFactory: CalendarProviderFactory
     private var pendingTaskMutation: PendingTaskMutation?
     private var pendingTaskDeletion: PendingTaskDeletion?
+    private var noteSearchDebounceTask: _Concurrency.Task<Void, Never>?
+    private var periodicSyncTask: _Concurrency.Task<Void, Never>?
 
     public init(
         service: WorkspaceServicing,
@@ -101,6 +103,14 @@ public final class AppViewModel {
             try await loadGraph()
             try await reloadTemplates()
             await reloadTasks()
+        }
+        // Start periodic auto-sync (every 5 minutes when app is active)
+        periodicSyncTask = _Concurrency.Task { [weak self] in
+            while !_Concurrency.Task.isCancelled {
+                try? await _Concurrency.Task.sleep(for: .seconds(300)) // 5 minutes
+                guard !_Concurrency.Task.isCancelled else { break }
+                await self?.autoSync()
+            }
         }
     }
 
@@ -169,8 +179,11 @@ public final class AppViewModel {
     public func setNoteSearchQuery(_ query: String) async {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         noteSearchQuery = normalized
-        await runTask {
-            try await reloadNotes(selectFirstIfNeeded: false)
+        noteSearchDebounceTask?.cancel()
+        noteSearchDebounceTask = _Concurrency.Task {
+            try? await _Concurrency.Task.sleep(for: .milliseconds(300))
+            guard !_Concurrency.Task.isCancelled else { return }
+            await runTask { try await reloadNotes(selectFirstIfNeeded: false) }
         }
     }
 
@@ -283,7 +296,7 @@ public final class AppViewModel {
             return
         }
         quickOpenResults = notes
-            .filter { $0.title.localizedCaseInsensitiveContains(trimmed) || $0.body.localizedCaseInsensitiveContains(trimmed) }
+            .filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
     }
 
     public func selectQuickOpenResult(noteID: UUID) async {
@@ -383,6 +396,15 @@ public final class AppViewModel {
         await applyTaskDeletion(taskID: taskID, scope: .thisOccurrence)
     }
 
+    private func applyOptimisticTaskMove(taskID: UUID, to status: TaskStatus) {
+        guard let idx = allTasks.firstIndex(where: { $0.id == taskID }) else { return }
+        var updated = allTasks[idx]
+        updated.status = status
+        allTasks[idx] = updated
+        if let tIdx = tasks.firstIndex(where: { $0.id == taskID }) { tasks[tIdx] = updated }
+        rebuildTaskCache(sourceTasks: allTasks)
+    }
+
     private func applyTaskMutation(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?, scope: RecurrenceEditScope) async {
         await runTask {
             if scope == .entireSeries,
@@ -413,6 +435,8 @@ public final class AppViewModel {
                 return
             }
 
+            // Optimistic update: reflect status change immediately before persistence
+            applyOptimisticTaskMove(taskID: taskID, to: status)
             _ = try await service.moveTask(taskID: taskID, to: status, beforeTaskID: beforeTaskID)
             try await reloadTasksWithoutWrapper()
         }
@@ -601,6 +625,22 @@ public final class AppViewModel {
         }
     }
 
+    public func autoSync() async {
+        let calendarID = syncCalendarID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !calendarID.isEmpty else { return }
+        // Silent sync: no isBusy flag, errors swallowed
+        try? await service.runSync(
+            configuration: SyncEngineConfiguration(
+                checkpointID: "default",
+                calendarID: calendarID,
+                taskBatchSize: 500,
+                policy: .lastWriteWins
+            ),
+            calendarProvider: calendarProviderFactory()
+        )
+        try? await reloadTasksWithoutWrapper()
+    }
+
     public func exportSyncDiagnostics() async {
         await runTask {
             guard let report = lastSyncReport else {
@@ -626,9 +666,9 @@ public final class AppViewModel {
     private func reloadNotes(selectFirstIfNeeded: Bool) async throws {
         if noteSearchQuery.isEmpty {
             if let tag = selectedTagFilter {
-                notes = try await service.notesByTag(tag)
+                notes = try await service.listNoteListItems(tag: tag)
             } else {
-                notes = try await service.listNotes()
+                notes = try await service.listNoteListItems()
             }
             noteSearchSnippetsByID = [:]
         } else {
@@ -638,7 +678,7 @@ public final class AppViewModel {
                 limit: 100,
                 offset: 0
             )
-            notes = page.hits.map(\.note)
+            notes = page.hits.map { $0.note.listItem }
             noteSearchSnippetsByID = Dictionary(uniqueKeysWithValues: page.hits.compactMap { hit in
                 guard let snippet = hit.snippet else {
                     return nil
@@ -700,7 +740,18 @@ public final class AppViewModel {
     private func selectNoteWithoutWrapper(id: UUID?) async throws {
         selectedNoteID = id
         noteEditMode = .edit
-        guard let id, let selected = notes.first(where: { $0.id == id }) else {
+        guard let id else {
+            selectedNoteID = nil
+            selectedNoteTitle = ""
+            selectedNoteBody = ""
+            wikiLinkSuggestions = []
+            isWikiLinkSuggestionVisible = false
+            backlinks = []
+            unlinkedMentions = []
+            return
+        }
+
+        guard let selected = try await service.fetchNote(id: id) else {
             selectedNoteID = nil
             selectedNoteTitle = ""
             selectedNoteBody = ""

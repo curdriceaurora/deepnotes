@@ -60,6 +60,26 @@ public struct Note: Codable, Equatable, Sendable {
         self.version = version
         self.deletedAt = deletedAt
     }
+
+    public var listItem: NoteListItem {
+        NoteListItem(id: id, stableID: stableID, title: title, tags: tags, updatedAt: updatedAt)
+    }
+}
+
+public struct NoteListItem: Identifiable, Equatable, Sendable {
+    public var id: UUID
+    public var stableID: String
+    public var title: String
+    public var tags: [String]
+    public var updatedAt: Date
+
+    public init(id: UUID, stableID: String, title: String, tags: [String], updatedAt: Date) {
+        self.id = id
+        self.stableID = stableID
+        self.title = title
+        self.tags = tags
+        self.updatedAt = updatedAt
+    }
 }
 
 public enum NoteSearchMode: String, Codable, CaseIterable, Sendable {

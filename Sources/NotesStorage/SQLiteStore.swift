@@ -195,6 +195,64 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
+    public func fetchNoteListItems(includeDeleted: Bool) async throws -> [NoteListItem] {
+        let sql = """
+        SELECT id, stable_id, title, tags, updated_at
+        FROM notes
+        \(includeDeleted ? "" : "WHERE deleted_at IS NULL")
+        ORDER BY updated_at DESC;
+        """
+
+        return try withStatement(sql) { statement in
+            var items: [NoteListItem] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard
+                    let idText = columnOptionalText(statement, at: 0),
+                    let id = UUID(uuidString: idText),
+                    let stableID = columnOptionalText(statement, at: 1),
+                    let title = columnOptionalText(statement, at: 2)
+                else {
+                    throw StorageError.dataCorruption(reason: "Invalid note list item row values")
+                }
+                let tagsJSON = columnOptionalText(statement, at: 3) ?? "[]"
+                let tags = (try? JSONDecoder().decode([String].self, from: tagsJSON.data(using: .utf8) ?? Data())) ?? []
+                let updatedAt = columnDate(statement, at: 4)
+                items.append(NoteListItem(id: id, stableID: stableID, title: title, tags: tags, updatedAt: updatedAt))
+            }
+            return items
+        }
+    }
+
+    public func fetchNoteListItemsByTag(_ tag: String) async throws -> [NoteListItem] {
+        let sql = """
+        SELECT id, stable_id, title, tags, updated_at
+        FROM notes
+        WHERE deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM json_each(notes.tags) WHERE json_each.value = ? COLLATE NOCASE)
+        ORDER BY updated_at DESC;
+        """
+
+        return try withStatement(sql) { statement in
+            bindText(tag.lowercased(), to: 1, in: statement)
+            var items: [NoteListItem] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard
+                    let idText = columnOptionalText(statement, at: 0),
+                    let id = UUID(uuidString: idText),
+                    let stableID = columnOptionalText(statement, at: 1),
+                    let title = columnOptionalText(statement, at: 2)
+                else {
+                    throw StorageError.dataCorruption(reason: "Invalid note list item row values")
+                }
+                let tagsJSON = columnOptionalText(statement, at: 3) ?? "[]"
+                let tags = (try? JSONDecoder().decode([String].self, from: tagsJSON.data(using: .utf8) ?? Data())) ?? []
+                let updatedAt = columnDate(statement, at: 4)
+                items.append(NoteListItem(id: id, stableID: stableID, title: title, tags: tags, updatedAt: updatedAt))
+            }
+            return items
+        }
+    }
+
     public func searchNotes(query: String, limit: Int = 50) async throws -> [Note] {
         let page = try await searchNotes(
             query: query,

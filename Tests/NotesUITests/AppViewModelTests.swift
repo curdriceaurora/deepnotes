@@ -1034,6 +1034,10 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         }
     }
 
+    func fetchNote(id: UUID) async throws -> Note? {
+        notes.first { $0.id == id }
+    }
+
     func listNotes() async throws -> [Note] {
         notes.sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -1121,6 +1125,14 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             }
         }
         return result.sorted()
+    }
+
+    func listNoteListItems() async throws -> [NoteListItem] {
+        notes.map(\.listItem)
+    }
+
+    func listNoteListItems(tag: String) async throws -> [NoteListItem] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }.map(\.listItem)
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
