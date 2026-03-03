@@ -27,15 +27,19 @@ public struct NotesRootView: View {
         .task { await viewModel.load() }
         .overlay(alignment: .bottom) {
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
+                Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.callout)
-                    .foregroundStyle(.red)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.bottom, 12)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.red.gradient, in: Capsule())
+                    .shadow(color: .red.opacity(0.3), radius: 8, y: 4)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("globalErrorBanner")
             }
         }
+        .animation(.spring(duration: 0.4), value: viewModel.errorMessage != nil)
         .confirmationDialog(
             "Recurring Task Edit",
             isPresented: Binding(
@@ -123,18 +127,22 @@ public struct NotesEditorView: View {
 
             noteEditor
         }
+        .sheet(isPresented: $viewModel.isQuickOpenPresented) {
+            QuickOpenSheetView(viewModel: viewModel)
+        }
     }
 
     private var notesList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("Notes", systemImage: "book.closed")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Text("Notes")
+                    .font(.title3.weight(.semibold))
                 Spacer()
                 Button {
                     viewModel.openQuickSwitcher()
                 } label: {
-                    Image(systemName: "magnifyingglass.circle")
+                    Image(systemName: "magnifyingglass")
+                        .accessibilityHidden(true)
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("o", modifiers: [.command])
@@ -142,27 +150,45 @@ public struct NotesEditorView: View {
                 Button {
                     _Concurrency.Task { await viewModel.createNote() }
                 } label: {
-                    Image(systemName: "plus.circle")
+                    Image(systemName: "square.and.pencil")
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("newNoteButton")
             }
-            .padding([.horizontal, .top])
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
 
-            TextField("Search notes", text: $viewModel.noteSearchQuery)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
-                .onChange(of: viewModel.noteSearchQuery) { _, newValue in
-                    _Concurrency.Task { await viewModel.setNoteSearchQuery(newValue) }
-                }
-                .accessibilityIdentifier("noteSearchField")
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+                TextField("Search", text: $viewModel.noteSearchQuery)
+                    .textFieldStyle(.plain)
+                    .font(.subheadline)
+                    .onChange(of: viewModel.noteSearchQuery) { _, newValue in
+                        _Concurrency.Task { await viewModel.setNoteSearchQuery(newValue) }
+                    }
+                    .accessibilityIdentifier("noteSearchField")
+            }
+            .padding(8)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
 
             List(viewModel.notes, id: \.id) { note in
+                let isSelected = note.id == viewModel.selectedNoteID
                 Button {
                     _Concurrency.Task { await viewModel.selectNote(id: note.id) }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Label(note.title, systemImage: note.id == viewModel.selectedNoteID ? "doc.text.fill" : "doc.text")
+                        Text(note.title)
+                            .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                            .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         if let snippet = viewModel.noteSearchSnippet(for: note.id) {
                             Text(highlightedSearchSnippet(snippet))
@@ -173,11 +199,19 @@ public struct NotesEditorView: View {
                                 .accessibilityIdentifier("noteSnippet_\(note.id.uuidString)")
                         }
                     }
+                    .padding(.vertical, 2)
                 }
                 .buttonStyle(.plain)
+                .listRowBackground(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+                        .padding(.horizontal, 4)
+                )
                 .accessibilityIdentifier("noteRow_\(note.id.uuidString)")
             }
+            .listStyle(.sidebar)
         }
+        .background(Color.secondary.opacity(0.04))
     }
 
     private func highlightedSearchSnippet(_ snippet: String) -> AttributedString {
@@ -217,9 +251,13 @@ public struct NotesEditorView: View {
     }
 
     private var noteEditor: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            TextField("Title", text: $viewModel.selectedNoteTitle)
-                .textFieldStyle(.roundedBorder)
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("Note Title", text: $viewModel.selectedNoteTitle)
+                .textFieldStyle(.plain)
+                .font(.title2.weight(.bold))
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
                 .accessibilityIdentifier("noteTitleField")
 
             TextEditor(text: $viewModel.selectedNoteBody)
@@ -227,142 +265,172 @@ public struct NotesEditorView: View {
                     viewModel.updateSelectedNoteBody(newValue)
                 }
                 .font(.body)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.secondary.opacity(0.2))
-                }
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 16)
                 .accessibilityIdentifier("noteBodyEditor")
 
             if viewModel.isWikiLinkSuggestionVisible {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         ForEach(Array(viewModel.wikiLinkSuggestions.enumerated()), id: \.offset) { index, suggestion in
                             Button {
                                 viewModel.applyWikiLinkSuggestion(suggestion)
                             } label: {
                                 Label(suggestion, systemImage: "link")
+                                    .font(.caption)
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.small)
                             .accessibilityIdentifier("wikiSuggestion_\(index)")
                         }
                     }
+                    .padding(.horizontal, 20)
                 }
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
                 .accessibilityIdentifier("wikiSuggestionsBar")
             }
 
-            HStack(spacing: 10) {
+            Divider().padding(.horizontal, 16)
+
+            HStack(spacing: 8) {
+                editorToolbarButtons
+
+                Divider().frame(height: 20)
+
                 Button {
                     _Concurrency.Task { await viewModel.saveSelectedNote() }
                 } label: {
                     Label("Save", systemImage: "square.and.arrow.down")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.accentColor)
                 .accessibilityIdentifier("saveNoteButton")
 
-                TextField("Quick task title", text: $viewModel.quickTaskTitle)
-                    .textFieldStyle(.roundedBorder)
+                Divider().frame(height: 20)
+
+                TextField("Quick task…", text: $viewModel.quickTaskTitle)
+                    .textFieldStyle(.plain)
+                    .font(.subheadline)
+                    .padding(6)
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
                     .accessibilityIdentifier("quickTaskField")
 
                 Button {
                     _Concurrency.Task { await viewModel.createQuickTask() }
                 } label: {
-                    Label("Add Task", systemImage: "plus.rectangle.on.folder")
+                    Label("Add Task", systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .accessibilityIdentifier("quickTaskButton")
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
 
-            HStack(spacing: 8) {
-                Button {
-                    viewModel.insertMarkdownHeading()
-                } label: {
-                    Label("Heading", systemImage: "textformat.size.larger")
+            DisclosureGroup {
+                if viewModel.backlinks.isEmpty {
+                    Label("No backlinks yet", systemImage: "link")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, 8)
+                        .accessibilityIdentifier("backlinksEmptyState")
+                } else {
+                    List(viewModel.backlinks, id: \.sourceNoteID) { backlink in
+                        Label(backlink.sourceTitle, systemImage: "arrow.turn.up.left")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listStyle(.plain)
+                    .frame(minHeight: 120)
+                    .accessibilityIdentifier("backlinksList")
                 }
-                .buttonStyle(.bordered)
-                .keyboardShortcut("1", modifiers: [.command, .shift])
-                .accessibilityIdentifier("insertHeadingButton")
-
-                Button {
-                    viewModel.insertMarkdownBullet()
-                } label: {
-                    Label("Bullet", systemImage: "list.bullet")
-                }
-                .buttonStyle(.bordered)
-                .keyboardShortcut("8", modifiers: [.command, .shift])
-                .accessibilityIdentifier("insertBulletButton")
-
-                Button {
-                    viewModel.insertMarkdownCheckbox()
-                } label: {
-                    Label("Checkbox", systemImage: "checklist")
-                }
-                .buttonStyle(.bordered)
-                .keyboardShortcut("x", modifiers: [.command, .shift])
-                .accessibilityIdentifier("insertCheckboxButton")
-            }
-
-            Divider()
-
-            Text("Backlinks")
-                .font(.headline)
-
-            if viewModel.backlinks.isEmpty {
-                Label("No backlinks yet", systemImage: "link")
-                    .font(.subheadline)
+            } label: {
+                Label("Backlinks", systemImage: "link")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("backlinksEmptyState")
-            } else {
-                List(viewModel.backlinks, id: \.sourceNoteID) { backlink in
-                    Label(backlink.sourceTitle, systemImage: "link")
-                }
-                .accessibilityIdentifier("backlinksList")
-                .frame(minHeight: 120)
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+        .animation(.spring(duration: 0.3), value: viewModel.isWikiLinkSuggestionVisible)
+    }
 
-            Spacer(minLength: 0)
+    private var editorToolbarButtons: some View {
+        HStack(spacing: 4) {
+            Button {
+                viewModel.insertMarkdownHeading()
+            } label: {
+                Label("Heading", systemImage: "textformat.size.larger")
+            }
+            .keyboardShortcut("1", modifiers: [.command, .shift])
+            .accessibilityIdentifier("insertHeadingButton")
+
+            Button {
+                viewModel.insertMarkdownBullet()
+            } label: {
+                Label("Bullet", systemImage: "list.bullet")
+            }
+            .keyboardShortcut("8", modifiers: [.command, .shift])
+            .accessibilityIdentifier("insertBulletButton")
+
+            Button {
+                viewModel.insertMarkdownCheckbox()
+            } label: {
+                Label("Checkbox", systemImage: "checklist")
+            }
+            .keyboardShortcut("x", modifiers: [.command, .shift])
+            .accessibilityIdentifier("insertCheckboxButton")
         }
-        .padding()
-        .sheet(isPresented: $viewModel.isQuickOpenPresented) {
-            QuickOpenSheetView(viewModel: viewModel)
-        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 }
 
-private struct QuickOpenSheetView: View {
+struct QuickOpenSheetView: View {
     @Bindable var viewModel: AppViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Quick Open", systemImage: "magnifyingglass")
-                    .font(.headline)
-                Spacer()
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.body)
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+                TextField("Search notes…", text: $viewModel.quickOpenQuery)
+                    .textFieldStyle(.plain)
+                    .font(.title3)
+                    .onChange(of: viewModel.quickOpenQuery) { _, newValue in
+                        viewModel.setQuickOpenQuery(newValue)
+                    }
+                    .accessibilityIdentifier("quickOpenSearchField")
                 Button("Close") {
                     viewModel.closeQuickSwitcher()
                 }
                 .accessibilityIdentifier("quickOpenCloseButton")
             }
+            .padding(16)
 
-            TextField("Search notes", text: $viewModel.quickOpenQuery)
-                .textFieldStyle(.roundedBorder)
-                .onChange(of: viewModel.quickOpenQuery) { _, newValue in
-                    viewModel.setQuickOpenQuery(newValue)
-                }
-                .accessibilityIdentifier("quickOpenSearchField")
+            Divider()
 
             List(viewModel.quickOpenResults, id: \.id) { note in
                 Button {
                     _Concurrency.Task { await viewModel.selectQuickOpenResult(noteID: note.id) }
                 } label: {
                     Label(note.title, systemImage: "doc.text")
+                        .font(.body)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 2)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("quickOpenRow_\(note.id.uuidString)")
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .accessibilityIdentifier("quickOpenResultsList")
         }
-        .padding()
         .frame(minWidth: 520, minHeight: 420)
         .onAppear {
             viewModel.setQuickOpenQuery(viewModel.quickOpenQuery)
@@ -378,7 +446,7 @@ public struct TasksListView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             Picker("Filter", selection: $viewModel.taskFilter) {
                 ForEach(TaskListFilter.allCases, id: \.self) { filter in
                     Text(filter.title).tag(filter)
@@ -388,38 +456,52 @@ public struct TasksListView: View {
             .onChange(of: viewModel.taskFilter) { _, newValue in
                 _Concurrency.Task { await viewModel.setTaskFilter(newValue) }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .accessibilityIdentifier("taskFilterPicker")
 
             List(viewModel.tasks, id: \.id) { task in
                 taskRow(task)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .accessibilityIdentifier("tasksList")
         }
-        .padding()
     }
 
     private func taskRow(_ task: Task) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .center, spacing: 12) {
             Button {
                 _Concurrency.Task { await viewModel.toggleTaskCompletion(taskID: task.id, isCompleted: task.status != .done) }
             } label: {
                 Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(task.status == .done ? .green : .secondary)
+                    .font(.title3)
+                    .foregroundStyle(task.status == .done ? Color.green : Color.secondary)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
+                    .font(.body)
                     .strikethrough(task.status == .done)
+                    .foregroundStyle(task.status == .done ? .secondary : .primary)
 
-                HStack(spacing: 8) {
-                    Label(task.status.uiTitle, systemImage: task.status.uiIcon)
+                HStack(spacing: 6) {
+                    Text(task.status.uiTitle)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(task.status.accentColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(task.status.accentColor.opacity(0.12), in: Capsule())
                     if let due = task.dueStart {
                         Label(due.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                            .font(.caption)
+                            .foregroundStyle(DueDateStyle.color(for: due))
                     }
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 0)
@@ -428,11 +510,14 @@ public struct TasksListView: View {
                 _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
             } label: {
                 Image(systemName: "trash")
-                    .foregroundStyle(.red)
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("deleteTask_\(task.id.uuidString)")
         }
+        .padding(12)
+        .dnCard()
         .accessibilityIdentifier("taskRow_\(task.id.uuidString)")
     }
 }
@@ -446,36 +531,50 @@ public struct KanbanBoardView: View {
 
     public var body: some View {
         GeometryReader { geometry in
-            ScrollView(.horizontal) {
-                HStack(alignment: .top, spacing: 16) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
                     ForEach(TaskStatus.allCases, id: \.self) { status in
                         columnView(status: status, boardHeight: geometry.size.height)
                     }
                 }
-                .padding()
+                .padding(16)
             }
         }
     }
 
     private func columnView(status: TaskStatus, boardHeight: CGFloat) -> some View {
         let isDropTarget = viewModel.dropTargetStatus == status
+        let cards = viewModel.tasks(for: status)
 
-        return VStack(alignment: .leading, spacing: 10) {
-            Label(status.uiTitle, systemImage: status.uiIcon)
-                .font(.headline)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: status.uiIcon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(status.accentColor)
+                Text(status.uiTitle)
+                    .font(.subheadline.weight(.semibold))
+                Text("\(cards.count)")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: Capsule())
+            }
+            .padding(.horizontal, 4)
 
-            let cards = viewModel.tasks(for: status)
-            ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 10) {
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 8) {
                     if cards.isEmpty {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.secondary.opacity(0.08))
-                            .frame(height: 48)
-                            .overlay(
-                                Text("No cards")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            )
+                        VStack(spacing: 6) {
+                            Image(systemName: "rectangle.on.rectangle.slash")
+                                .font(.title3)
+                                .foregroundStyle(.quaternary)
+                            Text("No cards")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 60)
                     } else {
                         ForEach(cards, id: \.id) { task in
                             taskCard(task: task, status: status)
@@ -487,15 +586,9 @@ public struct KanbanBoardView: View {
             .frame(height: max(180, boardHeight - 78), alignment: .top)
         }
         .padding(12)
-        .frame(width: 250)
-        .background(
-            isDropTarget ? Color.accentColor.opacity(0.16) : Color.secondary.opacity(0.08),
-            in: RoundedRectangle(cornerRadius: 14)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(isDropTarget ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isDropTarget ? 2 : 1)
-        )
+        .frame(width: 260)
+        .dnColumn(isDropTarget: isDropTarget)
+        .animation(.spring(duration: 0.25), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
             viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: nil)
         } isTargeted: { targeted in
@@ -519,61 +612,73 @@ public struct KanbanBoardView: View {
             _Concurrency.Task { await viewModel.moveTask(taskID: task.id, to: next) }
         }
 
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(task.title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .lineLimit(2)
+        return HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(status.accentColor)
+                .frame(width: 3)
+                .padding(.vertical, 6)
 
-            if let due = task.dueStart {
-                Label(due.formatted(date: .numeric, time: .shortened), systemImage: "clock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(task.title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(2)
 
-            HStack {
-                if status.previous != nil {
-                    Button {
-                        moveLeftAction()
+                if let due = task.dueStart {
+                    Label(due.formatted(date: .numeric, time: .shortened), systemImage: "clock")
+                        .font(.caption2)
+                        .foregroundStyle(DueDateStyle.color(for: due))
+                }
+
+                HStack(spacing: 0) {
+                    if status.previous != nil {
+                        Button {
+                            moveLeftAction()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .font(.caption.weight(.semibold))
+                                .frame(width: 28, height: 24)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("moveLeft_\(task.id.uuidString)")
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Button(role: .destructive) {
+                        _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
                     } label: {
-                        Image(systemName: "arrow.left.circle")
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .frame(width: 28, height: 24)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityIdentifier("moveLeft_\(task.id.uuidString)")
-                }
+                    .accessibilityIdentifier("deleteKanbanTask_\(task.id.uuidString)")
 
-                Spacer(minLength: 0)
-
-                Button(role: .destructive) {
-                    _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("deleteKanbanTask_\(task.id.uuidString)")
-
-                if status.next != nil {
-                    Button {
-                        moveRightAction()
-                    } label: {
-                        Image(systemName: "arrow.right.circle")
+                    if status.next != nil {
+                        Button {
+                            moveRightAction()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .frame(width: 28, height: 24)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("moveRight_\(task.id.uuidString)")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("moveRight_\(task.id.uuidString)")
                 }
+                .foregroundStyle(.tertiary)
             }
-            .foregroundStyle(.secondary)
+            .padding(.leading, 10)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
         }
-        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .dnCard(cornerRadius: 8)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    isDropTarget ? Color.accentColor : Color.secondary.opacity(0.2),
-                    lineWidth: isDropTarget ? 2 : 1
-                )
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
         )
+        .animation(.spring(duration: 0.2), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
             viewModel.performTaskDrop(taskPayloads: payloads, to: status, beforeTaskID: task.id)
         } isTargeted: { targeted in
@@ -614,96 +719,175 @@ public struct SyncDashboardView: View {
 
     public var body: some View {
         SwiftUI.Form {
-            Section("Calendar") {
+            Section {
                 TextField("Calendar Identifier", text: $viewModel.syncCalendarID)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityIdentifier("syncCalendarField")
                 Text("Use `list-calendars` from CLI to find the Apple Calendar ID.")
                     .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } header: {
+                Label("Calendar", systemImage: "calendar")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
 
-            Section("Sync") {
-                Button {
-                    _Concurrency.Task { await viewModel.runSync() }
-                } label: {
-                    Label(viewModel.isSyncing ? "Syncing..." : "Run Two-Way Sync", systemImage: "arrow.triangle.2.circlepath.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isSyncing)
-                .accessibilityIdentifier("runSyncButton")
+            Section {
+                HStack(spacing: 12) {
+                    Button {
+                        _Concurrency.Task { await viewModel.runSync() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if viewModel.isSyncing {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
+                            Text(viewModel.isSyncing ? "Syncing…" : "Run Two-Way Sync")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.isSyncing)
+                    .accessibilityIdentifier("runSyncButton")
 
-                Label(viewModel.syncStatusText, systemImage: "waveform.path.ecg")
+                    HStack(spacing: 6) {
+                        Image(systemName: viewModel.isSyncing ? "arrow.triangle.2.circlepath" : "checkmark.circle")
+                            .font(.caption)
+                            .foregroundStyle(viewModel.isSyncing ? .orange : .green)
+                            .symbolEffect(.rotate, isActive: viewModel.isSyncing)
+                        Text(viewModel.syncStatusText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     .accessibilityIdentifier("syncStatusText")
+                }
+            } header: {
+                Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
 
             if let report = viewModel.lastSyncReport {
-                Section("Last Report") {
-                    LabeledContent("Tasks pushed", value: "\(report.tasksPushed)")
-                    LabeledContent("Events pulled", value: "\(report.eventsPulled)")
-                    LabeledContent("Tasks imported", value: "\(report.tasksImported)")
-                    LabeledContent("Calendar deletes", value: "\(report.tasksDeletedFromCalendar)")
-
-                    Button {
-                        _Concurrency.Task { await viewModel.exportSyncDiagnostics() }
-                    } label: {
-                        Label("Export Diagnostics", systemImage: "square.and.arrow.up.on.square")
+                Section {
+                    HStack(spacing: 16) {
+                        syncMetric(label: "Pushed", value: report.tasksPushed, icon: "arrow.up.circle", color: .blue)
+                        syncMetric(label: "Pulled", value: report.eventsPulled, icon: "arrow.down.circle", color: .green)
+                        syncMetric(label: "Imported", value: report.tasksImported, icon: "plus.circle", color: .orange)
+                        syncMetric(label: "Deleted", value: report.tasksDeletedFromCalendar, icon: "minus.circle", color: .red)
                     }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("exportSyncDiagnosticsButton")
 
-                    if let exportURL = viewModel.lastDiagnosticsExportURL {
-                        Text("Exported: \(exportURL.path)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("syncDiagnosticsExportPath")
+                    HStack(spacing: 8) {
+                        Button {
+                            _Concurrency.Task { await viewModel.exportSyncDiagnostics() }
+                        } label: {
+                            Label("Export Diagnostics", systemImage: "square.and.arrow.up")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("exportSyncDiagnosticsButton")
+
+                        if let exportURL = viewModel.lastDiagnosticsExportURL {
+                            Text("Exported: \(exportURL.path)")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .accessibilityIdentifier("syncDiagnosticsExportPath")
+                        }
                     }
+                } header: {
+                    Label("Last Report", systemImage: "chart.bar")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("syncReportSection")
 
-                Section("Diagnostics") {
+                Section {
                     if report.diagnostics.isEmpty {
-                        Label("No diagnostics captured in last run", systemImage: "checkmark.circle")
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("syncDiagnosticsEmptyState")
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                            Text("No diagnostics captured in last run")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityIdentifier("syncDiagnosticsEmptyState")
                     } else {
                         ForEach(Array(report.diagnostics.enumerated()), id: \.offset) { index, entry in
                             VStack(alignment: .leading, spacing: 4) {
-                                Label(entry.operation.rawValue, systemImage: entry.severity.uiIcon)
-                                    .font(.subheadline)
+                                HStack(spacing: 6) {
+                                    Image(systemName: entry.severity.uiIcon)
+                                        .font(.caption)
+                                        .foregroundStyle(entry.severity.uiColor)
+                                    Text(entry.operation.rawValue)
+                                        .font(.subheadline.weight(.medium))
+                                }
                                 Text(entry.message)
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 Text(
                                     "Entity: \(entry.entityType?.rawValue ?? "-")/\(entry.entityID?.uuidString ?? "-") " +
                                     "• Task: \(entry.taskID?.uuidString ?? "-") • Event: \(entry.eventIdentifier ?? "-")"
                                 )
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                             }
                             .accessibilityIdentifier("syncDiagnosticRow_\(index)")
                         }
                     }
+                } header: {
+                    Label("Diagnostics", systemImage: "stethoscope")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("syncDiagnosticsSection")
             }
 
             if let recurrenceConflictMessage = viewModel.recurrenceConflictMessage {
                 Section("Recurrence Conflicts") {
-                    Label(recurrenceConflictMessage, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .accessibilityIdentifier("recurrenceConflictBanner")
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
+                        Text(recurrenceConflictMessage)
+                            .font(.subheadline)
+                    }
+                    .accessibilityIdentifier("recurrenceConflictBanner")
                 }
             }
         }
+        .formStyle(.grouped)
+    }
+
+    private func syncMetric(label: String, value: Int, icon: String, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+            Text("\(value)")
+                .font(.title3.weight(.semibold).monospacedDigit())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
 private extension SyncDiagnosticSeverity {
     var uiIcon: String {
         switch self {
-        case .info: return "info.circle"
-        case .warning: return "exclamationmark.triangle"
-        case .error: return "xmark.octagon"
+        case .info: return "info.circle.fill"
+        case .warning: return "exclamationmark.triangle.fill"
+        case .error: return "xmark.octagon.fill"
+        }
+    }
+
+    var uiColor: Color {
+        switch self {
+        case .info: return .blue
+        case .warning: return .orange
+        case .error: return .red
         }
     }
 }

@@ -322,7 +322,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
         viewModel.openQuickSwitcher()
 
-        let view = NotesEditorView(viewModel: viewModel)
+        let view = QuickOpenSheetView(viewModel: viewModel)
         let inspected = try view.inspect()
 
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenSearchField"),
@@ -340,8 +340,10 @@ final class NotesSmokeTests: XCTestCase {
         viewModel.setQuickOpenQuery("Vendor")
 
         XCTAssertTrue(
-            viewModel.quickOpenResults.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") },
-            "Quick Open results must match the typed partial title"
+            viewModel.quickOpenResults.allSatisfy {
+                $0.title.localizedCaseInsensitiveContains("Vendor") || $0.body.localizedCaseInsensitiveContains("Vendor")
+            },
+            "Quick Open results must match the typed partial title or body"
         )
         XCTAssertFalse(viewModel.quickOpenResults.isEmpty,
                        "Quick Open must return at least one result for 'Vendor'")
@@ -377,7 +379,7 @@ final class NotesSmokeTests: XCTestCase {
 
         viewModel.openQuickSwitcher()
 
-        let view = NotesEditorView(viewModel: viewModel)
+        let view = QuickOpenSheetView(viewModel: viewModel)
         let inspected = try view.inspect()
         try inspected.find(viewWithAccessibilityIdentifier: "quickOpenCloseButton").button().tap()
         try await flushAsyncActions()

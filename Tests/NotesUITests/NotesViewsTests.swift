@@ -542,6 +542,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let noteID1 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
         let noteID2 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
+        let noteID3 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000003"))
         let notes: [Note] = [
             Note(
                 id: noteID1,
@@ -555,6 +556,14 @@ actor MockWorkspaceService: WorkspaceServicing {
                 id: noteID2,
                 title: "Vendor Notes",
                 body: "Connected to [[Q2 Launch Plan]]",
+                updatedAt: now,
+                version: 1,
+                deletedAt: nil
+            ),
+            Note(
+                id: noteID3,
+                title: "Team Standup",
+                body: "Weekly sync meeting agenda and notes.",
                 updatedAt: now,
                 version: 1,
                 deletedAt: nil
@@ -634,6 +643,11 @@ actor MockWorkspaceService: WorkspaceServicing {
         self.tasks = fixture.tasks
     }
 
+    init(notes: [Note], tasks: [Task]) {
+        self.notes = notes
+        self.tasks = tasks
+    }
+
     func listNotes() async throws -> [Note] {
         notes
     }
@@ -701,15 +715,17 @@ actor MockWorkspaceService: WorkspaceServicing {
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
+        let now = Date()
+        let calendar = Calendar.current
         switch filter {
         case .all:
             return tasks
         case .today:
-            return tasks.filter { $0.status != .done && $0.dueStart != nil }
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && calendar.isDateInToday($0.dueStart!) }
         case .upcoming:
-            return []
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && $0.dueStart! > now && !calendar.isDateInToday($0.dueStart!) }
         case .overdue:
-            return []
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && $0.dueStart! < now && !calendar.isDateInToday($0.dueStart!) }
         case .completed:
             return tasks.filter { $0.status == .done }
         }

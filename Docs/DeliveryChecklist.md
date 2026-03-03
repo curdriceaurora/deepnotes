@@ -25,7 +25,7 @@ Required before first public beta / external users:
 ### 1. CI quality gates (enforcement)
 - [x] Workflow exists for coverage gates on PR/push.
 - [x] Add explicit `swift test` step in CI so failures are independently surfaced.
-- [ ] Add branch protection requiring coverage workflow pass before merge.
+- [x] Add branch protection requiring coverage workflow pass before merge.
 - [x] Add CI artifact upload for coverage reports.
 
 Acceptance criteria:
