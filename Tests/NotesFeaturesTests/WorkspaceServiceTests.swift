@@ -300,6 +300,45 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(firstTasks.count, secondTasks.count)
     }
 
+    func testCreateNoteAutoExtractsTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let note = try await service.createNote(title: "Tagged", body: "Hello #swift #coding")
+        XCTAssertEqual(note.tags, ["swift", "coding"])
+    }
+
+    func testUpdateNoteAutoExtractsTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let note = try await service.createNote(title: "Tagged", body: "Hello #swift")
+        let updated = try await service.updateNote(id: note.id, title: "Tagged", body: "Hello #rust #go")
+        XCTAssertEqual(updated.tags, ["rust", "go"])
+    }
+
+    func testAllTagsReturnsDistinctSortedTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        _ = try await service.createNote(title: "A", body: "#beta #alpha")
+        _ = try await service.createNote(title: "B", body: "#alpha #gamma")
+        let tags = try await service.allTags()
+        XCTAssertEqual(tags, ["alpha", "beta", "gamma"])
+    }
+
+    func testNotesByTagFiltersCorrectly() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        _ = try await service.createNote(title: "A", body: "#swift")
+        _ = try await service.createNote(title: "B", body: "#rust")
+        let swiftNotes = try await service.notesByTag("swift")
+        XCTAssertEqual(swiftNotes.count, 1)
+        XCTAssertEqual(swiftNotes.first?.title, "A")
+    }
+
+    func testFetchNotesByTagInStorageLayer() async throws {
+        let store = try makeStore()
+        let note = Note(title: "Tagged", body: "Content", tags: ["swift", "ios"], updatedAt: Date())
+        _ = try await store.upsertNote(note)
+        let results = try await store.fetchNotesByTag("swift")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.tags, ["swift", "ios"])
+    }
+
     private func makeService(now: Date) throws -> WorkspaceService {
         let store = try makeStore()
         return WorkspaceService(

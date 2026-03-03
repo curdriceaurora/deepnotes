@@ -13,6 +13,7 @@ public struct Note: Codable, Equatable, Sendable {
     public var stableID: String
     public var title: String
     public var body: String
+    public var tags: [String]
     public var dateStart: Date?
     public var dateEnd: Date?
     public var isAllDay: Bool
@@ -27,6 +28,7 @@ public struct Note: Codable, Equatable, Sendable {
         stableID: String = UUID().uuidString.lowercased(),
         title: String,
         body: String,
+        tags: [String] = [],
         dateStart: Date? = nil,
         dateEnd: Date? = nil,
         isAllDay: Bool = false,
@@ -50,6 +52,7 @@ public struct Note: Codable, Equatable, Sendable {
             : stableID
         self.title = title
         self.body = body
+        self.tags = tags
         self.isAllDay = isAllDay
         self.recurrenceRule = recurrenceRule
         self.calendarSyncEnabled = calendarSyncEnabled

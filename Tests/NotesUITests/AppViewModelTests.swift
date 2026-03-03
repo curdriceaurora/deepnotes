@@ -853,6 +853,121 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.lastDiagnosticsExportURL)
     }
 
+    func testNavigateToNoteByTitleSelectsCorrectNote() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.navigateToNoteByTitle("Beta")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, "Beta")
+    }
+
+    func testNavigateToNoteByTitleIsCaseInsensitive() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.navigateToNoteByTitle("beta")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, "Beta")
+    }
+
+    func testNavigateToNoteByTitleNoMatchIsNoOp() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        let originalTitle = viewModel.selectedNoteTitle
+
+        await viewModel.navigateToNoteByTitle("Nonexistent")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, originalTitle)
+    }
+
+    func testNavigateToNoteByTitleSwitchesToEditMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        await viewModel.navigateToNoteByTitle("Beta")
+
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testToggleSwitchesToPreviewMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+        XCTAssertFalse(viewModel.renderedMarkdown.characters.isEmpty || viewModel.selectedNoteBody.isEmpty)
+    }
+
+    func testToggleRoundTrips() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testSelectNoteResetsToEditMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        await viewModel.selectNote(id: viewModel.notes.last?.id)
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testFilterByTagFiltersNotesList() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Swift Note", body: "Content", tags: ["swift"])
+        await service.addTaggedNote(title: "Rust Note", body: "Content", tags: ["rust"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("swift")
+
+        XCTAssertEqual(viewModel.selectedTagFilter, "swift")
+        XCTAssertTrue(viewModel.notes.allSatisfy { $0.tags.contains("swift") })
+    }
+
+    func testClearTagFilterRestoresFullList() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Swift Note", body: "Content", tags: ["swift"])
+        await service.addTaggedNote(title: "Rust Note", body: "Content", tags: ["rust"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("swift")
+        await viewModel.filterByTag(nil)
+
+        XCTAssertNil(viewModel.selectedTagFilter)
+        XCTAssertGreaterThanOrEqual(viewModel.notes.count, 2)
+    }
+
+    func testAllTagsLoadedOnLoad() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Note", body: "Content", tags: ["alpha", "beta"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.allTagsList.contains("alpha"))
+        XCTAssertTrue(viewModel.allTagsList.contains("beta"))
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -892,6 +1007,11 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             try! Task(id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!, noteID: notes[0].id, stableID: "t-series-shared", title: "Detached occurrence", details: "event-recurrence-exception:1700000123", dueStart: now.addingTimeInterval(5400), dueEnd: now.addingTimeInterval(9000), status: .next, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", kanbanOrder: 3, updatedAt: now),
             try! Task(id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, noteID: notes[0].id, stableID: "t-done", title: "Done", status: .done, kanbanOrder: 1, completedAt: now, updatedAt: now)
         ]
+    }
+
+    func addTaggedNote(title: String, body: String, tags: [String]) {
+        let note = Note(id: UUID(), title: title, body: body, tags: tags, updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
     }
 
     func setFailure(_ mode: FailureMode?) {
@@ -982,6 +1102,25 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         return notes
             .filter { $0.id != noteID && $0.body.localizedCaseInsensitiveContains("[[\(target.title)]]") }
             .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
+    }
+
+    func notesByTag(_ tag: String) async throws -> [Note] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }
+    }
+
+    func allTags() async throws -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            for tag in note.tags {
+                let lowered = tag.lowercased()
+                if !seen.contains(lowered) {
+                    seen.insert(lowered)
+                    result.append(lowered)
+                }
+            }
+        }
+        return result.sorted()
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {

@@ -60,12 +60,20 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             let version = try nextVersion(for: "note_version")
             let now = max(note.updatedAt, Date())
 
+            let tagsJSON: String
+            if let data = try? JSONEncoder().encode(note.tags), let str = String(data: data, encoding: .utf8) {
+                tagsJSON = str
+            } else {
+                tagsJSON = "[]"
+            }
+
             let sql = """
             INSERT INTO notes (
                 id,
                 stable_id,
                 title,
                 body,
+                tags,
                 date_start,
                 date_end,
                 is_all_day,
@@ -74,11 +82,12 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 updated_at,
                 version,
                 deleted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 stable_id = excluded.stable_id,
                 title = excluded.title,
                 body = excluded.body,
+                tags = excluded.tags,
                 date_start = excluded.date_start,
                 date_end = excluded.date_end,
                 is_all_day = excluded.is_all_day,
@@ -94,14 +103,15 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 bindText(normalizedStableID, to: 2, in: statement)
                 bindText(normalizedTitle, to: 3, in: statement)
                 bindText(note.body, to: 4, in: statement)
-                bindOptionalDate(note.dateStart, to: 5, in: statement)
-                bindOptionalDate(note.dateEnd, to: 6, in: statement)
-                bindInt(note.isAllDay ? 1 : 0, to: 7, in: statement)
-                bindOptionalText(note.recurrenceRule, to: 8, in: statement)
-                bindInt(note.calendarSyncEnabled ? 1 : 0, to: 9, in: statement)
-                bindDate(now, to: 10, in: statement)
-                bindInt64(version, to: 11, in: statement)
-                bindOptionalDate(note.deletedAt, to: 12, in: statement)
+                bindText(tagsJSON, to: 5, in: statement)
+                bindOptionalDate(note.dateStart, to: 6, in: statement)
+                bindOptionalDate(note.dateEnd, to: 7, in: statement)
+                bindInt(note.isAllDay ? 1 : 0, to: 8, in: statement)
+                bindOptionalText(note.recurrenceRule, to: 9, in: statement)
+                bindInt(note.calendarSyncEnabled ? 1 : 0, to: 10, in: statement)
+                bindDate(now, to: 11, in: statement)
+                bindInt64(version, to: 12, in: statement)
+                bindOptionalDate(note.deletedAt, to: 13, in: statement)
                 try stepDone(statement)
             }
 
@@ -109,6 +119,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 noteID: resolvedID,
                 title: normalizedTitle,
                 body: note.body,
+                tags: note.tags,
                 deletedAt: note.deletedAt
             )
 
@@ -142,13 +153,13 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
     public func fetchNotes(includeDeleted: Bool = false) async throws -> [Note] {
         let sql = includeDeleted
         ? """
-          SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+          SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                  calendar_sync_enabled, updated_at, version, deleted_at
           FROM notes
           ORDER BY updated_at DESC;
           """
         : """
-          SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+          SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                  calendar_sync_enabled, updated_at, version, deleted_at
           FROM notes
           WHERE deleted_at IS NULL
@@ -156,6 +167,26 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
           """
 
         return try withStatement(sql) { statement in
+            var notes: [Note] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                notes.append(try note(from: statement))
+            }
+            return notes
+        }
+    }
+
+    public func fetchNotesByTag(_ tag: String) async throws -> [Note] {
+        let sql = """
+        SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
+               calendar_sync_enabled, updated_at, version, deleted_at
+        FROM notes
+        WHERE deleted_at IS NULL
+          AND EXISTS (SELECT 1 FROM json_each(notes.tags) WHERE json_each.value = ? COLLATE NOCASE)
+        ORDER BY updated_at DESC;
+        """
+
+        return try withStatement(sql) { statement in
+            bindText(tag.lowercased(), to: 1, in: statement)
             var notes: [Note] = []
             while sqlite3_step(statement) == SQLITE_ROW {
                 notes.append(try note(from: statement))
@@ -209,7 +240,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
 
         let sql = """
-        SELECT n.id, n.stable_id, n.title, n.body, n.date_start, n.date_end, n.is_all_day, n.recurrence_rule,
+        SELECT n.id, n.stable_id, n.title, n.body, n.tags, n.date_start, n.date_end, n.is_all_day, n.recurrence_rule,
                n.calendar_sync_enabled, n.updated_at, n.version, n.deleted_at,
                snippet(notes_fts, 2, '<mark>', '</mark>', '…', 16),
                0.0
@@ -229,13 +260,13 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             var hits: [NoteSearchHit] = []
             while sqlite3_step(statement) == SQLITE_ROW {
                 let matchedNote = try note(from: statement)
-                let snippet = columnOptionalText(statement, at: 12)?
+                let snippet = columnOptionalText(statement, at: 13)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 hits.append(
                     NoteSearchHit(
                         note: matchedNote,
                         snippet: snippet?.isEmpty == false ? snippet : nil,
-                        rank: sqlite3_column_double(statement, 13)
+                        rank: sqlite3_column_double(statement, 14)
                     )
                 )
             }
@@ -285,7 +316,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
     public func fetchNotesUpdated(afterVersion version: Int64, limit: Int) async throws -> [Note] {
         let fetchLimit = max(1, limit)
         let sql = """
-        SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+        SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                calendar_sync_enabled, updated_at, version, deleted_at
         FROM notes
         WHERE version > ?
@@ -708,6 +739,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         try ensureColumnExists(table: "notes", column: "is_all_day", definition: "INTEGER NOT NULL DEFAULT 0", on: db)
         try ensureColumnExists(table: "notes", column: "recurrence_rule", definition: "TEXT", on: db)
         try ensureColumnExists(table: "notes", column: "calendar_sync_enabled", definition: "INTEGER NOT NULL DEFAULT 0", on: db)
+        try ensureColumnExists(table: "notes", column: "tags", definition: "TEXT NOT NULL DEFAULT '[]'", on: db)
         try ensureColumnExists(
             table: "tasks",
             column: "kanban_order",
@@ -747,6 +779,16 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         try executeOnConnection(db, sql: indexSQL)
         try migrateCalendarBindingsToPolymorphic(on: db)
         try ensureColumnExists(table: "sync_checkpoints", column: "note_version_cursor", definition: "INTEGER NOT NULL DEFAULT 0", on: db)
+
+        // Rebuild FTS to include tags content
+        let ftsRebuildSQL = """
+        DELETE FROM notes_fts;
+        INSERT INTO notes_fts (note_id, title, body)
+        SELECT id, title, body || CASE WHEN tags != '[]' THEN ' ' || replace(replace(replace(tags, '["', ''), '"]', ''), '","', ' ') ELSE '' END
+        FROM notes
+        WHERE deleted_at IS NULL;
+        """
+        try executeOnConnection(db, sql: ftsRebuildSQL)
     }
 
     private static func executeOnConnection(_ db: OpaquePointer, sql: String) throws {
@@ -882,7 +924,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
     private func fetchNoteInternal(id: UUID) throws -> Note? {
         let sql = """
-        SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+        SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                calendar_sync_enabled, updated_at, version, deleted_at
         FROM notes
         WHERE id = ?;
@@ -899,7 +941,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
     private func fetchNoteByTitleInternal(_ title: String) throws -> Note? {
         let sql = """
-        SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+        SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                calendar_sync_enabled, updated_at, version, deleted_at
         FROM notes
         WHERE title = ? COLLATE NOCASE
@@ -917,7 +959,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
     private func fetchNoteByStableIDInternal(_ stableID: String) throws -> Note? {
         let sql = """
-        SELECT id, stable_id, title, body, date_start, date_end, is_all_day, recurrence_rule,
+        SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
                calendar_sync_enabled, updated_at, version, deleted_at
         FROM notes
         WHERE stable_id = ?
@@ -978,19 +1020,29 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             throw StorageError.dataCorruption(reason: "Invalid note row values")
         }
 
+        let tags: [String]
+        if let tagsJSON = columnOptionalText(statement, at: 4),
+           let data = tagsJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String].self, from: data) {
+            tags = decoded
+        } else {
+            tags = []
+        }
+
         return Note(
             id: id,
             stableID: stableID,
             title: title,
             body: body,
-            dateStart: columnOptionalDate(statement, at: 4),
-            dateEnd: columnOptionalDate(statement, at: 5),
-            isAllDay: sqlite3_column_int(statement, 6) != 0,
-            recurrenceRule: columnOptionalText(statement, at: 7),
-            calendarSyncEnabled: sqlite3_column_int(statement, 8) != 0,
-            updatedAt: columnDate(statement, at: 9),
-            version: sqlite3_column_int64(statement, 10),
-            deletedAt: columnOptionalDate(statement, at: 11)
+            tags: tags,
+            dateStart: columnOptionalDate(statement, at: 5),
+            dateEnd: columnOptionalDate(statement, at: 6),
+            isAllDay: sqlite3_column_int(statement, 7) != 0,
+            recurrenceRule: columnOptionalText(statement, at: 8),
+            calendarSyncEnabled: sqlite3_column_int(statement, 9) != 0,
+            updatedAt: columnDate(statement, at: 10),
+            version: sqlite3_column_int64(statement, 11),
+            deletedAt: columnOptionalDate(statement, at: 12)
         )
     }
 
@@ -1063,17 +1115,18 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         }
     }
 
-    private func syncNoteFTS(noteID: UUID, title: String, body: String, deletedAt: Date?) throws {
+    private func syncNoteFTS(noteID: UUID, title: String, body: String, tags: [String], deletedAt: Date?) throws {
         try deleteNoteFTS(noteID: noteID)
         guard deletedAt == nil else {
             return
         }
 
+        let tagsContent = tags.isEmpty ? "" : " " + tags.joined(separator: " ")
         let sql = "INSERT INTO notes_fts (note_id, title, body) VALUES (?, ?, ?);"
         try withStatement(sql) { statement in
             bindText(UUIDString(from: noteID), to: 1, in: statement)
             bindText(title, to: 2, in: statement)
-            bindText(body, to: 3, in: statement)
+            bindText(body + tagsContent, to: 3, in: statement)
             try stepDone(statement)
         }
     }

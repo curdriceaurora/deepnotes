@@ -77,6 +77,8 @@ public protocol WorkspaceServicing: Sendable {
     func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task
     func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task
     func toggleTaskCompletion(taskID: UUID, isCompleted: Bool) async throws -> Task
+    func notesByTag(_ tag: String) async throws -> [Note]
+    func allTags() async throws -> [String]
     func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport
     func seedDemoDataIfNeeded() async throws
 }
@@ -89,6 +91,7 @@ public actor WorkspaceService: WorkspaceServicing {
     private let mapper: TaskCalendarMapper
     private let clock: Clock
     private let linkParser: WikiLinkParser
+    private let tagParser: TagParser
 
     public init(
         taskStore: TaskStore,
@@ -97,7 +100,8 @@ public actor WorkspaceService: WorkspaceServicing {
         checkpointStore: SyncCheckpointStore,
         mapper: TaskCalendarMapper = TaskCalendarMapper(),
         clock: Clock = SystemClock(),
-        linkParser: WikiLinkParser = WikiLinkParser()
+        linkParser: WikiLinkParser = WikiLinkParser(),
+        tagParser: TagParser = TagParser()
     ) {
         self.taskStore = taskStore
         self.noteStore = noteStore
@@ -106,6 +110,7 @@ public actor WorkspaceService: WorkspaceServicing {
         self.mapper = mapper
         self.clock = clock
         self.linkParser = linkParser
+        self.tagParser = tagParser
     }
 
     public init(store: SQLiteStore) {
@@ -165,10 +170,12 @@ public actor WorkspaceService: WorkspaceServicing {
     public func createNote(title: String, body: String) async throws -> Note {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallbackTitle = "Untitled \(ISO8601DateFormatter().string(from: clock.now()))"
+        let tags = tagParser.extractTags(from: body)
 
         let note = Note(
             title: trimmedTitle.isEmpty ? fallbackTitle : trimmedTitle,
             body: body,
+            tags: tags,
             updatedAt: clock.now()
         )
         return try await noteStore.upsertNote(note)
@@ -190,6 +197,7 @@ public actor WorkspaceService: WorkspaceServicing {
         var next = existing
         next.title = title
         next.body = body
+        next.tags = tagParser.extractTags(from: body)
         next.updatedAt = clock.now()
         let updatedNote = try await noteStore.upsertNote(next)
 
@@ -243,6 +251,26 @@ public actor WorkspaceService: WorkspaceServicing {
             }
             .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
             .sorted { $0.sourceTitle.localizedCaseInsensitiveCompare($1.sourceTitle) == .orderedAscending }
+    }
+
+    public func notesByTag(_ tag: String) async throws -> [Note] {
+        try await noteStore.fetchNotesByTag(tag)
+    }
+
+    public func allTags() async throws -> [String] {
+        let notes = try await noteStore.fetchNotes(includeDeleted: false)
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            for tag in note.tags {
+                let lowered = tag.lowercased()
+                if !seen.contains(lowered) {
+                    seen.insert(lowered)
+                    result.append(lowered)
+                }
+            }
+        }
+        return result.sorted()
     }
 
     public func listTasks(filter: TaskListFilter) async throws -> [Task] {

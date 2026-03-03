@@ -530,6 +530,88 @@ final class NotesViewsTests: XCTestCase {
     private func flushAsyncActions() async throws {
         try await _Concurrency.Task.sleep(nanoseconds: 160_000_000)
     }
+
+    func testTogglePreviewButtonRenders() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "togglePreviewButton"))
+    }
+
+    func testPreviewModeShowsPreviewNotEditor() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+        viewModel.toggleNoteEditMode()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyPreview"))
+        XCTAssertThrowsError(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
+    }
+
+    func testEditModeShowsEditorNotPreview() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
+        XCTAssertThrowsError(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyPreview"))
+    }
+
+    func testTagFilterBarRendersWithTags() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let taggedNotes = [
+            Note(id: UUID(), title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1),
+            Note(id: UUID(), title: "Note 2", body: "#rust code", tags: ["rust"], updatedAt: now, version: 1)
+        ]
+        let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "tagFilterBar"))
+    }
+
+    func testNoteTagBadgesRender() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let noteID = UUID()
+        let taggedNotes = [
+            Note(id: noteID, title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1)
+        ]
+        let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteTags_\(noteID.uuidString)"))
+    }
+
+    func testBacklinkRowsAreClickable() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+        // Select "Q2 Launch Plan" which has a backlink from "Vendor Notes"
+        if let q2 = viewModel.notes.first(where: { $0.title == "Q2 Launch Plan" }) {
+            await viewModel.selectNote(id: q2.id)
+        }
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        // Should find backlinks list
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"))
+    }
 }
 
 actor MockWorkspaceService: WorkspaceServicing {
@@ -712,6 +794,25 @@ actor MockWorkspaceService: WorkspaceServicing {
         return notes
             .filter { $0.id != noteID && $0.body.localizedCaseInsensitiveContains("[[\(target.title)]]") }
             .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
+    }
+
+    func notesByTag(_ tag: String) async throws -> [Note] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }
+    }
+
+    func allTags() async throws -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            for tag in note.tags {
+                let lowered = tag.lowercased()
+                if !seen.contains(lowered) {
+                    seen.insert(lowered)
+                    result.append(lowered)
+                }
+            }
+        }
+        return result.sorted()
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {

@@ -4,6 +4,11 @@ import NotesDomain
 import NotesFeatures
 import NotesSync
 
+public enum NoteEditMode: String, Sendable {
+    case edit
+    case preview
+}
+
 public typealias CalendarProviderFactory = @Sendable () -> CalendarProvider
 
 public enum RecurrenceEditScope: String, Sendable {
@@ -38,6 +43,10 @@ public final class AppViewModel {
     public var isQuickOpenPresented: Bool = false
     public private(set) var quickOpenResults: [Note] = []
     public private(set) var backlinks: [NoteBacklink] = []
+    public private(set) var allTagsList: [String] = []
+    public private(set) var selectedTagFilter: String?
+    public var noteEditMode: NoteEditMode = .edit
+    public private(set) var renderedMarkdown: AttributedString = AttributedString()
 
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
@@ -80,6 +89,7 @@ public final class AppViewModel {
         await runTask {
             try await service.seedDemoDataIfNeeded()
             try await reloadNotes(selectFirstIfNeeded: true)
+            try await reloadTags()
             await reloadTasks()
         }
     }
@@ -101,6 +111,7 @@ public final class AppViewModel {
         await runTask {
             _ = try await service.updateNote(id: selectedNoteID, title: selectedNoteTitle, body: selectedNoteBody)
             try await reloadNotes(selectFirstIfNeeded: false)
+            try await reloadTags()
             try await reloadBacklinks(for: selectedNoteID)
         }
     }
@@ -153,6 +164,30 @@ public final class AppViewModel {
         }
     }
 
+    public func navigateToNoteByTitle(_ title: String) async {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return }
+        guard let match = notes.first(where: { $0.title.lowercased() == normalized }) else { return }
+        await selectNote(id: match.id)
+    }
+
+    public func toggleNoteEditMode() {
+        switch noteEditMode {
+        case .edit:
+            noteEditMode = .preview
+            renderedMarkdown = MarkdownRenderer().render(selectedNoteBody, noteTitles: notes.map(\.title))
+        case .preview:
+            noteEditMode = .edit
+        }
+    }
+
+    public func filterByTag(_ tag: String?) async {
+        selectedTagFilter = tag
+        await runTask {
+            try await reloadNotes(selectFirstIfNeeded: false)
+        }
+    }
+
     public func updateSelectedNoteBody(_ body: String) {
         selectedNoteBody = body
         refreshWikiLinkSuggestions()
@@ -179,13 +214,12 @@ public final class AppViewModel {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        let suggestions = notes
+        let candidates = notes
             .map(\.title)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .filter { query.isEmpty || $0.lowercased().contains(query) }
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        let ranked = FuzzyMatcher().rank(query: query, candidates: candidates)
 
-        wikiLinkSuggestions = Array(suggestions.prefix(8))
+        wikiLinkSuggestions = Array(ranked.prefix(8).map(\.title))
         isWikiLinkSuggestionVisible = !wikiLinkSuggestions.isEmpty
     }
 
@@ -575,9 +609,17 @@ public final class AppViewModel {
         }
     }
 
+    private func reloadTags() async throws {
+        allTagsList = try await service.allTags()
+    }
+
     private func reloadNotes(selectFirstIfNeeded: Bool) async throws {
         if noteSearchQuery.isEmpty {
-            notes = try await service.listNotes()
+            if let tag = selectedTagFilter {
+                notes = try await service.notesByTag(tag)
+            } else {
+                notes = try await service.listNotes()
+            }
             noteSearchSnippetsByID = [:]
         } else {
             let page = try await service.searchNotesPage(
@@ -647,6 +689,7 @@ public final class AppViewModel {
 
     private func selectNoteWithoutWrapper(id: UUID?) async throws {
         selectedNoteID = id
+        noteEditMode = .edit
         guard let id, let selected = notes.first(where: { $0.id == id }) else {
             selectedNoteID = nil
             selectedNoteTitle = ""

@@ -179,6 +179,45 @@ public struct NotesEditorView: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
 
+            if !viewModel.allTagsList.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(viewModel.allTagsList, id: \.self) { tag in
+                            Button {
+                                _Concurrency.Task {
+                                    if viewModel.selectedTagFilter == tag {
+                                        await viewModel.filterByTag(nil)
+                                    } else {
+                                        await viewModel.filterByTag(tag)
+                                    }
+                                }
+                            } label: {
+                                Text("#\(tag)")
+                                    .font(.caption2.weight(.medium))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        viewModel.selectedTagFilter == tag
+                                            ? Color.accentColor.opacity(0.2)
+                                            : Color.secondary.opacity(0.1),
+                                        in: Capsule()
+                                    )
+                                    .foregroundStyle(
+                                        viewModel.selectedTagFilter == tag
+                                            ? Color.accentColor
+                                            : Color.secondary
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("tagFilter_\(tag)")
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .padding(.bottom, 6)
+                .accessibilityIdentifier("tagFilterBar")
+            }
+
             List(viewModel.notes, id: \.id) { note in
                 let isSelected = note.id == viewModel.selectedNoteID
                 Button {
@@ -197,6 +236,16 @@ public struct NotesEditorView: View {
                                 .lineLimit(2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityIdentifier("noteSnippet_\(note.id.uuidString)")
+                        }
+                        if !note.tags.isEmpty {
+                            HStack(spacing: 4) {
+                                ForEach(note.tags.prefix(3), id: \.self) { tag in
+                                    Text("#\(tag)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .accessibilityIdentifier("noteTags_\(note.id.uuidString)")
                         }
                     }
                     .padding(.vertical, 2)
@@ -252,24 +301,58 @@ public struct NotesEditorView: View {
 
     private var noteEditor: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("Note Title", text: $viewModel.selectedNoteTitle)
-                .textFieldStyle(.plain)
-                .font(.title2.weight(.bold))
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
-                .padding(.bottom, 8)
-                .accessibilityIdentifier("noteTitleField")
+            HStack {
+                TextField("Note Title", text: $viewModel.selectedNoteTitle)
+                    .textFieldStyle(.plain)
+                    .font(.title2.weight(.bold))
+                    .accessibilityIdentifier("noteTitleField")
 
-            TextEditor(text: $viewModel.selectedNoteBody)
-                .onChange(of: viewModel.selectedNoteBody) { _, newValue in
-                    viewModel.updateSelectedNoteBody(newValue)
+                Button {
+                    viewModel.toggleNoteEditMode()
+                } label: {
+                    Image(systemName: viewModel.noteEditMode == .edit ? "eye" : "pencil")
+                        .font(.body)
                 }
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, 16)
-                .accessibilityIdentifier("noteBodyEditor")
+                .buttonStyle(.plain)
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .accessibilityIdentifier("togglePreviewButton")
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
-            if viewModel.isWikiLinkSuggestionVisible {
+            if viewModel.noteEditMode == .edit {
+                TextEditor(text: $viewModel.selectedNoteBody)
+                    .onChange(of: viewModel.selectedNoteBody) { _, newValue in
+                        viewModel.updateSelectedNoteBody(newValue)
+                    }
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 16)
+                    .accessibilityIdentifier("noteBodyEditor")
+            } else {
+                ScrollView {
+                    Text(viewModel.renderedMarkdown)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                }
+                .environment(\.openURL, OpenURLAction { url in
+                    guard url.scheme == "deepnotes", url.host == "wikilink" else {
+                        return .systemAction
+                    }
+                    let title = url.pathComponents.dropFirst().joined(separator: "/")
+                        .removingPercentEncoding ?? ""
+                    _Concurrency.Task {
+                        await viewModel.navigateToNoteByTitle(title)
+                    }
+                    return .handled
+                })
+                .accessibilityIdentifier("noteBodyPreview")
+            }
+
+            if viewModel.isWikiLinkSuggestionVisible && viewModel.noteEditMode == .edit {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(Array(viewModel.wikiLinkSuggestions.enumerated()), id: \.offset) { index, suggestion in
@@ -295,9 +378,10 @@ public struct NotesEditorView: View {
             Divider().padding(.horizontal, 16)
 
             HStack(spacing: 8) {
-                editorToolbarButtons
-
-                Divider().frame(height: 20)
+                if viewModel.noteEditMode == .edit {
+                    editorToolbarButtons
+                    Divider().frame(height: 20)
+                }
 
                 Button {
                     _Concurrency.Task { await viewModel.saveSelectedNote() }
@@ -339,9 +423,15 @@ public struct NotesEditorView: View {
                         .accessibilityIdentifier("backlinksEmptyState")
                 } else {
                     List(viewModel.backlinks, id: \.sourceNoteID) { backlink in
-                        Label(backlink.sourceTitle, systemImage: "arrow.turn.up.left")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        Button {
+                            _Concurrency.Task { await viewModel.selectNote(id: backlink.sourceNoteID) }
+                        } label: {
+                            Label(backlink.sourceTitle, systemImage: "arrow.turn.up.left")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("backlinkRow_\(backlink.sourceNoteID.uuidString)")
                     }
                     .listStyle(.plain)
                     .frame(minHeight: 120)

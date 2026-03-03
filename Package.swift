@@ -18,14 +18,15 @@ let package = Package(
         .executable(name: "notes-perf-harness", targets: ["NotesPerfHarness"])
     ],
     dependencies: [
-        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.9.11")
+        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.9.11"),
+        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.5.0")
     ],
     targets: [
         .target(name: "NotesDomain"),
         .target(name: "NotesStorage", dependencies: ["NotesDomain"]),
         .target(name: "NotesSync", dependencies: ["NotesDomain", "NotesStorage"]),
         .target(name: "NotesFeatures", dependencies: ["NotesDomain", "NotesStorage", "NotesSync"]),
-        .target(name: "NotesUI", dependencies: ["NotesDomain", "NotesFeatures"]),
+        .target(name: "NotesUI", dependencies: ["NotesDomain", "NotesFeatures", .product(name: "Markdown", package: "swift-markdown")]),
         .executableTarget(name: "NotesApp", dependencies: ["NotesUI", "NotesFeatures", "NotesDomain", "NotesStorage", "NotesSync"]),
         .executableTarget(name: "NotesCLI", dependencies: ["NotesSync", "NotesStorage", "NotesDomain"]),
         .executableTarget(
