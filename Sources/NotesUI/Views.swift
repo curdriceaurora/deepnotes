@@ -431,6 +431,31 @@ public struct NotesEditorView: View {
                     .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
                     .accessibilityIdentifier("quickTaskField")
 
+                Menu {
+                    ForEach(0...5, id: \.self) { priority in
+                        Button {
+                            viewModel.quickTaskPriority = priority
+                        } label: {
+                            if let label = PriorityDisplay.label(for: priority) {
+                                Label(label, systemImage: "flag.fill")
+                            } else {
+                                Label("None", systemImage: "flag")
+                            }
+                        }
+                    }
+                } label: {
+                    if let label = PriorityDisplay.label(for: viewModel.quickTaskPriority) {
+                        Label(label, systemImage: "flag.fill")
+                            .font(.caption)
+                            .foregroundStyle(PriorityDisplay.color(for: viewModel.quickTaskPriority))
+                    } else {
+                        Label("Priority", systemImage: "flag")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("quickTaskPriorityPicker")
+
                 Button {
                     _Concurrency.Task { await viewModel.createQuickTask() }
                 } label: {
@@ -702,6 +727,9 @@ public struct KanbanBoardView: View {
                 .padding(16)
             }
         }
+        .sheet(item: $viewModel.selectedTaskForEditing) { task in
+            KanbanCardDetailSheet(viewModel: viewModel, task: task)
+        }
     }
 
     private func columnView(status: TaskStatus, boardHeight: CGFloat) -> some View {
@@ -785,10 +813,34 @@ public struct KanbanBoardView: View {
                     .font(.subheadline.weight(.medium))
                     .lineLimit(2)
 
-                if let due = task.dueStart {
-                    Label(due.formatted(date: .numeric, time: .shortened), systemImage: "clock")
-                        .font(.caption2)
-                        .foregroundStyle(DueDateStyle.color(for: due))
+                HStack(spacing: 6) {
+                    if let label = PriorityDisplay.label(for: task.priority) {
+                        Text(label)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(PriorityDisplay.color(for: task.priority))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(PriorityDisplay.color(for: task.priority).opacity(0.2), in: Capsule())
+                            .accessibilityIdentifier("priorityBadge_\(task.id.uuidString)")
+                    }
+
+                    if let due = task.dueStart {
+                        Label(due.formatted(date: .numeric, time: .shortened), systemImage: "clock")
+                            .font(.caption2)
+                            .foregroundStyle(DueDateStyle.color(for: due))
+                    }
+                }
+
+                let tags = viewModel.tagsForTask(task)
+                if !tags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(tags.prefix(2), id: \.self) { tag in
+                            Text("#\(tag)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("taskTags_\(task.id.uuidString)")
                 }
 
                 HStack(spacing: 0) {
@@ -835,6 +887,8 @@ public struct KanbanBoardView: View {
             .padding(.vertical, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { viewModel.openTaskDetail(taskID: task.id) }
         .dnCard(cornerRadius: 8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
@@ -869,6 +923,132 @@ public struct KanbanBoardView: View {
         }
         #endif
         .accessibilityIdentifier("kanbanCard_\(task.id.uuidString)")
+    }
+}
+
+private struct KanbanCardDetailSheet: View {
+    var viewModel: AppViewModel
+    @State private var editedTask: Task
+    @State private var hasDueStart: Bool
+    @State private var hasDueEnd: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    init(viewModel: AppViewModel, task: Task) {
+        self.viewModel = viewModel
+        self._editedTask = State(initialValue: task)
+        self._hasDueStart = State(initialValue: task.dueStart != nil)
+        self._hasDueEnd = State(initialValue: task.dueEnd != nil)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Card Detail")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .accessibilityIdentifier("cardDetailCancel")
+            }
+            .padding()
+
+            Divider()
+
+            Form {
+                Section("Title") {
+                    TextField("Title", text: $editedTask.title)
+                        .accessibilityIdentifier("cardDetailTitle")
+                }
+
+                Section("Details") {
+                    TextEditor(text: $editedTask.details)
+                        .frame(minHeight: 60)
+                        .accessibilityIdentifier("cardDetailDetails")
+                }
+
+                Section("Status") {
+                    Picker("Status", selection: $editedTask.status) {
+                        ForEach(TaskStatus.allCases, id: \.self) { status in
+                            Text(status.rawValue.capitalized).tag(status)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("cardDetailStatus")
+                }
+
+                Section("Priority") {
+                    Picker("Priority", selection: $editedTask.priority) {
+                        ForEach(0...5, id: \.self) { p in
+                            HStack {
+                                if PriorityDisplay.shouldDisplay(p) {
+                                    Circle()
+                                        .fill(PriorityDisplay.color(for: p))
+                                        .frame(width: 8, height: 8)
+                                }
+                                Text(PriorityDisplay.label(for: p) ?? "None")
+                            }
+                            .tag(p)
+                        }
+                    }
+                    .accessibilityIdentifier("cardDetailPriority")
+                }
+
+                Section("Due Dates") {
+                    Toggle("Due Start", isOn: $hasDueStart)
+                        .accessibilityIdentifier("cardDetailDueStartToggle")
+                    if hasDueStart {
+                        DatePicker("Start", selection: Binding(
+                            get: { editedTask.dueStart ?? Date() },
+                            set: { editedTask.dueStart = $0 }
+                        ))
+                        .accessibilityIdentifier("cardDetailDueStart")
+                    }
+
+                    Toggle("Due End", isOn: $hasDueEnd)
+                        .accessibilityIdentifier("cardDetailDueEndToggle")
+                    if hasDueEnd {
+                        DatePicker("End", selection: Binding(
+                            get: { editedTask.dueEnd ?? Date() },
+                            set: { editedTask.dueEnd = $0 }
+                        ))
+                        .accessibilityIdentifier("cardDetailDueEnd")
+                    }
+                }
+                .onChange(of: hasDueStart) { _, enabled in
+                    if !enabled { editedTask.dueStart = nil }
+                    else if editedTask.dueStart == nil { editedTask.dueStart = Date() }
+                }
+                .onChange(of: hasDueEnd) { _, enabled in
+                    if !enabled { editedTask.dueEnd = nil }
+                    else if editedTask.dueEnd == nil { editedTask.dueEnd = Date() }
+                }
+
+                Section("Linked Note") {
+                    Picker("Note", selection: $editedTask.noteID) {
+                        Text("None").tag(UUID?.none)
+                        ForEach(viewModel.notes) { note in
+                            Text(note.title).tag(UUID?.some(note.id))
+                        }
+                    }
+                    .accessibilityIdentifier("cardDetailLinkedNote")
+                }
+            }
+            .formStyle(.grouped)
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Save") {
+                    _Concurrency.Task { await viewModel.saveTaskDetail(editedTask) }
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("cardDetailSave")
+            }
+            .padding()
+        }
+        .frame(minWidth: 400, minHeight: 450)
+        .accessibilityIdentifier("kanbanCardDetailSheet")
     }
 }
 

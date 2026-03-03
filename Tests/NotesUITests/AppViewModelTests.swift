@@ -1239,6 +1239,90 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.notes.count, countAfterFilter)
     }
 
+    // MARK: - Kanban Card Detail
+
+    func testOpenTaskDetailSetsSelectedTask() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+
+        XCTAssertNotNil(viewModel.selectedTaskForEditing)
+        XCTAssertEqual(viewModel.selectedTaskForEditing?.id, taskID)
+    }
+
+    func testOpenTaskDetailWithInvalidIDDoesNothing() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.openTaskDetail(taskID: UUID())
+
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testCloseTaskDetailClearsSelection() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+        XCTAssertNotNil(viewModel.selectedTaskForEditing)
+
+        viewModel.closeTaskDetail()
+
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testSaveTaskDetailPersistsAndReloads() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+        guard var task = viewModel.selectedTaskForEditing else {
+            return XCTFail("Expected task to be selected")
+        }
+        task.title = "Updated Title"
+
+        await viewModel.saveTaskDetail(task)
+
+        let updateCalls = await service.updateTaskCallCount
+        XCTAssertEqual(updateCalls, 1)
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testCreateQuickTaskUsesCustomPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.quickTaskTitle = "Priority task"
+        viewModel.quickTaskPriority = 1
+
+        await viewModel.createQuickTask()
+
+        let createCalls = await service.createTaskCallCount
+        XCTAssertEqual(createCalls, 1)
+        let lastPriority = await service.lastCreatedTaskPriority
+        XCTAssertEqual(lastPriority, 1)
+    }
+
+    func testCreateQuickTaskResetsPriorityAfterCreation() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.quickTaskTitle = "Some task"
+        viewModel.quickTaskPriority = 0
+
+        await viewModel.createQuickTask()
+
+        XCTAssertEqual(viewModel.quickTaskPriority, 3)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -1259,6 +1343,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     private(set) var updateTaskCallCount: Int = 0
     private(set) var deleteTaskCallCount: Int = 0
     private(set) var createTaskCallCount: Int = 0
+    private(set) var lastCreatedTaskPriority: Int = 3
 
     private var notes: [Note]
     private var tasks: [Task]
@@ -1448,6 +1533,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     func createTask(_ input: NewTaskInput) async throws -> Task {
         createTaskCallCount += 1
+        lastCreatedTaskPriority = input.priority
         let task = try Task(
             id: UUID(),
             noteID: input.noteID,

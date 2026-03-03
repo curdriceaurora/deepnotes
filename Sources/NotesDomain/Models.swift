@@ -150,7 +150,7 @@ public struct NoteSearchPage: Codable, Equatable, Sendable {
     }
 }
 
-public struct Task: Codable, Equatable, Sendable {
+public struct Task: Identifiable, Codable, Equatable, Sendable {
     public var id: UUID
     public var noteID: UUID?
     public var stableID: String

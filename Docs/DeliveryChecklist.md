@@ -243,10 +243,12 @@ Acceptance criteria:
 ### 9. Kanban board view of Notion
 
 Foundation:
-- [ ] Display priority badge and tags/labels on kanban cards.
-- [ ] Add a card detail modal: tapping a kanban card opens an editable detail sheet (title, details, due date, priority, status, linked note).
-- [ ] Add due-date color coding to kanban cards (overdue red, today orange, future muted).
-- [ ] Expose the existing `priority` field in the task creation and edit flows.
+- [x] Display priority badge and tags/labels on kanban cards.
+- [x] Add a card detail modal: tapping a kanban card opens an editable detail sheet (title, details, due date, priority, status, linked note).
+- [x] Add due-date color coding to kanban cards (overdue red, today orange, future muted).
+- [x] Expose the existing `priority` field in the task creation and edit flows.
+
+**Section 9 Foundation Summary**: Priority badges (P0-P4 colored capsules, P5 hidden), note tag chips (up to 2 per card), full card detail sheet with editable title/details/status/priority/due dates/linked note, priority picker in quick-task bar, 6 new ViewModel tests. Due-date color coding was already complete from prior work.
 
 Polish:
 - [ ] Allow user-defined kanban columns (custom statuses beyond the fixed five).

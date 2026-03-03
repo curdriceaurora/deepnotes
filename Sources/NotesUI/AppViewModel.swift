@@ -65,6 +65,8 @@ public final class AppViewModel {
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
     public var quickTaskTitle: String = ""
+    public var quickTaskPriority: Int = 3
+    public var selectedTaskForEditing: Task?
     private var allTasks: [Task] = []
     private var tasksByStatus: [TaskStatus: [Task]] = [:]
 
@@ -168,6 +170,7 @@ public final class AppViewModel {
             return
         }
 
+        let priority = quickTaskPriority
         await runTask {
             _ = try await service.createTask(
                 NewTaskInput(
@@ -177,12 +180,34 @@ public final class AppViewModel {
                     dueStart: Calendar.current.date(byAdding: .hour, value: 2, to: Date()),
                     dueEnd: Calendar.current.date(byAdding: .hour, value: 3, to: Date()),
                     status: .next,
-                    priority: 3
+                    priority: priority
                 )
             )
             quickTaskTitle = ""
+            quickTaskPriority = 3
             await reloadTasks()
         }
+    }
+
+    public func openTaskDetail(taskID: UUID) {
+        selectedTaskForEditing = allTasks.first(where: { $0.id == taskID })
+    }
+
+    public func closeTaskDetail() {
+        selectedTaskForEditing = nil
+    }
+
+    public func saveTaskDetail(_ task: Task) async {
+        await runTask {
+            _ = try await service.updateTask(task)
+            try await reloadTasksWithoutWrapper()
+        }
+        selectedTaskForEditing = nil
+    }
+
+    public func tagsForTask(_ task: Task) -> [String] {
+        guard let noteID = task.noteID else { return [] }
+        return notes.first(where: { $0.id == noteID })?.tags ?? []
     }
 
     public func reloadTasks() async {

@@ -58,6 +58,36 @@ enum DueDateStyle {
     }
 }
 
+// MARK: - Priority Display
+
+enum PriorityDisplay {
+    static func label(for priority: Int) -> String? {
+        switch priority {
+        case 0: return "Urgent"
+        case 1: return "High"
+        case 2: return "Medium"
+        case 3: return "Low"
+        case 4: return "Minimal"
+        default: return nil
+        }
+    }
+
+    static func color(for priority: Int) -> Color {
+        switch priority {
+        case 0: return .red
+        case 1: return .orange
+        case 2: return .yellow
+        case 3: return .blue
+        case 4: return .purple
+        default: return .secondary
+        }
+    }
+
+    static func shouldDisplay(_ priority: Int) -> Bool {
+        (0...4).contains(priority)
+    }
+}
+
 // MARK: - Status Colors
 
 extension TaskStatus {
