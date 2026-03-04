@@ -11,6 +11,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
       - name: Install lint tools
         run: brew install swiftlint swiftformat xcbeautify
       - name: Install Periphery
@@ -30,6 +32,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
       - name: Run test suite with coverage
         run: swift test --enable-code-coverage 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
       - name: Validate coverage minimums
@@ -53,6 +57,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.0.app
       - name: Run performance gates (release)
         continue-on-error: true
         run: ./Scripts/run-perf-gates.sh

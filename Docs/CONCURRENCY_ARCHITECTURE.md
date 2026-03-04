@@ -1,16 +1,16 @@
-# Concurrency Architecture & Swift 6 Strict Concurrency Compliance
+# Concurrency Architecture & Swift 6 Language Mode Compliance
 
-**Status**: ✅ **FULLY COMPLIANT** with Swift 6 `-strict-concurrency=complete`
+**Status**: ✅ **FULLY COMPLIANT** with Swift 6 language mode (strict concurrency enabled by default)
 
-**Phase**: 12 #10 — Enable Swift 6 Strict Concurrency Mode
+**Phase**: 12 #10 — Enable Swift 6 Language Mode
 **Date**: 2026-03-04
-**Compiler Setting**: `-strict-concurrency=complete` (all targets)
+**Compiler Setting**: `swift-tools-version: 6.0` (Swift 6 language mode — strict concurrency is the default, no flags needed)
 
 ---
 
 ## Overview
 
-This document records the data-race safety architecture of the NotesEngine codebase and confirms compliance with Swift 6's strict concurrency checking at the highest level (`-strict-concurrency=complete`).
+This document records the data-race safety architecture of the NotesEngine codebase and confirms compliance with Swift 6's strict concurrency checking. With `swift-tools-version: 6.0`, strict concurrency is enabled by default — no explicit `-strict-concurrency=complete` flag is needed.
 
 **Key Finding**: The codebase builds successfully with zero compiler warnings or errors related to data-race safety. This indicates that the architecture was designed with concurrency in mind and requires no changes to pass strict checking.
 
@@ -241,7 +241,7 @@ private class LinkIndex {
 
 ## Testing Strategy
 
-All test targets compile with `-strict-concurrency=complete`:
+All test targets compile under Swift 6 language mode (strict concurrency by default):
 
 ### NotesStorageTests
 - ✅ SQLiteStore actor isolation
@@ -284,19 +284,16 @@ All test targets compile with `-strict-concurrency=complete`:
 
 ---
 
-## Compiler Flags
+## Compiler Configuration
 
-All targets in `Package.swift` use:
+The project uses `swift-tools-version: 6.0` in `Package.swift`, which enables Swift 6 language mode across all targets. This provides strict concurrency checking by default — no per-target `swiftSettings` or `-strict-concurrency=complete` flags are needed.
 
-```swift
-swiftSettings: [.unsafeFlags(["-strict-concurrency=complete"])]
-```
-
-**Rationale**:
-- Highest level of concurrency checking (warns on all potential data races)
+**Rationale for Swift 6 language mode over explicit flags**:
+- Strict concurrency is the default in Swift 6 — no opt-in required
+- Eliminates `.unsafeFlags()` which blocked SwiftPM package consumers
+- Highest level of concurrency checking (errors on all potential data races)
 - Catches errors at compile time, not runtime
 - Makes unsafe code explicit (forces `@unchecked Sendable` annotation)
-- Enables future data-race detector tools (if/when available in Runtime)
 
 ---
 
@@ -319,7 +316,7 @@ swiftSettings: [.unsafeFlags(["-strict-concurrency=complete"])]
 
 ## Conclusion
 
-The NotesEngine codebase is **fully compliant with Swift 6 strict concurrency checking**. The architecture demonstrates:
+The NotesEngine codebase is **fully compliant with Swift 6 language mode** (strict concurrency by default). The architecture demonstrates:
 
 - ✅ **Value semantics** for immutable domain models (no shared mutable state)
 - ✅ **Actor isolation** for mutable storage (SQLiteStore)
