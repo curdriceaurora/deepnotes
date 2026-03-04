@@ -91,7 +91,7 @@ public actor SQLiteStore: NoteStore, TaskStore, NoteTemplateStore {
 **TwoWaySyncEngine** conforms to `Sendable`:
 
 ```swift
-public struct TwoWaySyncEngine: Sendable {
+public final class TwoWaySyncEngine: Sendable {
     // Immutable configuration
     private let conflictPolicy: ConflictPolicy
     private let store: SQLiteStore  // Actor, Sendable
@@ -100,9 +100,9 @@ public struct TwoWaySyncEngine: Sendable {
 ```
 
 **Key Characteristics**:
-- ✅ Struct (value type) — immutable by default
+- ✅ Final class with Sendable conformance — immutable property initialization
 - ✅ Only holds Sendable references (SQLiteStore is an actor, therefore Sendable)
-- ✅ No captured variables or closures with non-Sendable types
+- ✅ No mutable shared state (all properties assigned once at init)
 - ✅ Deterministic conflict resolution (timestamp-based, no randomness)
 
 **Concurrency Guarantee**: Can be safely shared across task boundaries; all operations are pure or operate on the actor.
