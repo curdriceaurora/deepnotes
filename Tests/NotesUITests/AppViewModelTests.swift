@@ -1817,6 +1817,14 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(updated?.subtasks.isEmpty ?? false)
     }
 
+    func testLoadRequestsNotificationPermission() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        let callCount = await service.requestNotificationPermissionCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -2325,5 +2333,12 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         }
 
         return tasks[idx]
+    }
+
+    private(set) var requestNotificationPermissionCallCount = 0
+
+    func requestNotificationPermission() async -> Bool {
+        requestNotificationPermissionCallCount += 1
+        return true
     }
 }

@@ -69,3 +69,12 @@ public protocol KanbanColumnStore: Sendable {
     func upsertColumn(_ column: KanbanColumn) async throws -> KanbanColumn
     func deleteColumn(id: UUID) async throws
 }
+
+// MARK: - Notification Scheduling
+
+public protocol NotificationScheduling: Sendable {
+    func requestAuthorization() async -> Bool
+    func scheduleReminder(for task: Task) async
+    func cancelReminder(for taskID: UUID) async
+    func cancelAllReminders() async
+}

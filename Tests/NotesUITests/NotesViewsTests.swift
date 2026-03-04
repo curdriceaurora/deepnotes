@@ -1082,4 +1082,8 @@ actor MockWorkspaceService: WorkspaceServicing {
 
         return tasks[idx]
     }
+
+    func requestNotificationPermission() async -> Bool {
+        return true
+    }
 }

@@ -125,7 +125,8 @@ public final class AppViewModel {
             async let r3: () = loadGraph()
             async let r4: () = reloadTemplates()
             async let r5: () = reloadTasksWithoutWrapper()
-            try await r1; try await r2; try await r3; try await r4; try await r5
+            async let r6: Bool = service.requestNotificationPermission()
+            try await r1; try await r2; try await r3; try await r4; try await r5; _ = try await r6
         }
         Self.signposter.endInterval("load", state)
         // Start periodic auto-sync (every 5 minutes when app is active)

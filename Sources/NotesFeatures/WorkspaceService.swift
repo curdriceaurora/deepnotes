@@ -102,6 +102,7 @@ public protocol WorkspaceServicing: Sendable {
     func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task
     func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task
     func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task
+    func requestNotificationPermission() async -> Bool
 }
 
 public actor WorkspaceService: WorkspaceServicing {
@@ -115,6 +116,7 @@ public actor WorkspaceService: WorkspaceServicing {
     private let clock: Clock
     private let linkParser: WikiLinkParser
     private let tagParser: TagParser
+    private var notificationScheduler: NotificationScheduling?
 
     // Search result cache (LRU, max 8)
     private struct SearchCacheKey: Hashable {
@@ -141,7 +143,8 @@ public actor WorkspaceService: WorkspaceServicing {
         mapper: TaskCalendarMapper = TaskCalendarMapper(),
         clock: Clock = SystemClock(),
         linkParser: WikiLinkParser = WikiLinkParser(),
-        tagParser: TagParser = TagParser()
+        tagParser: TagParser = TagParser(),
+        notificationScheduler: NotificationScheduling? = nil
     ) {
         self.taskStore = taskStore
         self.noteStore = noteStore
@@ -153,6 +156,16 @@ public actor WorkspaceService: WorkspaceServicing {
         self.clock = clock
         self.linkParser = linkParser
         self.tagParser = tagParser
+        self.notificationScheduler = notificationScheduler
+    }
+
+    private func getNotificationScheduler() -> NotificationScheduling {
+        if let scheduler = notificationScheduler {
+            return scheduler
+        }
+        let scheduler = UserNotificationScheduler()
+        self.notificationScheduler = scheduler
+        return scheduler
     }
 
     public init(store: SQLiteStore) {
@@ -449,7 +462,9 @@ public actor WorkspaceService: WorkspaceServicing {
             kanbanOrder: nextKanbanOrderForAppend(status: input.status, tasks: allTasks),
             updatedAt: clock.now()
         )
-        return try await taskStore.upsertTask(task)
+        let saved = try await taskStore.upsertTask(task)
+        _Concurrency.Task { await self.getNotificationScheduler().scheduleReminder(for: saved) }
+        return saved
     }
 
     public func listAllTasks() async throws -> [Task] {
@@ -459,13 +474,16 @@ public actor WorkspaceService: WorkspaceServicing {
     public func updateTask(_ task: Task) async throws -> Task {
         var copy = task
         copy.updatedAt = clock.now()
-        return try await taskStore.upsertTask(copy)
+        let saved = try await taskStore.upsertTask(copy)
+        _Concurrency.Task { await self.getNotificationScheduler().scheduleReminder(for: saved) }
+        return saved
     }
 
     public func deleteTask(taskID: UUID) async throws {
         guard let task = try await taskStore.fetchTask(id: taskID), task.deletedAt == nil else {
             throw StorageError.dataCorruption(reason: "Cannot delete missing task \(taskID)")
         }
+        _Concurrency.Task { await self.getNotificationScheduler().cancelReminder(for: taskID) }
         try await taskStore.tombstoneTask(id: taskID, at: clock.now())
     }
 
@@ -507,7 +525,13 @@ public actor WorkspaceService: WorkspaceServicing {
             task.completedAt = nil
         }
 
-        return try await taskStore.upsertTask(task)
+        let saved = try await taskStore.upsertTask(task)
+        if status == .done {
+            _Concurrency.Task { await self.getNotificationScheduler().cancelReminder(for: taskID) }
+        } else {
+            _Concurrency.Task { await self.getNotificationScheduler().scheduleReminder(for: saved) }
+        }
+        return saved
     }
 
     public func setTaskStatus(taskID: UUID, status: TaskStatus) async throws -> Task {
@@ -672,6 +696,10 @@ public actor WorkspaceService: WorkspaceServicing {
         }
 
         return try await updateTask(task)
+    }
+
+    public func requestNotificationPermission() async -> Bool {
+        await getNotificationScheduler().requestAuthorization()
     }
 
     private func nextKanbanOrderForAppend(status: TaskStatus, tasks: [Task]) -> Double {
