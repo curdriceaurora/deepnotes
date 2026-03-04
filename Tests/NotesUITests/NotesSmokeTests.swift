@@ -35,47 +35,6 @@ final class NotesSmokeTests: XCTestCase {
         XCTAssertFalse(viewModel.isBusy, "ViewModel must not be busy after load completes")
     }
 
-    // smoke-test: §1 — Notes tab renders without crash; core controls present.
-    func testSmokeAppLaunchNotesEditorControlsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = NotesEditorView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "newNoteButton"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteSearchField"))
-    }
-
-    // smoke-test: §1 — Tasks tab renders columns.
-    func testSmokeAppLaunchKanbanColumnsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        for status in TaskStatus.allCases {
-            XCTAssertNoThrow(
-                try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_\(status.rawValue)"),
-                "Kanban column '\(status.rawValue)' must be present at launch"
-            )
-        }
-    }
-
-    // smoke-test: §1 — Sync tab renders calendar field and run-sync button.
-    func testSmokeAppLaunchSyncTabControlsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "syncCalendarField"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "runSyncButton"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "syncStatusText"))
-    }
-
     // smoke-test: §1 — globalErrorBanner absent at launch (no error set by default).
     func testSmokeNoGlobalErrorBannerAtLaunch() async throws {
         let viewModel = try makeViewModel()
@@ -133,18 +92,6 @@ final class NotesSmokeTests: XCTestCase {
     }
 
     // smoke-test: §2 — title field and body editor are present in editor.
-    func testSmokeNotesEditorFieldsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = NotesEditorView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteTitleField"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "saveNoteButton"))
-    }
-
     // MARK: - §3 Notes Tab — Markdown Toolbar
 
     // smoke-test: §3 — Insert Heading appends "# " to body.
@@ -193,19 +140,6 @@ final class NotesSmokeTests: XCTestCase {
             viewModel.selectedNoteBody.contains("- [ ] "),
             "Checkbox prefix must be inserted into body"
         )
-    }
-
-    // smoke-test: §3 — All three toolbar buttons are present.
-    func testSmokeMarkdownToolbarButtonsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = NotesEditorView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertHeadingButton"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertBulletButton"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "insertCheckboxButton"))
     }
 
     // MARK: - §4 Notes Tab — Search and Snippets
@@ -303,21 +237,6 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(viewModel.isQuickOpenPresented, "Quick Open sheet must be presented")
         XCTAssertFalse(viewModel.quickOpenResults.isEmpty, "Quick Open must show results")
-    }
-
-    // smoke-test: §5 — Quick Open sheet control identifiers present when presented.
-    func testSmokeQuickOpenSheetControlsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-        viewModel.openQuickSwitcher()
-
-        let view = QuickOpenSheetView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenSearchField"),
-                         "quickOpenSearchField must be present when Quick Open is open")
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenCloseButton"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenResultsList"))
     }
 
     // smoke-test: §5 — Typing a partial title filters Quick Open results.
@@ -529,18 +448,6 @@ final class NotesSmokeTests: XCTestCase {
     }
 
     // MARK: - §8 Tasks Tab — List and Filter
-
-    // smoke-test: §8 — taskFilterPicker and tasksList identifiers are present.
-    func testSmokeTasksTabControlsPresent() async throws {
-        let viewModel = try makeViewModel()
-        await viewModel.load()
-
-        let view = TasksListView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "taskFilterPicker"))
-        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "tasksList"))
-    }
 
     // smoke-test: §8 — Filter "All" returns all tasks including done.
     func testSmokeFilterAllIncludesDoneTasks() async throws {

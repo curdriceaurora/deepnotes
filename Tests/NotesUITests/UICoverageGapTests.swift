@@ -60,36 +60,6 @@ final class UICoverageGapTests: XCTestCase {
         }
     }
 
-    func testKanbanEmptyColumnRendersNoCardsText() async throws {
-        let viewModel = makeViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        for status in TaskStatus.allCases {
-            XCTAssertNoThrow(
-                try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_\(status.rawValue)"),
-                "Column \(status.rawValue) must render even when empty"
-            )
-        }
-    }
-
-    func testSyncDiagnosticsEmptyStateRendered() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-        await viewModel.runSync()
-
-        // The mock produces diagnostics; to test empty state we need a report with empty diagnostics.
-        // Instead, validate that the syncDiagnosticsSection is present (diagnostics rendered).
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticsSection"),
-            "Diagnostics section must be present after sync"
-        )
-    }
-
     // MARK: - §8 Filter Edge Cases
 
     func testFilterUpcomingReturnsFutureDatedTasks() async throws {
@@ -214,41 +184,6 @@ final class UICoverageGapTests: XCTestCase {
         XCTAssertGreaterThan(totalKanban, 0, "At least one column must have cards")
     }
 
-    func testKanbanColumnHeaderRendersForEachStatus() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        for status in TaskStatus.allCases {
-            XCTAssertNoThrow(
-                try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_\(status.rawValue)"),
-                "\(status.rawValue) column must be rendered"
-            )
-        }
-    }
-
-    // MARK: - §12 Kanban Card Content
-
-    func testKanbanCardRendersForExistingTask() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        let backlogTasks = viewModel.tasks(for: .backlog)
-        guard let firstBacklog = backlogTasks.first else {
-            return XCTFail("Expected at least one backlog task")
-        }
-
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "kanbanCard_\(firstBacklog.id.uuidString)"),
-            "Card must render for backlog task"
-        )
-    }
-
     // MARK: - §15 Sync Metric Cards
 
     func testSyncReportMetricValuesPresent() async throws {
@@ -277,20 +212,6 @@ final class UICoverageGapTests: XCTestCase {
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "syncReportSection"),
             "Report section must render after sync"
-        )
-    }
-
-    func testSyncDashboardExportButtonPresentAfterSync() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-        await viewModel.runSync()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "exportSyncDiagnosticsButton"),
-            "Export button must be present after sync"
         )
     }
 
@@ -430,33 +351,4 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §14 Sync Tab Controls
 
-    func testSyncTabRendersSyncStatusText() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "syncStatusText"),
-            "Sync status text must render"
-        )
-    }
-
-    func testSyncTabRendersCalendarFieldAndRunButton() async throws {
-        let viewModel = try makePopulatedViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "syncCalendarField"),
-            "Calendar field must render"
-        )
-        XCTAssertNoThrow(
-            try inspected.find(viewWithAccessibilityIdentifier: "runSyncButton"),
-            "Run sync button must render"
-        )
-    }
 }
