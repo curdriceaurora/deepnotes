@@ -245,14 +245,15 @@ final class NotesSmokeTests: XCTestCase {
         XCTAssertGreaterThan(totalCount, 0, "Fixture must contain notes")
 
         await viewModel.setNoteSearchQuery("Vendor")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         XCTAssertLessThan(
             viewModel.notes.count, totalCount,
             "Search must filter the notes list to fewer results"
         )
         XCTAssertTrue(
-            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || $0.body.localizedCaseInsensitiveContains("Vendor") },
-            "All returned notes must match the query"
+            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || viewModel.noteSearchSnippet(for: $0.id) != nil },
+            "All returned notes must match the query by title or have a search snippet"
         )
     }
 
@@ -261,6 +262,7 @@ final class NotesSmokeTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         guard let first = viewModel.notes.first else {
             return XCTFail("Expected at least one result for 'launch'")
@@ -284,9 +286,11 @@ final class NotesSmokeTests: XCTestCase {
         let totalCount = viewModel.notes.count
 
         await viewModel.setNoteSearchQuery("Vendor")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertLessThan(viewModel.notes.count, totalCount)
 
         await viewModel.setNoteSearchQuery("")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(viewModel.notes.count, totalCount,
                        "Clearing search must restore the full notes list")
         XCTAssertNil(viewModel.noteSearchQuery.isEmpty ? nil as String? : "non-empty")
@@ -298,6 +302,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("zzz_no_match_zzz")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         XCTAssertTrue(viewModel.notes.isEmpty,
                       "Search for non-matching word must produce empty list without crash")
@@ -322,7 +327,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
         viewModel.openQuickSwitcher()
 
-        let view = NotesEditorView(viewModel: viewModel)
+        let view = QuickOpenSheetView(viewModel: viewModel)
         let inspected = try view.inspect()
 
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "quickOpenSearchField"),
@@ -340,7 +345,9 @@ final class NotesSmokeTests: XCTestCase {
         viewModel.setQuickOpenQuery("Vendor")
 
         XCTAssertTrue(
-            viewModel.quickOpenResults.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") },
+            viewModel.quickOpenResults.allSatisfy {
+                $0.title.localizedCaseInsensitiveContains("Vendor")
+            },
             "Quick Open results must match the typed partial title"
         )
         XCTAssertFalse(viewModel.quickOpenResults.isEmpty,
@@ -377,7 +384,7 @@ final class NotesSmokeTests: XCTestCase {
 
         viewModel.openQuickSwitcher()
 
-        let view = NotesEditorView(viewModel: viewModel)
+        let view = QuickOpenSheetView(viewModel: viewModel)
         let inspected = try view.inspect()
         try inspected.find(viewWithAccessibilityIdentifier: "quickOpenCloseButton").button().tap()
         try await flushAsyncActions()

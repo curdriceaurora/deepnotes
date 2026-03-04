@@ -38,6 +38,16 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "tasksList"))
     }
 
+    func testTasksListContainsSortMenu() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = TasksListView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "taskSortMenu"))
+    }
+
     func testKanbanRendersAllStatusColumns() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
@@ -139,6 +149,7 @@ final class NotesViewsTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
 
         guard let first = viewModel.notes.first else {
             return XCTFail("Expected searched note")
@@ -530,6 +541,88 @@ final class NotesViewsTests: XCTestCase {
     private func flushAsyncActions() async throws {
         try await _Concurrency.Task.sleep(nanoseconds: 160_000_000)
     }
+
+    func testTogglePreviewButtonRenders() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "togglePreviewButton"))
+    }
+
+    func testPreviewModeShowsPreviewNotEditor() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+        viewModel.toggleNoteEditMode()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyPreview"))
+        XCTAssertThrowsError(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
+    }
+
+    func testEditModeShowsEditorNotPreview() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyEditor"))
+        XCTAssertThrowsError(try inspected.find(viewWithAccessibilityIdentifier: "noteBodyPreview"))
+    }
+
+    func testTagFilterBarRendersWithTags() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let taggedNotes = [
+            Note(id: UUID(), title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1),
+            Note(id: UUID(), title: "Note 2", body: "#rust code", tags: ["rust"], updatedAt: now, version: 1)
+        ]
+        let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "tagFilterBar"))
+    }
+
+    func testNoteTagBadgesRender() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let noteID = UUID()
+        let taggedNotes = [
+            Note(id: noteID, title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1)
+        ]
+        let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
+        let provider = InMemoryCalendarProvider()
+        let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
+        await viewModel.load()
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "noteTags_\(noteID.uuidString)"))
+    }
+
+    func testBacklinkRowsAreClickable() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+        // Select "Q2 Launch Plan" which has a backlink from "Vendor Notes"
+        if let q2 = viewModel.notes.first(where: { $0.title == "Q2 Launch Plan" }) {
+            await viewModel.selectNote(id: q2.id)
+        }
+
+        let view = NotesEditorView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        // Should find backlinks list
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"))
+    }
 }
 
 actor MockWorkspaceService: WorkspaceServicing {
@@ -542,6 +635,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let noteID1 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
         let noteID2 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
+        let noteID3 = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000003"))
         let notes: [Note] = [
             Note(
                 id: noteID1,
@@ -555,6 +649,14 @@ actor MockWorkspaceService: WorkspaceServicing {
                 id: noteID2,
                 title: "Vendor Notes",
                 body: "Connected to [[Q2 Launch Plan]]",
+                updatedAt: now,
+                version: 1,
+                deletedAt: nil
+            ),
+            Note(
+                id: noteID3,
+                title: "Team Standup",
+                body: "Weekly sync meeting agenda and notes.",
                 updatedAt: now,
                 version: 1,
                 deletedAt: nil
@@ -634,6 +736,15 @@ actor MockWorkspaceService: WorkspaceServicing {
         self.tasks = fixture.tasks
     }
 
+    init(notes: [Note], tasks: [Task]) {
+        self.notes = notes
+        self.tasks = tasks
+    }
+
+    func fetchNote(id: UUID) async throws -> Note? {
+        notes.first { $0.id == id }
+    }
+
     func listNotes() async throws -> [Note] {
         notes
     }
@@ -700,16 +811,52 @@ actor MockWorkspaceService: WorkspaceServicing {
             .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
     }
 
+    func notesByTag(_ tag: String) async throws -> [Note] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }
+    }
+
+    func allTags() async throws -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            for tag in note.tags {
+                let lowered = tag.lowercased()
+                if !seen.contains(lowered) {
+                    seen.insert(lowered)
+                    result.append(lowered)
+                }
+            }
+        }
+        return result.sorted()
+    }
+
+    func listNoteListItems() async throws -> [NoteListItem] {
+        notes.map(\.listItem)
+    }
+
+    func listNoteListItems(tag: String) async throws -> [NoteListItem] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }.map(\.listItem)
+    }
+
+    func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage {
+        let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
+        let start = min(max(0, offset), allItems.count)
+        let end = min(allItems.count, start + max(1, limit))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
+    }
+
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
+        let now = Date()
+        let calendar = Calendar.current
         switch filter {
         case .all:
             return tasks
         case .today:
-            return tasks.filter { $0.status != .done && $0.dueStart != nil }
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && calendar.isDateInToday($0.dueStart!) }
         case .upcoming:
-            return []
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && $0.dueStart! > now && !calendar.isDateInToday($0.dueStart!) }
         case .overdue:
-            return []
+            return tasks.filter { $0.status != .done && $0.dueStart != nil && $0.dueStart! < now && !calendar.isDateInToday($0.dueStart!) }
         case .completed:
             return tasks.filter { $0.status == .done }
         }
@@ -809,4 +956,148 @@ actor MockWorkspaceService: WorkspaceServicing {
     }
 
     func seedDemoDataIfNeeded() async throws {}
+
+    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+        []
+    }
+
+    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+        guard let note = notes.first(where: { $0.id == sourceNoteID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        return note
+    }
+
+    func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
+        []
+    }
+
+    func createOrOpenDailyNote(date: Date) async throws -> Note {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let title = formatter.string(from: date)
+        if let existing = notes.first(where: { $0.title == title }) {
+            return existing
+        }
+        let note = Note(id: UUID(), title: title, body: "", updatedAt: Date(), version: 1)
+        return note
+    }
+
+    func listTemplates() async throws -> [NoteTemplate] {
+        []
+    }
+
+    func createTemplate(name: String, body: String) async throws -> NoteTemplate {
+        NoteTemplate(name: name, body: body, createdAt: Date())
+    }
+
+    func deleteTemplate(id: UUID) async throws {}
+
+    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
+        let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
+        return note
+    }
+
+    // MARK: - Kanban Column & Label methods
+
+    private var kanbanColumns: [KanbanColumn] = [
+        KanbanColumn(id: UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!, title: "Backlog", builtInStatus: .backlog, position: 0),
+        KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
+        KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
+        KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+    ]
+
+    func listKanbanColumns() async throws -> [KanbanColumn] {
+        kanbanColumns.sorted { $0.position < $1.position }
+    }
+
+    func createKanbanColumn(title: String) async throws -> KanbanColumn {
+        let position = (kanbanColumns.map(\.position).max() ?? -1) + 1
+        let column = KanbanColumn(title: title, position: position)
+        kanbanColumns.append(column)
+        return column
+    }
+
+    func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        guard let idx = kanbanColumns.firstIndex(where: { $0.id == column.id }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        kanbanColumns[idx] = column
+        return kanbanColumns[idx]
+    }
+
+    func deleteKanbanColumn(id: UUID) async throws {
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else { return }
+        kanbanColumns.removeAll { $0.id == id }
+    }
+
+    func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        if !tasks[idx].labels.contains(where: { $0.name.lowercased() == label.name.lowercased() }) {
+            tasks[idx].labels.append(label)
+        }
+        return tasks[idx]
+    }
+
+    func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
+        return tasks[idx]
+    }
+
+    func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        let subtask = Subtask(title: title, order: tasks[idx].subtasks.count)
+        tasks[idx].subtasks.append(subtask)
+        return tasks[idx]
+    }
+
+    func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task {
+        guard let taskIdx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        guard let subtaskIdx = tasks[taskIdx].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
+
+        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+            tasks[taskIdx].status = .done
+            tasks[taskIdx].completedAt = Date()
+        }
+
+        return tasks[taskIdx]
+    }
+
+    func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[idx].subtasks.removeAll { $0.id == subtaskID }
+
+        var order = 0
+        for i in tasks[idx].subtasks.indices {
+            tasks[idx].subtasks[i].order = order
+            order += 1
+        }
+
+        return tasks[idx]
+    }
+
+    func requestNotificationPermission() async -> Bool {
+        return true
+    }
+
+    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
+        return try await listTasks(filter: filter)
+    }
 }

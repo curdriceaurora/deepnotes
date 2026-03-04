@@ -124,6 +124,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedNoteTitle, "Alpha")
 
         await viewModel.setNoteSearchQuery("beta")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(viewModel.noteSearchQuery, "beta")
         XCTAssertEqual(viewModel.notes.count, 1)
         XCTAssertEqual(viewModel.notes.first?.title, "Beta")
@@ -137,9 +138,11 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("alpha")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(viewModel.notes.count, 1)
 
         await viewModel.setNoteSearchQuery("")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertEqual(viewModel.noteSearchQuery, "")
         XCTAssertEqual(viewModel.notes.count, 2)
     }
@@ -201,12 +204,14 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("alpha")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         guard let firstID = viewModel.notes.first?.id else {
             return XCTFail("Expected at least one note")
         }
         XCTAssertNotNil(viewModel.noteSearchSnippet(for: firstID))
 
         await viewModel.setNoteSearchQuery("")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
         XCTAssertNil(viewModel.noteSearchSnippet(for: firstID))
     }
 
@@ -853,6 +858,992 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.lastDiagnosticsExportURL)
     }
 
+    func testNavigateToNoteByTitleSelectsCorrectNote() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.navigateToNoteByTitle("Beta")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, "Beta")
+    }
+
+    func testNavigateToNoteByTitleIsCaseInsensitive() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.navigateToNoteByTitle("beta")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, "Beta")
+    }
+
+    func testNavigateToNoteByTitleNoMatchIsNoOp() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        let originalTitle = viewModel.selectedNoteTitle
+
+        await viewModel.navigateToNoteByTitle("Nonexistent")
+
+        XCTAssertEqual(viewModel.selectedNoteTitle, originalTitle)
+    }
+
+    func testNavigateToNoteByTitleSwitchesToEditMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        await viewModel.navigateToNoteByTitle("Beta")
+
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testToggleSwitchesToPreviewMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+        XCTAssertFalse(viewModel.renderedMarkdown.characters.isEmpty || viewModel.selectedNoteBody.isEmpty)
+    }
+
+    func testToggleRoundTrips() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testSelectNoteResetsToEditMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.toggleNoteEditMode()
+        XCTAssertEqual(viewModel.noteEditMode, .preview)
+
+        await viewModel.selectNote(id: viewModel.notes.last?.id)
+        XCTAssertEqual(viewModel.noteEditMode, .edit)
+    }
+
+    func testFilterByTagFiltersNotesList() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Swift Note", body: "Content", tags: ["swift"])
+        await service.addTaggedNote(title: "Rust Note", body: "Content", tags: ["rust"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("swift")
+
+        XCTAssertEqual(viewModel.selectedTagFilter, "swift")
+        XCTAssertTrue(viewModel.notes.allSatisfy { $0.tags.contains("swift") })
+    }
+
+    func testClearTagFilterRestoresFullList() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Swift Note", body: "Content", tags: ["swift"])
+        await service.addTaggedNote(title: "Rust Note", body: "Content", tags: ["rust"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("swift")
+        await viewModel.filterByTag(nil)
+
+        XCTAssertNil(viewModel.selectedTagFilter)
+        XCTAssertGreaterThanOrEqual(viewModel.notes.count, 2)
+    }
+
+    func testAllTagsLoadedOnLoad() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Note", body: "Content", tags: ["alpha", "beta"])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.allTagsList.contains("alpha"))
+        XCTAssertTrue(viewModel.allTagsList.contains("beta"))
+    }
+
+    // MARK: - Daily Notes
+
+    func testOpenDailyNoteSelectsDailyNote() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.noteSearchQuery = "Alpha"
+
+        await viewModel.openDailyNote()
+
+        XCTAssertEqual(viewModel.noteSearchQuery, "")
+        XCTAssertNotNil(viewModel.selectedNoteID)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let todayTitle = formatter.string(from: Date())
+        XCTAssertEqual(viewModel.selectedNoteTitle, todayTitle)
+        XCTAssertTrue(viewModel.notes.contains(where: { $0.title == todayTitle }))
+    }
+
+    func testOpenDailyNoteIdempotent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.openDailyNote()
+        let firstID = viewModel.selectedNoteID
+        let countAfterFirst = viewModel.notes.count
+
+        await viewModel.openDailyNote()
+        let secondID = viewModel.selectedNoteID
+
+        XCTAssertEqual(firstID, secondID)
+        XCTAssertEqual(viewModel.notes.count, countAfterFirst)
+    }
+
+    // MARK: - Link Mentions
+
+    func testLinkMentionGuardsEmptyTitle() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.selectNote(id: nil)
+
+        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        await viewModel.linkMention(sourceNoteID: alphaID)
+
+        XCTAssertTrue(viewModel.selectedNoteTitle.isEmpty)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testLinkMentionUpdatesUnlinkedMentions() async {
+        let service = WorkspaceServiceSpy()
+        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let betaID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        await service.setStubbedUnlinkedMentions([
+            NoteBacklink(sourceNoteID: betaID, sourceTitle: "Beta")
+        ])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.selectNote(id: alphaID)
+
+        await viewModel.linkMention(sourceNoteID: betaID)
+
+        XCTAssertEqual(viewModel.unlinkedMentions.count, 1)
+        XCTAssertEqual(viewModel.unlinkedMentions.first?.sourceTitle, "Beta")
+    }
+
+    // MARK: - Graph View
+
+    func testReloadGraphPopulatesNodesAndEdges() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Gamma", body: "", tags: [])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.reloadGraph()
+
+        XCTAssertGreaterThanOrEqual(viewModel.graphNodes.count, 3)
+        XCTAssertEqual(viewModel.graphEdges.count, 1)
+    }
+
+    func testReloadGraphEmptyWhenNoLinks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.reloadGraph()
+
+        XCTAssertGreaterThanOrEqual(viewModel.graphNodes.count, 2)
+        XCTAssertEqual(viewModel.graphEdges.count, 0)
+    }
+
+    // MARK: - Templates
+
+    func testCreateNoteFromTemplateClearsStateAndSelects() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.noteSearchQuery = "search"
+        viewModel.isTemplatePickerPresented = true
+
+        await viewModel.createNoteFromTemplate(templateID: UUID())
+
+        XCTAssertEqual(viewModel.noteSearchQuery, "")
+        XCTAssertFalse(viewModel.isTemplatePickerPresented)
+        XCTAssertEqual(viewModel.selectedNoteTitle, "New Note")
+    }
+
+    func testCreateTemplateGuardsEmptyName() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "   "
+        viewModel.newTemplateBody = "body"
+
+        await viewModel.createTemplate()
+
+        XCTAssertEqual(viewModel.newTemplateName, "   ")
+        XCTAssertEqual(viewModel.newTemplateBody, "body")
+        XCTAssertTrue(viewModel.templates.isEmpty)
+    }
+
+    func testCreateTemplateClearsFormAndReloads() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "Meeting Notes"
+        viewModel.newTemplateBody = "## Agenda\n- "
+
+        await viewModel.createTemplate()
+
+        XCTAssertEqual(viewModel.newTemplateName, "")
+        XCTAssertEqual(viewModel.newTemplateBody, "")
+        XCTAssertEqual(viewModel.templates.count, 1)
+        XCTAssertEqual(viewModel.templates.first?.name, "Meeting Notes")
+    }
+
+    func testDeleteTemplateReloadsTemplates() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.newTemplateName = "Temp"
+        viewModel.newTemplateBody = "body"
+        await viewModel.createTemplate()
+        let templateID = viewModel.templates.first!.id
+
+        await viewModel.deleteTemplate(id: templateID)
+
+        XCTAssertTrue(viewModel.templates.isEmpty)
+    }
+
+    // MARK: - Pagination
+
+    func testLoadPaginatesNotesListTo50() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.notes.count, 50)
+        XCTAssertNotNil(viewModel.notesNextOffset)
+        XCTAssertEqual(viewModel.notesTotalCount, 62) // 60 + 2 initial
+    }
+
+    func testLoadMoreNotesAppendsNextPage() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.loadMoreNotes()
+
+        XCTAssertEqual(viewModel.notes.count, 62) // 50 + 12 remaining
+        XCTAssertNil(viewModel.notesNextOffset)
+    }
+
+    func testLoadMoreNotesNoOpDuringSearch() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.noteSearchQuery = "Alpha"
+        await viewModel.loadMoreNotes()
+
+        // Should still be 50 from initial load (loadMore is a no-op during search)
+        XCTAssertEqual(viewModel.notes.count, 50)
+    }
+
+    func testLoadMoreNotesNoOpWhenExhausted() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // Only 2 notes, all on first page
+        XCTAssertNil(viewModel.notesNextOffset)
+
+        await viewModel.loadMoreNotes()
+
+        XCTAssertEqual(viewModel.notes.count, 2)
+    }
+
+    func testBacklinksCachedAcrossSelections() async {
+        let service = WorkspaceServiceSpy()
+        await service.addTaggedNote(title: "Gamma", body: "[[Alpha]] reference", tags: [])
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let alphaID = viewModel.notes.first(where: { $0.title == "Alpha" })?.id
+        let betaID = viewModel.notes.first(where: { $0.title == "Beta" })?.id
+        XCTAssertNotNil(alphaID)
+
+        await viewModel.selectNote(id: alphaID)
+        let firstBacklinks = viewModel.backlinks
+
+        await viewModel.selectNote(id: betaID)
+        await viewModel.selectNote(id: alphaID)
+
+        XCTAssertEqual(viewModel.backlinks.count, firstBacklinks.count)
+    }
+
+    func testLoadParallelizesPhases() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        // Functional verification: all data should be populated
+        XCTAssertFalse(viewModel.notes.isEmpty)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
+    func testReloadNotesResetsPageOnNewSearch() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertNotNil(viewModel.notesNextOffset)
+
+        // Trigger search (which resets pagination)
+        await viewModel.setNoteSearchQuery("Alpha")
+        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+
+        // Search path does not use pagination
+        XCTAssertNil(viewModel.notesNextOffset)
+    }
+
+    func testLoadMoreNotesNoOpWithTagFilter() async {
+        let service = WorkspaceServiceSpy()
+        await service.addBulkNotes(count: 60)
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        await viewModel.filterByTag("bulk")
+        let countAfterFilter = viewModel.notes.count
+
+        await viewModel.loadMoreNotes()
+
+        // Tag filter bypasses pagination, so loadMore is a no-op
+        XCTAssertEqual(viewModel.notes.count, countAfterFilter)
+    }
+
+    // MARK: - Kanban Card Detail
+
+    func testOpenTaskDetailSetsSelectedTask() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+
+        XCTAssertNotNil(viewModel.selectedTaskForEditing)
+        XCTAssertEqual(viewModel.selectedTaskForEditing?.id, taskID)
+    }
+
+    func testOpenTaskDetailWithInvalidIDDoesNothing() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.openTaskDetail(taskID: UUID())
+
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testCloseTaskDetailClearsSelection() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+        XCTAssertNotNil(viewModel.selectedTaskForEditing)
+
+        viewModel.closeTaskDetail()
+
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testSaveTaskDetailPersistsAndReloads() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        viewModel.openTaskDetail(taskID: taskID)
+        guard var task = viewModel.selectedTaskForEditing else {
+            return XCTFail("Expected task to be selected")
+        }
+        task.title = "Updated Title"
+
+        await viewModel.saveTaskDetail(task)
+
+        let updateCalls = await service.updateTaskCallCount
+        XCTAssertEqual(updateCalls, 1)
+        XCTAssertNil(viewModel.selectedTaskForEditing)
+    }
+
+    func testCreateQuickTaskUsesCustomPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.quickTaskTitle = "Priority task"
+        viewModel.quickTaskPriority = 1
+
+        await viewModel.createQuickTask()
+
+        let createCalls = await service.createTaskCallCount
+        XCTAssertEqual(createCalls, 1)
+        let lastPriority = await service.lastCreatedTaskPriority
+        XCTAssertEqual(lastPriority, 1)
+    }
+
+    func testCreateQuickTaskResetsPriorityAfterCreation() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.quickTaskTitle = "Some task"
+        viewModel.quickTaskPriority = 0
+
+        await viewModel.createQuickTask()
+
+        XCTAssertEqual(viewModel.quickTaskPriority, 3)
+    }
+
+    // MARK: - Kanban E2E Integration tests
+
+    func testEndToEndCustomColumnWorkflow() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        // 1. Create custom column
+        viewModel.newColumnTitle = "Review"
+        await viewModel.createKanbanColumn()
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+        let customCol = viewModel.kanbanColumns.last!
+        XCTAssertEqual(customCol.title, "Review")
+
+        // 2. Verify grouping works with custom column (empty column = 0 groups)
+        viewModel.kanbanGrouping = .priority
+        let grouped = viewModel.groupedTasks(for: customCol.id)
+        XCTAssertTrue(grouped.isEmpty || grouped.allSatisfy({ $0.tasks.isEmpty }))
+
+        // 3. Delete custom column
+        await viewModel.deleteKanbanColumn(id: customCol.id)
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customCol.id }))
+    }
+
+    func testExistingTasksWorkWithColumnBasedBoard() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // All tasks have nil kanbanColumnID — they should appear in built-in status columns
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+
+        let backlogTasks = viewModel.tasks(for: .backlog)
+        let nextTasks = viewModel.tasks(for: .next)
+        let doneTasks = viewModel.tasks(for: .done)
+
+        XCTAssertFalse(backlogTasks.isEmpty, "Backlog column should have tasks")
+        XCTAssertFalse(nextTasks.isEmpty, "Next column should have tasks")
+        XCTAssertFalse(doneTasks.isEmpty, "Done column should have tasks")
+
+        // Verify backward-compat: tasks(for:) matches tasksForColumn
+        let backlogCol = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        XCTAssertEqual(
+            backlogTasks.map(\.id),
+            viewModel.tasksForColumn(backlogCol.id).map(\.id)
+        )
+    }
+
+    // MARK: - Kanban Column ViewModel tests
+
+    func testLoadPopulatesKanbanColumnsWithDefaults() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertEqual(viewModel.kanbanColumns[0].builtInStatus, .backlog)
+        XCTAssertEqual(viewModel.kanbanColumns[4].builtInStatus, .done)
+    }
+
+    func testCreateKanbanColumnAppendsCustomColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.newColumnTitle = "Review"
+        await viewModel.createKanbanColumn()
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+        XCTAssertEqual(viewModel.kanbanColumns.last?.title, "Review")
+        let callCount = await service.createColumnCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testDeleteCustomColumnRemovesColumn() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        viewModel.newColumnTitle = "Temp"
+        await viewModel.createKanbanColumn()
+        XCTAssertEqual(viewModel.kanbanColumns.count, 6)
+
+        let customID = viewModel.kanbanColumns.last!.id
+        await viewModel.deleteKanbanColumn(id: customID)
+
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+        XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customID }))
+    }
+
+    func testDeleteBuiltInColumnSetsError() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogID = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!.id
+        await viewModel.deleteKanbanColumn(id: backlogID)
+
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.kanbanColumns.count, 5)
+    }
+
+    func testTasksForColumnReturnsCorrectTasks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogTasks = viewModel.tasksForColumn(backlogColumn.id)
+        XCTAssertFalse(backlogTasks.isEmpty)
+        XCTAssertTrue(backlogTasks.allSatisfy { $0.status == .backlog })
+    }
+
+    func testTasksForStatusBackwardCompat() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogTasks = viewModel.tasks(for: .backlog)
+        XCTAssertFalse(backlogTasks.isEmpty)
+        XCTAssertTrue(backlogTasks.allSatisfy { $0.status == .backlog })
+    }
+
+    // MARK: - WIP Limits
+
+    func testUpdateColumnWipLimitPersists() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        col.wipLimit = 3
+        await viewModel.updateKanbanColumn(col)
+
+        let updated = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })
+        XCTAssertEqual(updated?.wipLimit, 3)
+    }
+
+    func testColumnOverWipLimitDetected() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        // Backlog has 2 tasks in the spy; set WIP limit to 2
+        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        col.wipLimit = 2
+        await viewModel.updateKanbanColumn(col)
+
+        let backlogTasks = viewModel.tasksForColumn(col.id)
+        XCTAssertGreaterThanOrEqual(backlogTasks.count, col.wipLimit!)
+    }
+
+    // MARK: - Labels
+
+    func testAddLabelToTaskPersists() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+        await viewModel.addLabelToTask(taskID: task.id, label: label)
+
+        let callCount = await service.addLabelCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testRemoveLabelFromTaskRemoves() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+        await viewModel.addLabelToTask(taskID: task.id, label: label)
+        await viewModel.removeLabelFromTask(taskID: task.id, labelName: "Bug")
+
+        let removeCount = await service.removeLabelCallCount
+        XCTAssertEqual(removeCount, 1)
+    }
+
+    func testAllLabelsDerivedFromTasks() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        await viewModel.addLabelToTask(taskID: task.id, label: TaskLabel(name: "Bug", colorHex: "#FF0000"))
+        await viewModel.addLabelToTask(taskID: task.id, label: TaskLabel(name: "Feature", colorHex: "#00FF00"))
+
+        XCTAssertTrue(viewModel.allLabels.contains(where: { $0.name == "Bug" }))
+        XCTAssertTrue(viewModel.allLabels.contains(where: { $0.name == "Feature" }))
+    }
+
+    // MARK: - Swimlane Grouping
+
+    func testGroupedTasksByPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.kanbanGrouping = .priority
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let grouped = viewModel.groupedTasks(for: backlogColumn.id)
+
+        XCTAssertFalse(grouped.isEmpty)
+        XCTAssertTrue(grouped.allSatisfy { !$0.key.isEmpty })
+    }
+
+    func testGroupedTasksByNone() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        viewModel.kanbanGrouping = .none
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let grouped = viewModel.groupedTasks(for: backlogColumn.id)
+
+        XCTAssertEqual(grouped.count, 1)
+        XCTAssertEqual(grouped.first?.key, "")
+    }
+
+    func testGroupingChangeIsViewOnly() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let callsBefore = await service.createColumnCallCount
+        viewModel.kanbanGrouping = .priority
+        viewModel.kanbanGrouping = .label
+        viewModel.kanbanGrouping = .none
+        let callsAfter = await service.createColumnCallCount
+
+        XCTAssertEqual(callsBefore, callsAfter)
+    }
+
+    // MARK: - Drag-Drop Column
+
+    func testDropTargetColumnIDSetAndCleared() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        viewModel.beginTaskDrag(taskID: UUID())
+        viewModel.setDropTargetColumn(backlogColumn.id)
+        XCTAssertEqual(viewModel.dropTargetColumnID, backlogColumn.id)
+
+        viewModel.endTaskDrag()
+        XCTAssertNil(viewModel.dropTargetColumnID)
+        XCTAssertNil(viewModel.draggingTaskID)
+    }
+
+    func testMoveTaskClearsKanbanColumnID() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task = viewModel.tasks.first(where: { $0.status == .backlog }) else {
+            return XCTFail("Expected backlog task")
+        }
+
+        await viewModel.moveTask(taskID: task.id, to: .next)
+        await viewModel.setTaskFilter(.all)
+
+        let moved = viewModel.tasks.first(where: { $0.id == task.id })
+        XCTAssertEqual(moved?.status, .next)
+    }
+
+    func testToggleMultiSelectMode_entersAndExits() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+
+        viewModel.toggleMultiSelectMode()
+        XCTAssertTrue(viewModel.isMultiSelectMode)
+
+        guard let task = viewModel.tasks.first else {
+            return XCTFail("Expected at least one task")
+        }
+        viewModel.toggleTaskSelection(taskID: task.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+
+        viewModel.toggleMultiSelectMode()
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+    }
+
+    func testToggleTaskSelection_addsAndRemoves() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task1 = viewModel.tasks.first else {
+            return XCTFail("Expected at least one task")
+        }
+        guard let task2 = viewModel.tasks.dropFirst().first else {
+            return XCTFail("Expected at least two tasks")
+        }
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task1.id))
+
+        viewModel.toggleTaskSelection(taskID: task2.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 2)
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task1.id))
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task2.id))
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+        XCTAssertFalse(viewModel.selectedTaskIDs.contains(task1.id))
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task2.id))
+    }
+
+    func testBulkMoveTasksToStatus_callsServiceForEachID() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard viewModel.tasks.count >= 3 else {
+            return XCTFail("Expected at least 3 tasks")
+        }
+
+        let task1 = viewModel.tasks[0]
+        let task2 = viewModel.tasks[1]
+        let task3 = viewModel.tasks[2]
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        viewModel.toggleTaskSelection(taskID: task2.id)
+        viewModel.toggleTaskSelection(taskID: task3.id)
+
+        await viewModel.bulkMoveTasksToStatus(.done)
+
+        let moveCount = await service.moveTaskCallCount
+        XCTAssertEqual(moveCount, 3)
+    }
+
+    func testBulkMoveTasksToStatus_clearsSelectionAndExitsMulitSelectMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard viewModel.tasks.count >= 2 else {
+            return XCTFail("Expected at least 2 tasks")
+        }
+
+        viewModel.isMultiSelectMode = true
+        viewModel.toggleTaskSelection(taskID: viewModel.tasks[0].id)
+        viewModel.toggleTaskSelection(taskID: viewModel.tasks[1].id)
+
+        XCTAssertTrue(viewModel.isMultiSelectMode)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 2)
+
+        await viewModel.bulkMoveTasksToStatus(.next)
+
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+    }
+
+    // MARK: - Subtask tests
+
+    func testAddSubtaskAppendsToParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentTask = viewModel.tasks[0]
+        let initialCount = parentTask.subtasks.count
+        viewModel.newSubtaskTitle = "New Subtask"
+
+        await viewModel.addSubtask(to: parentTask.id)
+
+        let updated = viewModel.tasks.first { $0.id == parentTask.id }
+        XCTAssertEqual(updated?.subtasks.count, initialCount + 1)
+        XCTAssertEqual(updated?.subtasks.last?.title, "New Subtask")
+    }
+
+    func testToggleSubtaskUpdatesCompletion() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentID = viewModel.tasks[0].id
+        viewModel.newSubtaskTitle = "Subtask 1"
+        await viewModel.addSubtask(to: parentID)
+        viewModel.newSubtaskTitle = "Subtask 2"
+        await viewModel.addSubtask(to: parentID)
+
+        guard let taskAfterAdd = viewModel.tasks.first(where: { $0.id == parentID }),
+              taskAfterAdd.subtasks.count == 2 else {
+            return XCTFail("Expected 2 subtasks to be added")
+        }
+
+        let firstSubtaskID = taskAfterAdd.subtasks[0].id
+        await viewModel.toggleSubtask(parentTaskID: parentID, subtaskID: firstSubtaskID, isCompleted: true)
+
+        let final = viewModel.tasks.first(where: { $0.id == parentID })
+        guard let finalTask = final else {
+            return XCTFail("Parent task not found after toggling first subtask")
+        }
+        guard let updatedSubtask = finalTask.subtasks.first(where: { $0.id == firstSubtaskID }) else {
+            return XCTFail("Subtask not found after toggle")
+        }
+        XCTAssertTrue(updatedSubtask.isCompleted)
+    }
+
+    func testToggleAllSubtasksCompletesParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentID = viewModel.tasks[0].id
+        viewModel.newSubtaskTitle = "Subtask 1"
+        await viewModel.addSubtask(to: parentID)
+        viewModel.newSubtaskTitle = "Subtask 2"
+        await viewModel.addSubtask(to: parentID)
+
+        guard let task = viewModel.tasks.first(where: { $0.id == parentID }) else {
+            return XCTFail("Expected parent task")
+        }
+
+        let subtaskIDs = task.subtasks.map(\.id)
+        for subtaskID in subtaskIDs {
+            await viewModel.toggleSubtask(parentTaskID: parentID, subtaskID: subtaskID, isCompleted: true)
+        }
+
+        await viewModel.setTaskFilter(.completed)
+        let updated = viewModel.tasks.first { $0.id == parentID }
+        XCTAssertEqual(updated?.status, .done)
+    }
+
+    func testDeleteSubtaskRemovesFromParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentTask = viewModel.tasks[0]
+        viewModel.newSubtaskTitle = "Test Subtask"
+        await viewModel.addSubtask(to: parentTask.id)
+
+        guard let task = viewModel.tasks.first(where: { $0.id == parentTask.id }),
+              let subtask = task.subtasks.last else {
+            return XCTFail("Expected subtask to be added")
+        }
+
+        await viewModel.deleteSubtask(parentTaskID: parentTask.id, subtaskID: subtask.id)
+
+        let updated = viewModel.tasks.first { $0.id == parentTask.id }
+        XCTAssertTrue(updated?.subtasks.isEmpty ?? false)
+    }
+
+    func testLoadRequestsNotificationPermission() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        let callCount = await service.requestNotificationPermissionCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testSetTaskSortOrderByPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskSortOrder(.priority)
+        XCTAssertEqual(viewModel.taskSortOrder, .priority)
+        let sortOrderCalled = await service.listTasksSortOrderCalled
+        XCTAssertEqual(sortOrderCalled, .priority)
+    }
+
+    func testSetTaskSortOrderPersistsToUserDefaults() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskSortOrder(.title)
+        let saved = UserDefaults.standard.string(forKey: "taskSortOrder")
+        XCTAssertEqual(saved, "title")
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -873,9 +1864,13 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     private(set) var updateTaskCallCount: Int = 0
     private(set) var deleteTaskCallCount: Int = 0
     private(set) var createTaskCallCount: Int = 0
+    private(set) var moveTaskCallCount: Int = 0
+    private(set) var lastCreatedTaskPriority: Int = 3
 
     private var notes: [Note]
     private var tasks: [Task]
+    private var templates: [NoteTemplate] = []
+    private var stubbedUnlinkedMentions: [NoteBacklink] = []
 
     init() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
@@ -894,6 +1889,19 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         ]
     }
 
+    func addTaggedNote(title: String, body: String, tags: [String]) {
+        let note = Note(id: UUID(), title: title, body: body, tags: tags, updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
+    }
+
+    func addBulkNotes(count: Int) {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 0..<count {
+            let note = Note(id: UUID(), title: "Bulk Note \(i)", body: "Body \(i)", tags: ["bulk"], updatedAt: base.addingTimeInterval(Double(i)), version: 1)
+            notes.append(note)
+        }
+    }
+
     func setFailure(_ mode: FailureMode?) {
         self.failure = mode
     }
@@ -906,12 +1914,20 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         includeDetachedDiagnostic = include
     }
 
+    func setStubbedUnlinkedMentions(_ mentions: [NoteBacklink]) {
+        stubbedUnlinkedMentions = mentions
+    }
+
     func clearSeriesAnchorRecurrenceRule(stableID: String) {
         for idx in tasks.indices where tasks[idx].stableID == stableID {
             if TaskCalendarMapper.recurrenceExceptionDate(in: tasks[idx].details) == nil {
                 tasks[idx].recurrenceRule = nil
             }
         }
+    }
+
+    func fetchNote(id: UUID) async throws -> Note? {
+        notes.first { $0.id == id }
     }
 
     func listNotes() async throws -> [Note] {
@@ -984,6 +2000,40 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             .map { NoteBacklink(sourceNoteID: $0.id, sourceTitle: $0.title) }
     }
 
+    func notesByTag(_ tag: String) async throws -> [Note] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }
+    }
+
+    func allTags() async throws -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for note in notes {
+            for tag in note.tags {
+                let lowered = tag.lowercased()
+                if !seen.contains(lowered) {
+                    seen.insert(lowered)
+                    result.append(lowered)
+                }
+            }
+        }
+        return result.sorted()
+    }
+
+    func listNoteListItems() async throws -> [NoteListItem] {
+        notes.map(\.listItem)
+    }
+
+    func listNoteListItems(tag: String) async throws -> [NoteListItem] {
+        notes.filter { $0.tags.contains(where: { $0.lowercased() == tag.lowercased() }) }.map(\.listItem)
+    }
+
+    func listNoteListItems(limit: Int, offset: Int) async throws -> NoteListItemPage {
+        let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
+        let start = min(max(0, offset), allItems.count)
+        let end = min(allItems.count, start + max(1, limit))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
+    }
+
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
         switch filter {
         case .all:
@@ -1005,6 +2055,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     func createTask(_ input: NewTaskInput) async throws -> Task {
         createTaskCallCount += 1
+        lastCreatedTaskPriority = input.priority
         let task = try Task(
             id: UUID(),
             noteID: input.noteID,
@@ -1041,6 +2092,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task {
+        moveTaskCallCount += 1
         guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
             throw NSError(domain: "workspace-spy", code: 404)
         }
@@ -1122,5 +2174,197 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         if failure == .seed {
             throw NSError(domain: "workspace-spy", code: 500)
         }
+    }
+
+    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+        stubbedUnlinkedMentions
+    }
+
+    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+        guard let note = notes.first(where: { $0.id == sourceNoteID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        return note
+    }
+
+    func graphEdges() async throws -> [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] {
+        let pattern = try NSRegularExpression(pattern: #"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]"#)
+        var edges: [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] = []
+        for note in notes {
+            let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+            let matches = pattern.matches(in: note.body, range: range)
+            for match in matches {
+                if let targetRange = Range(match.range(at: 1), in: note.body) {
+                    let targetTitle = String(note.body[targetRange])
+                    if let target = notes.first(where: { $0.title.lowercased() == targetTitle.lowercased() }) {
+                        edges.append((from: note.id, to: target.id, fromTitle: note.title, toTitle: target.title))
+                    }
+                }
+            }
+        }
+        return edges
+    }
+
+    func createOrOpenDailyNote(date: Date) async throws -> Note {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
+        let title = formatter.string(from: date)
+        if let existing = notes.first(where: { $0.title == title }) {
+            return existing
+        }
+        let note = Note(id: UUID(), title: title, body: "", updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
+        return note
+    }
+
+    func listTemplates() async throws -> [NoteTemplate] {
+        templates
+    }
+
+    func createTemplate(name: String, body: String) async throws -> NoteTemplate {
+        let template = NoteTemplate(name: name, body: body, createdAt: Date())
+        templates.append(template)
+        return template
+    }
+
+    func deleteTemplate(id: UUID) async throws {
+        templates.removeAll { $0.id == id }
+    }
+
+    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
+        let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
+        notes.insert(note, at: 0)
+        return note
+    }
+
+    // MARK: - Kanban Column & Label methods
+
+    private(set) var createColumnCallCount: Int = 0
+    private(set) var deleteColumnCallCount: Int = 0
+    private(set) var addLabelCallCount: Int = 0
+    private(set) var removeLabelCallCount: Int = 0
+
+    private var kanbanColumns: [KanbanColumn] = [
+        KanbanColumn(id: UUID(uuidString: "C0000001-0000-0000-0000-000000000001")!, title: "Backlog", builtInStatus: .backlog, position: 0),
+        KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
+        KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
+        KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+    ]
+
+    func listKanbanColumns() async throws -> [KanbanColumn] {
+        kanbanColumns.sorted { $0.position < $1.position }
+    }
+
+    func createKanbanColumn(title: String) async throws -> KanbanColumn {
+        createColumnCallCount += 1
+        let position = (kanbanColumns.map(\.position).max() ?? -1) + 1
+        let column = KanbanColumn(title: title, position: position)
+        kanbanColumns.append(column)
+        return column
+    }
+
+    func updateKanbanColumn(_ column: KanbanColumn) async throws -> KanbanColumn {
+        guard let idx = kanbanColumns.firstIndex(where: { $0.id == column.id }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        kanbanColumns[idx] = column
+        return kanbanColumns[idx]
+    }
+
+    func deleteKanbanColumn(id: UUID) async throws {
+        deleteColumnCallCount += 1
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else {
+            throw NSError(domain: "workspace-spy", code: 403, userInfo: [NSLocalizedDescriptionKey: "Cannot delete built-in column"])
+        }
+        kanbanColumns.removeAll { $0.id == id }
+        for idx in tasks.indices where tasks[idx].kanbanColumnID == id {
+            tasks[idx].kanbanColumnID = nil
+            tasks[idx].status = .backlog
+        }
+    }
+
+    func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task {
+        addLabelCallCount += 1
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        if !tasks[idx].labels.contains(where: { $0.name.lowercased() == label.name.lowercased() }) {
+            tasks[idx].labels.append(label)
+        }
+        return tasks[idx]
+    }
+
+    func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task {
+        removeLabelCallCount += 1
+        guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
+        return tasks[idx]
+    }
+
+    // MARK: - Subtask methods
+
+    private(set) var addSubtaskCallCount: Int = 0
+    private(set) var lastSubtaskParentID: UUID?
+
+    func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
+        addSubtaskCallCount += 1
+        lastSubtaskParentID = parentTaskID
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        let subtask = Subtask(title: title, order: tasks[idx].subtasks.count)
+        tasks[idx].subtasks.append(subtask)
+        return tasks[idx]
+    }
+
+    func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task {
+        guard let taskIdx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        guard let subtaskIdx = tasks[taskIdx].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
+
+        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+            tasks[taskIdx].status = .done
+            tasks[taskIdx].completedAt = Date()
+        }
+
+        return tasks[taskIdx]
+    }
+
+    func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[idx].subtasks.removeAll { $0.id == subtaskID }
+
+        var order = 0
+        for i in tasks[idx].subtasks.indices {
+            tasks[idx].subtasks[i].order = order
+            order += 1
+        }
+
+        return tasks[idx]
+    }
+
+    private(set) var requestNotificationPermissionCallCount = 0
+
+    func requestNotificationPermission() async -> Bool {
+        requestNotificationPermissionCallCount += 1
+        return true
+    }
+
+    private(set) var listTasksSortOrderCalled: TaskSortOrder?
+
+    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
+        listTasksSortOrderCalled = sortOrder
+        return try await listTasks(filter: filter)
     }
 }

@@ -30,6 +30,10 @@ public protocol NoteStore: Sendable {
     func fetchNotesUpdated(afterVersion version: Int64, limit: Int) async throws -> [Note]
     func searchNotes(query: String, limit: Int) async throws -> [Note]
     func searchNotes(query: String, mode: NoteSearchMode, limit: Int, offset: Int) async throws -> NoteSearchPage
+    func fetchNotesByTag(_ tag: String) async throws -> [Note]
+    func fetchNoteListItems(includeDeleted: Bool) async throws -> [NoteListItem]
+    func fetchNoteListItemsByTag(_ tag: String) async throws -> [NoteListItem]
+    func fetchNoteListItems(includeDeleted: Bool, limit: Int, offset: Int) async throws -> NoteListItemPage
     func tombstoneNote(id: UUID, at date: Date) async throws
 }
 
@@ -52,4 +56,25 @@ public protocol CalendarProvider: Sendable {
     func upsertEvent(_ event: CalendarEvent) async throws -> CalendarEvent
     func deleteEvent(eventIdentifier: String, calendarID: String) async throws
     func fetchChanges(since token: String?, calendarID: String) async throws -> CalendarChangeBatch
+}
+
+public protocol TemplateStore: Sendable {
+    func fetchTemplates() async throws -> [NoteTemplate]
+    func upsertTemplate(_ template: NoteTemplate) async throws -> NoteTemplate
+    func deleteTemplate(id: UUID) async throws
+}
+
+public protocol KanbanColumnStore: Sendable {
+    func fetchColumns() async throws -> [KanbanColumn]
+    func upsertColumn(_ column: KanbanColumn) async throws -> KanbanColumn
+    func deleteColumn(id: UUID) async throws
+}
+
+// MARK: - Notification Scheduling
+
+public protocol NotificationScheduling: Sendable {
+    func requestAuthorization() async -> Bool
+    func scheduleReminder(for task: Task) async
+    func cancelReminder(for taskID: UUID) async
+    func cancelAllReminders() async
 }

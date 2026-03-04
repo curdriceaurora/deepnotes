@@ -1,0 +1,23 @@
+# Pre-commit hooks configuration
+# Runs linting and style checks before commit
+
+repos:
+  # SwiftLint: Swift code style and quality rules
+  - repo: local
+    hooks:
+      - id: swiftlint
+        name: SwiftLint
+        entry: swiftlint lint --strict
+        language: system
+        types: [swift]
+        stages: [commit]
+        require_serial: true
+
+      # Coverage gates: Run before push to catch coverage regressions locally
+      - id: swift-test-coverage
+        name: Swift Test Coverage Gates
+        entry: bash -c './Scripts/run-coverage-gates.sh'
+        language: system
+        pass_filenames: false
+        stages: [push]
+        require_serial: true

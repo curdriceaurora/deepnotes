@@ -1,0 +1,120 @@
+import SwiftUI
+import NotesDomain
+
+// MARK: - Shared View Modifiers
+
+struct DNCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = 10
+
+    func body(content: Content) -> some View {
+        content
+            .background(.background, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(color: .primary.opacity(0.08), radius: 3, y: 1.5)
+    }
+}
+
+struct DNColumnModifier: ViewModifier {
+    var isDropTarget: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                .regularMaterial,
+                in: RoundedRectangle(cornerRadius: 14)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(
+                        isDropTarget ? Color.accentColor : Color.clear,
+                        lineWidth: 2
+                    )
+            )
+            .shadow(color: .primary.opacity(0.05), radius: 2, y: 1)
+    }
+}
+
+extension View {
+    func dnCard(cornerRadius: CGFloat = 10) -> some View {
+        modifier(DNCardModifier(cornerRadius: cornerRadius))
+    }
+
+    func dnColumn(isDropTarget: Bool = false) -> some View {
+        modifier(DNColumnModifier(isDropTarget: isDropTarget))
+    }
+}
+
+// MARK: - Due Date Styling
+
+enum DueDateStyle {
+    static func color(for date: Date) -> Color {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return .orange
+        } else if date < Date() {
+            return .red
+        } else {
+            return .secondary
+        }
+    }
+}
+
+// MARK: - Priority Display
+
+enum PriorityDisplay {
+    static func label(for priority: Int) -> String? {
+        switch priority {
+        case 0: return "Urgent"
+        case 1: return "High"
+        case 2: return "Medium"
+        case 3: return "Low"
+        case 4: return "Minimal"
+        default: return nil
+        }
+    }
+
+    static func color(for priority: Int) -> Color {
+        switch priority {
+        case 0: return .red
+        case 1: return .orange
+        case 2: return .yellow
+        case 3: return .blue
+        case 4: return .purple
+        default: return .secondary
+        }
+    }
+
+    static func shouldDisplay(_ priority: Int) -> Bool {
+        (0...4).contains(priority)
+    }
+}
+
+// MARK: - Hex Color Support
+
+extension Color {
+    init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hexSanitized.hasPrefix("#") { hexSanitized.removeFirst() }
+        guard hexSanitized.count == 6 else { return nil }
+        var rgb: UInt64 = 0
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+        self.init(
+            red: Double((rgb >> 16) & 0xFF) / 255.0,
+            green: Double((rgb >> 8) & 0xFF) / 255.0,
+            blue: Double(rgb & 0xFF) / 255.0
+        )
+    }
+}
+
+// MARK: - Status Colors
+
+extension TaskStatus {
+    var accentColor: Color {
+        switch self {
+        case .backlog: return .gray
+        case .next: return .blue
+        case .doing: return .orange
+        case .waiting: return .purple
+        case .done: return .green
+        }
+    }
+}

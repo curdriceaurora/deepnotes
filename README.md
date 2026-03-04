@@ -59,6 +59,33 @@ This command runs test coverage and enforces these minimums:
 - UI interaction coverage: `>= 95%` (interaction orchestration in `Sources/NotesUI/AppViewModel.swift`)
 - UI view-layer coverage: `>= 85%` (`Sources/NotesUI/Views.swift`)
 
+### Run code style checks (SwiftLint)
+
+```bash
+# Install SwiftLint (if not already installed)
+brew install swiftlint
+
+# Run SwiftLint checks
+swiftlint lint
+
+# Auto-fix style violations where possible
+swiftlint lint --fix
+```
+
+Configuration: See [`.swiftlint.yml`](.swiftlint.yml) for rules and thresholds.
+
+Pre-commit setup (optional):
+```bash
+# Install pre-commit framework
+brew install pre-commit
+
+# Install git hooks
+pre-commit install
+
+# Run manually
+pre-commit run swiftlint --all-files
+```
+
 ### Run performance gates (release, with ProMotion rendering gate)
 
 ```bash
@@ -97,6 +124,24 @@ swift run notes-cli seed --db ./data/notes.sqlite
 swift run notes-cli list-calendars
 swift run notes-cli sync-eventkit --db ./data/notes.sqlite --calendar <calendar-id>
 ```
+
+## API Documentation
+
+Comprehensive API documentation is available via **DocC** (Swift Documentation Compiler):
+
+```bash
+# Generate and view documentation locally
+swift package generate-documentation --target NotesDomain --derive-swift-ui-symbols
+```
+
+Open `.build/documentation/index.html` in your browser to explore:
+- **Models**: Core entities (Note, Task, Subtask, CalendarEvent, etc.)
+- **Errors**: Typed error types and handling strategies
+- **Protocols**: Store and provider interfaces
+
+Documentation is automatically deployed to GitHub Pages on release.
+
+See [Docs/API_DOCUMENTATION.md](Docs/API_DOCUMENTATION.md) for detailed build and deployment instructions.
 
 ## Test suite
 

@@ -6,6 +6,9 @@ import Foundation
 @testable import NotesSync
 
 final class WorkspaceServiceTests: XCTestCase {
+    private let testNow = Date(timeIntervalSince1970: 1_700_000_000)
+    private let oneDay: TimeInterval = 86400
+
     func testWikiLinkParserExtractsTitlesAndAliasForms() {
         let parser = WikiLinkParser()
         let body = """
@@ -24,6 +27,8 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
         )
 
@@ -193,6 +198,8 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: now)
         )
 
@@ -300,6 +307,139 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(firstTasks.count, secondTasks.count)
     }
 
+    func testCreateNoteAutoExtractsTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let note = try await service.createNote(title: "Tagged", body: "Hello #swift #coding")
+        XCTAssertEqual(note.tags, ["swift", "coding"])
+    }
+
+    func testUpdateNoteAutoExtractsTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        let note = try await service.createNote(title: "Tagged", body: "Hello #swift")
+        let updated = try await service.updateNote(id: note.id, title: "Tagged", body: "Hello #rust #go")
+        XCTAssertEqual(updated.tags, ["rust", "go"])
+    }
+
+    func testAllTagsReturnsDistinctSortedTags() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        _ = try await service.createNote(title: "A", body: "#beta #alpha")
+        _ = try await service.createNote(title: "B", body: "#alpha #gamma")
+        let tags = try await service.allTags()
+        XCTAssertEqual(tags, ["alpha", "beta", "gamma"])
+    }
+
+    func testNotesByTagFiltersCorrectly() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+        _ = try await service.createNote(title: "A", body: "#swift")
+        _ = try await service.createNote(title: "B", body: "#rust")
+        let swiftNotes = try await service.notesByTag("swift")
+        XCTAssertEqual(swiftNotes.count, 1)
+        XCTAssertEqual(swiftNotes.first?.title, "A")
+    }
+
+    // MARK: - Kanban Column & Label feature tests
+
+    func testCreateKanbanColumnAssignsPosition() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let columns = try await service.listKanbanColumns()
+        let maxPosition = columns.map(\.position).max() ?? -1
+
+        let custom = try await service.createKanbanColumn(title: "Review")
+
+        XCTAssertEqual(custom.title, "Review")
+        XCTAssertEqual(custom.position, maxPosition + 1)
+        XCTAssertNil(custom.builtInStatus)
+
+        let allColumns = try await service.listKanbanColumns()
+        XCTAssertTrue(allColumns.contains(where: { $0.id == custom.id }))
+    }
+
+    func testDeleteKanbanColumnReassignsOrphanedTasks() async throws {
+        let store = try makeStore()
+        let service = WorkspaceService(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        let custom = try await service.createKanbanColumn(title: "Review")
+
+        // Create a task assigned to the custom column
+        var task = try await service.createTask(NewTaskInput(title: "Orphan", status: .doing, priority: 2))
+        task.kanbanColumnID = custom.id
+        task = try await service.updateTask(task)
+        XCTAssertEqual(task.kanbanColumnID, custom.id)
+
+        // Delete the custom column
+        try await service.deleteKanbanColumn(id: custom.id)
+
+        // Verify column is gone
+        let columns = try await service.listKanbanColumns()
+        XCTAssertFalse(columns.contains(where: { $0.id == custom.id }))
+
+        // Verify task was reassigned to backlog with nil columnID
+        let allTasks = try await service.listTasks(filter: .all)
+        let orphan = allTasks.first(where: { $0.id == task.id })
+        XCTAssertNotNil(orphan)
+        XCTAssertEqual(orphan?.status, .backlog)
+        XCTAssertNil(orphan?.kanbanColumnID)
+    }
+
+    func testAddLabelToTaskDeduplicatesByName() async throws {
+        let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let task = try await service.createTask(NewTaskInput(title: "Label test", status: .backlog, priority: 2))
+        let label = TaskLabel(name: "Bug", colorHex: "#FF0000")
+
+        let labeled = try await service.addLabelToTask(taskID: task.id, label: label)
+        XCTAssertEqual(labeled.labels.count, 1)
+        XCTAssertEqual(labeled.labels.first?.name, "Bug")
+
+        // Add same label again (case-insensitive) — should not duplicate
+        let dupeLabel = TaskLabel(name: "bug", colorHex: "#FF0000")
+        let afterDupe = try await service.addLabelToTask(taskID: task.id, label: dupeLabel)
+        XCTAssertEqual(afterDupe.labels.count, 1)
+    }
+
+    func testMoveTaskToBuiltInStatusClearsColumnID() async throws {
+        let store = try makeStore()
+        let service = WorkspaceService(
+            taskStore: store,
+            noteStore: store,
+            bindingStore: store,
+            checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        let custom = try await service.createKanbanColumn(title: "Custom Col")
+
+        var task = try await service.createTask(NewTaskInput(title: "Move test", status: .backlog, priority: 2))
+        task.kanbanColumnID = custom.id
+        task = try await service.updateTask(task)
+        XCTAssertEqual(task.kanbanColumnID, custom.id)
+
+        // Move to a built-in status
+        let moved = try await service.moveTask(taskID: task.id, to: .next, beforeTaskID: nil)
+        XCTAssertEqual(moved.status, .next)
+        XCTAssertNil(moved.kanbanColumnID)
+    }
+
+    func testFetchNotesByTagInStorageLayer() async throws {
+        let store = try makeStore()
+        let note = Note(title: "Tagged", body: "Content", tags: ["swift", "ios"], updatedAt: Date())
+        _ = try await store.upsertNote(note)
+        let results = try await store.fetchNotesByTag("swift")
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.tags, ["swift", "ios"])
+    }
+
     private func makeService(now: Date) throws -> WorkspaceService {
         let store = try makeStore()
         return WorkspaceService(
@@ -307,8 +447,163 @@ final class WorkspaceServiceTests: XCTestCase {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
+            templateStore: store,
+            kanbanColumnStore: store,
             clock: FixedClock(current: now)
         )
+    }
+
+    func testListTasksSortedByDueDate() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+        let tomorrow = now.addingTimeInterval(86400)
+        let nextWeek = now.addingTimeInterval(86400 * 7)
+
+        let task1 = try await service.createTask(.init(
+            title: "Task A", dueStart: nextWeek, priority: 3
+        ))
+        let task2 = try await service.createTask(.init(
+            title: "Task B", dueStart: tomorrow, priority: 3
+        ))
+        let task3 = try await service.createTask(.init(
+            title: "Task C", priority: 3  // No due date
+        ))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .dueDate)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // tomorrow first
+        XCTAssertEqual(sorted[1].id, task1.id)  // next week second
+        XCTAssertEqual(sorted[2].id, task3.id)  // no due date last
+    }
+
+    func testListTasksSortedByPriority() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(
+            title: "Low Priority", dueStart: now, priority: 4
+        ))
+        let task2 = try await service.createTask(.init(
+            title: "High Priority", dueStart: now, priority: 1
+        ))
+        let task3 = try await service.createTask(.init(
+            title: "Medium Priority", dueStart: now, priority: 2
+        ))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .priority)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // priority 1
+        XCTAssertEqual(sorted[1].id, task3.id)  // priority 2
+        XCTAssertEqual(sorted[2].id, task1.id)  // priority 4
+    }
+
+    func testListTasksSortedByTitle() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(title: "Zebra", priority: 3))
+        let task2 = try await service.createTask(.init(title: "Apple", priority: 3))
+        let task3 = try await service.createTask(.init(title: "Mango", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .title)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // Apple
+        XCTAssertEqual(sorted[1].id, task3.id)  // Mango
+        XCTAssertEqual(sorted[2].id, task1.id)  // Zebra
+    }
+
+    func testListTasksSortedByCreationDate() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(title: "First", priority: 3))
+        let task2 = try await service.createTask(.init(title: "Second", priority: 3))
+        let task3 = try await service.createTask(.init(title: "Third", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .creationDate)
+
+        // Creation date sort is descending (newest first)
+        XCTAssertEqual(sorted[0].id, task3.id)
+        XCTAssertEqual(sorted[1].id, task2.id)
+        XCTAssertEqual(sorted[2].id, task1.id)
+    }
+
+    func testListTasksSortByDueDateWithNullValues() async throws {
+        let service = try makeService(now: testNow)
+
+        let taskWithDue = try await service.createTask(.init(title: "Has due", dueStart: testNow, priority: 3))
+        let taskWithoutDue = try await service.createTask(.init(title: "No due", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .dueDate)
+
+        XCTAssertEqual([sorted[0].id, sorted[1].id], [taskWithDue.id, taskWithoutDue.id])
+    }
+
+    func testListTasksSortByPriorityWithEqualValues() async throws {
+        let service = try makeService(now: testNow)
+
+        let task1 = try await service.createTask(.init(title: "First", dueStart: testNow, priority: 3))
+        let task2 = try await service.createTask(.init(title: "Second", dueStart: testNow, priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .priority)
+
+        // When priorities are equal, fall back to updatedAt (descending)
+        XCTAssertEqual([sorted[0].id, sorted[1].id], [task2.id, task1.id])
+    }
+
+    func testListTasksSortByTitleCaseInsensitive() async throws {
+        let service = try makeService(now: testNow)
+
+        _ = try await service.createTask(.init(title: "zebra", priority: 3))
+        _ = try await service.createTask(.init(title: "APPLE", priority: 3))
+        _ = try await service.createTask(.init(title: "mAnGo", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .title)
+
+        XCTAssertEqual(sorted.map { $0.title }, ["APPLE", "mAnGo", "zebra"])
+    }
+
+    func testListTasksSortWithFilterToday() async throws {
+        let service = try makeService(now: testNow)
+        let tomorrow = testNow.addingTimeInterval(oneDay)
+
+        let todayTask1 = try await service.createTask(NewTaskInput(title: "Today 1", dueStart: testNow, priority: 4))
+        let todayTask2 = try await service.createTask(NewTaskInput(title: "Today 2", dueStart: testNow, priority: 2))
+        _ = try await service.createTask(NewTaskInput(title: "Tomorrow", dueStart: tomorrow, priority: 1))
+
+        let sorted = try await service.listTasks(filter: .today, sortOrder: .priority)
+
+        XCTAssertEqual(sorted.map { $0.id }, [todayTask2.id, todayTask1.id])
+    }
+
+    func testListTasksSortWithFilterCompleted() async throws {
+        let service = try makeService(now: testNow)
+
+        let done1 = try await service.createTask(NewTaskInput(title: "Done 1", priority: 3))
+        let done2 = try await service.createTask(NewTaskInput(title: "Done 2", priority: 1))
+
+        _ = try await service.setTaskStatus(taskID: done1.id, status: .done)
+        _ = try await service.setTaskStatus(taskID: done2.id, status: .done)
+
+        let sorted = try await service.listTasks(filter: .completed, sortOrder: .priority)
+
+        XCTAssertEqual(sorted.map { $0.id }, [done2.id, done1.id])
+    }
+
+    func testSortOrderPreservesAcrossMultipleFilters() async throws {
+        let service = try makeService(now: testNow)
+        let futureDate = testNow.addingTimeInterval(oneDay * 7)
+
+        _ = try await service.createTask(NewTaskInput(title: "Z-Task", dueStart: futureDate, priority: 3))
+        _ = try await service.createTask(NewTaskInput(title: "A-Task", dueStart: futureDate, priority: 3))
+
+        let expectedTitles = ["A-Task", "Z-Task"]
+        var sorted = try await service.listTasks(filter: .all, sortOrder: .title)
+        XCTAssertEqual(sorted.map { $0.title }, expectedTitles)
+
+        // Same sort should apply to different filter
+        sorted = try await service.listTasks(filter: .upcoming, sortOrder: .title)
+        XCTAssertEqual(sorted.map { $0.title }, expectedTitles)
     }
 
     private func makeStore() throws -> SQLiteStore {

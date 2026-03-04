@@ -1,8 +1,14 @@
 import Foundation
 import Observation
+import os
 import NotesDomain
 import NotesFeatures
 import NotesSync
+
+public enum NoteEditMode: String, Sendable {
+    case edit
+    case preview
+}
 
 public typealias CalendarProviderFactory = @Sendable () -> CalendarProvider
 
@@ -26,7 +32,13 @@ public struct RecurrenceDeletePrompt: Sendable, Equatable {
 @MainActor
 @Observable
 public final class AppViewModel {
-    public private(set) var notes: [Note] = []
+    public private(set) var notesTotalCount: Int = 0
+    public private(set) var notesNextOffset: Int?
+    private static let notesPageSize = 50
+    private static let signposter = OSSignposter(subsystem: "com.notes.app", category: "Launch")
+    private static let taskSortOrderKey = "taskSortOrder"
+
+    public private(set) var notes: [NoteListItem] = []
     public var selectedNoteID: UUID?
     public var selectedNoteTitle: String = ""
     public var selectedNoteBody: String = ""
@@ -36,14 +48,43 @@ public final class AppViewModel {
     public private(set) var isWikiLinkSuggestionVisible: Bool = false
     public var quickOpenQuery: String = ""
     public var isQuickOpenPresented: Bool = false
-    public private(set) var quickOpenResults: [Note] = []
+    public private(set) var quickOpenResults: [NoteListItem] = []
     public private(set) var backlinks: [NoteBacklink] = []
+    public private(set) var unlinkedMentions: [NoteBacklink] = []
+    public private(set) var graphNodes: [GraphNode] = []
+    public private(set) var graphEdges: [GraphEdge] = []
+    public private(set) var templates: [NoteTemplate] = []
+    public var isTemplatePickerPresented: Bool = false
+    public var isTemplateManagerPresented: Bool = false
+    public var newTemplateName: String = ""
+    public var newTemplateBody: String = ""
+    public private(set) var allTagsList: [String] = []
+    public private(set) var selectedTagFilter: String?
+    public var noteEditMode: NoteEditMode = .edit
+    public private(set) var renderedMarkdown: AttributedString = AttributedString()
 
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
+    public var taskSortOrder: TaskSortOrder = {
+        guard let raw = UserDefaults.standard.string(forKey: AppViewModel.taskSortOrderKey),
+              let order = TaskSortOrder(rawValue: raw) else { return .dueDate }
+        return order
+    }()
     public var quickTaskTitle: String = ""
+    public var quickTaskPriority: Int = 3
+    public var selectedTaskForEditing: Task?
+    public var newSubtaskTitle: String = ""
+
+    // Multi-select state
+    public var isMultiSelectMode: Bool = false
+    public private(set) var selectedTaskIDs: Set<UUID> = []
+    public private(set) var kanbanColumns: [KanbanColumn] = []
+    public var kanbanGrouping: KanbanGrouping = .none
+    public var isColumnEditorPresented: Bool = false
+    public var newColumnTitle: String = ""
+    public private(set) var allLabels: [TaskLabel] = []
     private var allTasks: [Task] = []
-    private var tasksByStatus: [TaskStatus: [Task]] = [:]
+    private var tasksByColumn: [UUID: [Task]] = [:]
 
     public var syncCalendarID: String = ""
     public private(set) var isSyncing: Bool = false
@@ -59,12 +100,15 @@ public final class AppViewModel {
     public private(set) var errorMessage: String?
     public private(set) var draggingTaskID: UUID?
     public private(set) var dropTargetStatus: TaskStatus?
+    public private(set) var dropTargetColumnID: UUID?
     public private(set) var dropTargetTaskID: UUID?
 
     private let service: WorkspaceServicing
     private let calendarProviderFactory: CalendarProviderFactory
     private var pendingTaskMutation: PendingTaskMutation?
     private var pendingTaskDeletion: PendingTaskDeletion?
+    private var noteSearchDebounceTask: _Concurrency.Task<Void, Never>?
+    private var periodicSyncTask: _Concurrency.Task<Void, Never>?
 
     public init(
         service: WorkspaceServicing,
@@ -77,10 +121,37 @@ public final class AppViewModel {
     }
 
     public func load() async {
+        let signpostID = Self.signposter.makeSignpostID()
+        let state = Self.signposter.beginInterval("load", id: signpostID)
         await runTask {
             try await service.seedDemoDataIfNeeded()
-            try await reloadNotes(selectFirstIfNeeded: true)
-            await reloadTasks()
+            try await reloadKanbanColumns()
+            async let r1: () = reloadNotes(selectFirstIfNeeded: true)
+            async let r2: () = reloadTags()
+            async let r3: () = loadGraph()
+            async let r4: () = reloadTemplates()
+            async let r5: () = reloadTasksWithoutWrapper()
+            async let r6: Bool = service.requestNotificationPermission()
+            try await r1; try await r2; try await r3; try await r4; try await r5; _ = try await r6
+        }
+        Self.signposter.endInterval("load", state)
+        // Start periodic auto-sync (every 5 minutes when app is active)
+        periodicSyncTask = _Concurrency.Task { [weak self] in
+            while !_Concurrency.Task.isCancelled {
+                try? await _Concurrency.Task.sleep(for: .seconds(300)) // 5 minutes
+                guard !_Concurrency.Task.isCancelled else { break }
+                await self?.autoSync()
+            }
+        }
+    }
+
+    public func loadMoreNotes() async {
+        guard let nextOffset = notesNextOffset, noteSearchQuery.isEmpty, selectedTagFilter == nil else { return }
+        await runTask {
+            let page = try await service.listNoteListItems(limit: Self.notesPageSize, offset: nextOffset)
+            notes.append(contentsOf: page.items)
+            notesTotalCount = page.totalCount
+            notesNextOffset = page.nextOffset
         }
     }
 
@@ -101,6 +172,7 @@ public final class AppViewModel {
         await runTask {
             _ = try await service.updateNote(id: selectedNoteID, title: selectedNoteTitle, body: selectedNoteBody)
             try await reloadNotes(selectFirstIfNeeded: false)
+            try await reloadTags()
             try await reloadBacklinks(for: selectedNoteID)
         }
     }
@@ -117,6 +189,7 @@ public final class AppViewModel {
             return
         }
 
+        let priority = quickTaskPriority
         await runTask {
             _ = try await service.createTask(
                 NewTaskInput(
@@ -126,12 +199,58 @@ public final class AppViewModel {
                     dueStart: Calendar.current.date(byAdding: .hour, value: 2, to: Date()),
                     dueEnd: Calendar.current.date(byAdding: .hour, value: 3, to: Date()),
                     status: .next,
-                    priority: 3
+                    priority: priority
                 )
             )
             quickTaskTitle = ""
+            quickTaskPriority = 3
             await reloadTasks()
         }
+    }
+
+    public func openTaskDetail(taskID: UUID) {
+        selectedTaskForEditing = allTasks.first(where: { $0.id == taskID })
+    }
+
+    public func closeTaskDetail() {
+        selectedTaskForEditing = nil
+    }
+
+    public func saveTaskDetail(_ task: Task) async {
+        await runTask {
+            _ = try await service.updateTask(task)
+            try await reloadTasksWithoutWrapper()
+        }
+        selectedTaskForEditing = nil
+    }
+
+    public func addSubtask(to parentID: UUID) async {
+        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        await runTask {
+            _ = try await service.addSubtask(to: parentID, title: trimmed)
+            try await reloadTasksWithoutWrapper()
+        }
+        newSubtaskTitle = ""
+    }
+
+    public func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async {
+        await runTask {
+            _ = try await service.toggleSubtask(parentTaskID: parentTaskID, subtaskID: subtaskID, isCompleted: isCompleted)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async {
+        await runTask {
+            _ = try await service.deleteSubtask(parentTaskID: parentTaskID, subtaskID: subtaskID)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func tagsForTask(_ task: Task) -> [String] {
+        guard let noteID = task.noteID else { return [] }
+        return notes.first(where: { $0.id == noteID })?.tags ?? []
     }
 
     public func reloadTasks() async {
@@ -145,9 +264,42 @@ public final class AppViewModel {
         await reloadTasks()
     }
 
+    public func setTaskSortOrder(_ order: TaskSortOrder) async {
+        taskSortOrder = order
+        UserDefaults.standard.set(order.rawValue, forKey: Self.taskSortOrderKey)
+        await reloadTasks()
+    }
+
     public func setNoteSearchQuery(_ query: String) async {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         noteSearchQuery = normalized
+        noteSearchDebounceTask?.cancel()
+        noteSearchDebounceTask = _Concurrency.Task {
+            try? await _Concurrency.Task.sleep(for: .milliseconds(300))
+            guard !_Concurrency.Task.isCancelled else { return }
+            await runTask { try await reloadNotes(selectFirstIfNeeded: false) }
+        }
+    }
+
+    public func navigateToNoteByTitle(_ title: String) async {
+        let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return }
+        guard let match = notes.first(where: { $0.title.lowercased() == normalized }) else { return }
+        await selectNote(id: match.id)
+    }
+
+    public func toggleNoteEditMode() {
+        switch noteEditMode {
+        case .edit:
+            noteEditMode = .preview
+            renderedMarkdown = MarkdownRenderer().render(selectedNoteBody, noteTitles: notes.map(\.title))
+        case .preview:
+            noteEditMode = .edit
+        }
+    }
+
+    public func filterByTag(_ tag: String?) async {
+        selectedTagFilter = tag
         await runTask {
             try await reloadNotes(selectFirstIfNeeded: false)
         }
@@ -179,13 +331,12 @@ public final class AppViewModel {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
-        let suggestions = notes
+        let candidates = notes
             .map(\.title)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .filter { query.isEmpty || $0.lowercased().contains(query) }
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+        let ranked = FuzzyMatcher().rank(query: query, candidates: candidates)
 
-        wikiLinkSuggestions = Array(suggestions.prefix(8))
+        wikiLinkSuggestions = Array(ranked.prefix(8).map(\.title))
         isWikiLinkSuggestionVisible = !wikiLinkSuggestions.isEmpty
     }
 
@@ -239,7 +390,7 @@ public final class AppViewModel {
             return
         }
         quickOpenResults = notes
-            .filter { $0.title.localizedCaseInsensitiveContains(trimmed) || $0.body.localizedCaseInsensitiveContains(trimmed) }
+            .filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
     }
 
     public func selectQuickOpenResult(noteID: UUID) async {
@@ -262,6 +413,46 @@ public final class AppViewModel {
 
     public func deleteTask(taskID: UUID) async {
         await requestTaskDeletion(taskID: taskID)
+    }
+
+    public func toggleMultiSelectMode() {
+        isMultiSelectMode.toggle()
+        if !isMultiSelectMode {
+            exitMultiSelectMode()
+        }
+    }
+
+    private func exitMultiSelectMode() {
+        selectedTaskIDs.removeAll()
+        isMultiSelectMode = false
+    }
+
+    public func toggleTaskSelection(taskID: UUID) {
+        if selectedTaskIDs.contains(taskID) {
+            selectedTaskIDs.remove(taskID)
+        } else {
+            selectedTaskIDs.insert(taskID)
+        }
+    }
+
+    public func isTaskSelected(_ taskID: UUID) -> Bool {
+        selectedTaskIDs.contains(taskID)
+    }
+
+    public func bulkMoveTasksToStatus(_ status: TaskStatus) async {
+        guard !selectedTaskIDs.isEmpty else { return }
+        await runTask {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for taskID in selectedTaskIDs {
+                    group.addTask {
+                        _ = try await self.service.moveTask(taskID: taskID, to: status, beforeTaskID: nil)
+                    }
+                }
+                try await group.waitForAll()
+            }
+            try await reloadTasksWithoutWrapper()
+            self.exitMultiSelectMode()
+        }
     }
 
     public func resolveRecurrenceEditPrompt(scope: RecurrenceEditScope) async {
@@ -339,6 +530,15 @@ public final class AppViewModel {
         await applyTaskDeletion(taskID: taskID, scope: .thisOccurrence)
     }
 
+    private func applyOptimisticTaskMove(taskID: UUID, to status: TaskStatus) {
+        guard let idx = allTasks.firstIndex(where: { $0.id == taskID }) else { return }
+        var updated = allTasks[idx]
+        updated.status = status
+        allTasks[idx] = updated
+        if let tIdx = tasks.firstIndex(where: { $0.id == taskID }) { tasks[tIdx] = updated }
+        rebuildTaskCache(sourceTasks: allTasks)
+    }
+
     private func applyTaskMutation(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?, scope: RecurrenceEditScope) async {
         await runTask {
             if scope == .entireSeries,
@@ -369,6 +569,8 @@ public final class AppViewModel {
                 return
             }
 
+            // Optimistic update: reflect status change immediately before persistence
+            applyOptimisticTaskMove(taskID: taskID, to: status)
             _ = try await service.moveTask(taskID: taskID, to: status, beforeTaskID: beforeTaskID)
             try await reloadTasksWithoutWrapper()
         }
@@ -406,6 +608,20 @@ public final class AppViewModel {
 
     public func setDropTargetStatus(_ status: TaskStatus?) {
         dropTargetStatus = status
+        if let status {
+            dropTargetColumnID = kanbanColumns.first(where: { $0.builtInStatus == status })?.id
+        } else {
+            dropTargetColumnID = nil
+        }
+    }
+
+    public func setDropTargetColumn(_ columnID: UUID?) {
+        dropTargetColumnID = columnID
+        if let columnID, let col = kanbanColumns.first(where: { $0.id == columnID }) {
+            dropTargetStatus = col.builtInStatus
+        } else {
+            dropTargetStatus = nil
+        }
     }
 
     public func setDropTargetTaskID(_ taskID: UUID?) {
@@ -415,6 +631,7 @@ public final class AppViewModel {
     public func endTaskDrag() {
         draggingTaskID = nil
         dropTargetStatus = nil
+        dropTargetColumnID = nil
         dropTargetTaskID = nil
     }
 
@@ -523,7 +740,46 @@ public final class AppViewModel {
     }
 
     public func tasks(for status: TaskStatus) -> [Task] {
-        tasksByStatus[status] ?? []
+        guard let column = kanbanColumns.first(where: { $0.builtInStatus == status }) else { return [] }
+        return tasksForColumn(column.id)
+    }
+
+    public func tasksForColumn(_ columnID: UUID) -> [Task] {
+        tasksByColumn[columnID] ?? []
+    }
+
+    public func groupedTasks(for columnID: UUID) -> [(key: String, tasks: [Task])] {
+        let columnTasks = tasksForColumn(columnID)
+        switch kanbanGrouping {
+        case .none:
+            return [("", columnTasks)]
+        case .priority:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let key = "P\(task.priority)"
+                groups[key, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        case .note:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let noteTitle: String
+                if let noteID = task.noteID, let note = notes.first(where: { $0.id == noteID }) {
+                    noteTitle = note.title
+                } else {
+                    noteTitle = "No Note"
+                }
+                groups[noteTitle, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        case .label:
+            var groups: [String: [Task]] = [:]
+            for task in columnTasks {
+                let key = task.labels.first?.name ?? "No Label"
+                groups[key, default: []].append(task)
+            }
+            return groups.sorted { $0.key < $1.key }.map { (key: $0.key, tasks: $0.value) }
+        }
     }
 
     public func runSync() async {
@@ -557,6 +813,22 @@ public final class AppViewModel {
         }
     }
 
+    public func autoSync() async {
+        let calendarID = syncCalendarID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !calendarID.isEmpty else { return }
+        // Silent sync: no isBusy flag, errors swallowed
+        try? await service.runSync(
+            configuration: SyncEngineConfiguration(
+                checkpointID: "default",
+                calendarID: calendarID,
+                taskBatchSize: 500,
+                policy: .lastWriteWins
+            ),
+            calendarProvider: calendarProviderFactory()
+        )
+        try? await reloadTasksWithoutWrapper()
+    }
+
     public func exportSyncDiagnostics() async {
         await runTask {
             guard let report = lastSyncReport else {
@@ -575,9 +847,22 @@ public final class AppViewModel {
         }
     }
 
+    private func reloadTags() async throws {
+        allTagsList = try await service.allTags()
+    }
+
     private func reloadNotes(selectFirstIfNeeded: Bool) async throws {
         if noteSearchQuery.isEmpty {
-            notes = try await service.listNotes()
+            if let tag = selectedTagFilter {
+                notes = try await service.listNoteListItems(tag: tag)
+                notesTotalCount = notes.count
+                notesNextOffset = nil
+            } else {
+                let page = try await service.listNoteListItems(limit: Self.notesPageSize, offset: 0)
+                notes = page.items
+                notesTotalCount = page.totalCount
+                notesNextOffset = page.nextOffset
+            }
             noteSearchSnippetsByID = [:]
         } else {
             let page = try await service.searchNotesPage(
@@ -586,7 +871,9 @@ public final class AppViewModel {
                 limit: 100,
                 offset: 0
             )
-            notes = page.hits.map(\.note)
+            notes = page.hits.map { $0.note.listItem }
+            notesTotalCount = page.totalCount
+            notesNextOffset = nil
             noteSearchSnippetsByID = Dictionary(uniqueKeysWithValues: page.hits.compactMap { hit in
                 guard let snippet = hit.snippet else {
                     return nil
@@ -601,12 +888,17 @@ public final class AppViewModel {
         if selectFirstIfNeeded, selectedNoteID == nil {
             try await selectNoteWithoutWrapper(id: notes.first?.id)
         } else if let selectedNoteID {
-            try await selectNoteWithoutWrapper(id: selectedNoteID)
+            let selectedIsInNewList = notes.contains(where: { $0.id == selectedNoteID })
+            if selectedIsInNewList {
+                try await selectNoteWithoutWrapper(id: selectedNoteID)
+            } else {
+                try await selectNoteWithoutWrapper(id: nil)
+            }
         }
     }
 
     private func reloadTasksWithoutWrapper() async throws {
-        async let filtered = service.listTasks(filter: taskFilter)
+        async let filtered = service.listTasks(filter: taskFilter, sortOrder: taskSortOrder)
         async let all = service.listAllTasks()
         tasks = try await filtered
         allTasks = try await all
@@ -614,17 +906,34 @@ public final class AppViewModel {
     }
 
     private func rebuildTaskCache(sourceTasks: [Task]) {
-        var next: [TaskStatus: [Task]] = [:]
-        for status in TaskStatus.allCases {
-            next[status] = []
+        var next: [UUID: [Task]] = [:]
+        for column in kanbanColumns {
+            next[column.id] = []
         }
         for task in sourceTasks {
-            next[task.status, default: []].append(task)
+            if let columnID = task.kanbanColumnID, next[columnID] != nil {
+                next[columnID, default: []].append(task)
+            } else if let column = kanbanColumns.first(where: { $0.builtInStatus == task.status }) {
+                next[column.id, default: []].append(task)
+            }
         }
-        for status in TaskStatus.allCases {
-            next[status]?.sort(by: Self.kanbanTaskSort)
+        for columnID in next.keys {
+            next[columnID]?.sort(by: Self.kanbanTaskSort)
         }
-        tasksByStatus = next
+        tasksByColumn = next
+
+        var seen = Set<String>()
+        var labels: [TaskLabel] = []
+        for task in sourceTasks {
+            for label in task.labels {
+                let key = label.name.lowercased()
+                if !seen.contains(key) {
+                    seen.insert(key)
+                    labels.append(label)
+                }
+            }
+        }
+        allLabels = labels.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 
     private func taskByID(_ taskID: UUID) -> Task? {
@@ -647,13 +956,26 @@ public final class AppViewModel {
 
     private func selectNoteWithoutWrapper(id: UUID?) async throws {
         selectedNoteID = id
-        guard let id, let selected = notes.first(where: { $0.id == id }) else {
+        noteEditMode = .edit
+        guard let id else {
             selectedNoteID = nil
             selectedNoteTitle = ""
             selectedNoteBody = ""
             wikiLinkSuggestions = []
             isWikiLinkSuggestionVisible = false
             backlinks = []
+            unlinkedMentions = []
+            return
+        }
+
+        guard let selected = try await service.fetchNote(id: id) else {
+            selectedNoteID = nil
+            selectedNoteTitle = ""
+            selectedNoteBody = ""
+            wikiLinkSuggestions = []
+            isWikiLinkSuggestionVisible = false
+            backlinks = []
+            unlinkedMentions = []
             return
         }
 
@@ -662,6 +984,7 @@ public final class AppViewModel {
         wikiLinkSuggestions = []
         isWikiLinkSuggestionVisible = false
         try await reloadBacklinks(for: id)
+        unlinkedMentions = try await service.unlinkedMentions(for: id)
     }
 
     private func insertMarkdownLinePrefix(_ prefix: String) {
@@ -746,6 +1069,152 @@ public final class AppViewModel {
         let fileURL = folder.appendingPathComponent(filename)
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         return fileURL
+    }
+
+    public func createKanbanColumn() async {
+        let title = newColumnTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return }
+        await runTask {
+            _ = try await service.createKanbanColumn(title: title)
+            newColumnTitle = ""
+            try await reloadKanbanColumns()
+            rebuildTaskCache(sourceTasks: allTasks)
+        }
+    }
+
+    public func deleteKanbanColumn(id: UUID) async {
+        guard let col = kanbanColumns.first(where: { $0.id == id }) else { return }
+        guard col.builtInStatus == nil else {
+            errorMessage = "Cannot delete a built-in column."
+            return
+        }
+        await runTask {
+            try await service.deleteKanbanColumn(id: id)
+            try await reloadKanbanColumns()
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func updateKanbanColumn(_ column: KanbanColumn) async {
+        await runTask {
+            _ = try await service.updateKanbanColumn(column)
+            try await reloadKanbanColumns()
+        }
+    }
+
+    public func addLabelToTask(taskID: UUID, label: TaskLabel) async {
+        await runTask {
+            _ = try await service.addLabelToTask(taskID: taskID, label: label)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func removeLabelFromTask(taskID: UUID, labelName: String) async {
+        await runTask {
+            _ = try await service.removeLabelFromTask(taskID: taskID, labelName: labelName)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    private func reloadKanbanColumns() async throws {
+        kanbanColumns = try await service.listKanbanColumns()
+    }
+
+    public func openDailyNote() async {
+        await runTask {
+            let note = try await service.createOrOpenDailyNote(date: Date())
+            noteSearchQuery = ""
+            try await reloadNotes(selectFirstIfNeeded: false)
+            try await loadGraph()
+            await selectNote(id: note.id)
+        }
+    }
+
+    public func linkMention(sourceNoteID: UUID) async {
+        guard !selectedNoteTitle.isEmpty else {
+            return
+        }
+
+        await runTask {
+            _ = try await service.linkMention(in: sourceNoteID, targetTitle: selectedNoteTitle)
+            try await reloadNotes(selectFirstIfNeeded: false)
+            if let selectedNoteID {
+                unlinkedMentions = try await service.unlinkedMentions(for: selectedNoteID)
+            }
+        }
+    }
+
+    public func reloadGraph() async {
+        await runTask {
+            try await loadGraph()
+        }
+    }
+
+    public func createNoteFromTemplate(templateID: UUID) async {
+        await runTask {
+            let created = try await service.createNote(title: "New Note", body: "", templateID: templateID)
+            noteSearchQuery = ""
+            isTemplatePickerPresented = false
+            try await reloadNotes(selectFirstIfNeeded: false)
+            await selectNote(id: created.id)
+        }
+    }
+
+    public func createTemplate() async {
+        let trimmedName = newTemplateName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return
+        }
+
+        await runTask {
+            _ = try await service.createTemplate(name: trimmedName, body: newTemplateBody)
+            newTemplateName = ""
+            newTemplateBody = ""
+            try await reloadTemplates()
+        }
+    }
+
+    public func deleteTemplate(id: UUID) async {
+        await runTask {
+            try await service.deleteTemplate(id: id)
+            try await reloadTemplates()
+        }
+    }
+
+    public func showNewNoteOptions() async {
+        if templates.isEmpty {
+            await createNote()
+        } else {
+            isTemplatePickerPresented = true
+        }
+    }
+
+    private func loadGraph() async throws {
+        let edges = try await service.graphEdges()
+        let notes = try await service.listNotes()
+
+        var nodesByID: [UUID: GraphNode] = [:]
+        for note in notes {
+            let tagCount = note.tags.count
+            nodesByID[note.id] = GraphNode(id: note.id, title: note.title, tagCount: tagCount)
+        }
+
+        graphNodes = Array(nodesByID.values)
+
+        var graphEdgeSet = Set<String>()
+        var graphEdgeArray: [GraphEdge] = []
+        for (fromID, toID, _, _) in edges {
+            let edgeKey = "\(fromID):\(toID)"
+            if !graphEdgeSet.contains(edgeKey) {
+                graphEdgeSet.insert(edgeKey)
+                graphEdgeArray.append(GraphEdge(fromID: fromID, toID: toID))
+            }
+        }
+        graphEdges = graphEdgeArray
+    }
+
+    private func reloadTemplates() async throws {
+        templates = try await service.listTemplates()
     }
 }
 

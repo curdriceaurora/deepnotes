@@ -100,4 +100,36 @@ final class DomainErrorsAndModelsTests: XCTestCase {
             XCTAssertEqual(error as? DomainValidationError, .invalidDateRange)
         }
     }
+
+    func testTaskSortOrderAllCases() {
+        let allCases = TaskSortOrder.allCases
+        XCTAssertEqual(allCases.count, 4)
+        XCTAssertTrue(allCases.contains(.dueDate))
+        XCTAssertTrue(allCases.contains(.priority))
+        XCTAssertTrue(allCases.contains(.title))
+        XCTAssertTrue(allCases.contains(.creationDate))
+    }
+
+    func testTaskSortOrderTitleProperty() {
+        XCTAssertEqual(TaskSortOrder.dueDate.title, "Due Date")
+        XCTAssertEqual(TaskSortOrder.priority.title, "Priority")
+        XCTAssertEqual(TaskSortOrder.title.title, "Title")
+        XCTAssertEqual(TaskSortOrder.creationDate.title, "Date Added")
+    }
+
+    func testTaskSortOrderCodable() {
+        let cases: [TaskSortOrder] = [.dueDate, .priority, .title, .creationDate]
+        for sortOrder in cases {
+            let encoded = try! JSONEncoder().encode(sortOrder)
+            let decoded = try! JSONDecoder().decode(TaskSortOrder.self, from: encoded)
+            XCTAssertEqual(decoded, sortOrder)
+        }
+    }
+
+    func testTaskSortOrderRawValue() {
+        XCTAssertEqual(TaskSortOrder.dueDate.rawValue, "dueDate")
+        XCTAssertEqual(TaskSortOrder.priority.rawValue, "priority")
+        XCTAssertEqual(TaskSortOrder.title.rawValue, "title")
+        XCTAssertEqual(TaskSortOrder.creationDate.rawValue, "creationDate")
+    }
 }
