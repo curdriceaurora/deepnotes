@@ -1839,7 +1839,7 @@ public struct GraphView: View {
                                     lineWidth: isSelected ? 2 : 1
                                 )
 
-                                var textContext = context
+                                let textContext = context
                                 textContext.draw(
                                     Text(node.title.prefix(2).uppercased())
                                         .font(.caption2.weight(.semibold))

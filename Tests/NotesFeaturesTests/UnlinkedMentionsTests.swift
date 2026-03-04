@@ -36,7 +36,7 @@ final class UnlinkedMentionsTests: XCTestCase {
         let service = WorkspaceService(store: store)
 
         let targetNote = try await service.createNote(title: "Target Note", body: "")
-        let sourceNote = try await service.createNote(title: "Source Note", body: "[[Target Note]] and Target Note")
+        _ = try await service.createNote(title: "Source Note", body: "[[Target Note]] and Target Note")
 
         let mentions = try await service.unlinkedMentions(for: targetNote.id)
 
@@ -60,7 +60,7 @@ final class UnlinkedMentionsTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
-        let targetNote = try await service.createNote(title: "Target Note", body: "")
+        _ = try await service.createNote(title: "Target Note", body: "")
         let sourceNote = try await service.createNote(title: "Source Note", body: "This mentions Target Note and Target Note again")
 
         let updated = try await service.linkMention(in: sourceNote.id, targetTitle: "Target Note")

@@ -30,7 +30,7 @@ final class EventKitCalendarProviderTests: XCTestCase {
         let client = FakeEventStoreClient()
         await client.setAuthorization(.fullAccess)
 
-        let provider = EventKitCalendarProvider(client: client, nowProvider: Date.init)
+        let provider = EventKitCalendarProvider(client: client, nowProvider: { Date() })
         let event = try CalendarEvent(calendarID: "missing", title: "Task", updatedAt: Date(timeIntervalSince1970: 1000))
 
         await XCTAssertThrowsErrorAsync(try await provider.upsertEvent(event)) { error in
@@ -115,7 +115,7 @@ final class EventKitCalendarProviderTests: XCTestCase {
         await client.setAuthorization(.fullAccess)
         await client.addCalendar(id: "cal-1")
 
-        let provider = EventKitCalendarProvider(client: client, nowProvider: Date.init)
+        let provider = EventKitCalendarProvider(client: client, nowProvider: { Date() })
         try await provider.deleteEvent(eventIdentifier: "missing", calendarID: "cal-1")
 
         let removeCalls = await client.removeCallCount
@@ -140,7 +140,7 @@ final class EventKitCalendarProviderTests: XCTestCase {
         )
         await client.putEvent(event)
 
-        let provider = EventKitCalendarProvider(client: client, nowProvider: Date.init)
+        let provider = EventKitCalendarProvider(client: client, nowProvider: { Date() })
         try await provider.deleteEvent(eventIdentifier: "event-1", calendarID: "cal-x")
 
         let removed = await client.removedIdentifiers
@@ -194,7 +194,7 @@ final class EventKitCalendarProviderTests: XCTestCase {
         let client = FakeEventStoreClient()
         await client.setAuthorization(.fullAccess)
 
-        let provider = EventKitCalendarProvider(client: client, nowProvider: Date.init)
+        let provider = EventKitCalendarProvider(client: client, nowProvider: { Date() })
         let batch = try await provider.fetchChanges(since: "token", calendarID: "missing")
 
         XCTAssertTrue(batch.changes.isEmpty)

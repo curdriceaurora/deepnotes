@@ -22,8 +22,8 @@ final class GraphEdgesTests: XCTestCase {
         let service = WorkspaceService(store: store)
 
         let noteA = try await service.createNote(title: "Note A", body: "")
-        let noteB = try await service.createNote(title: "Note B", body: "")
-        let noteC = try await service.createNote(title: "Note C", body: "")
+        _ = try await service.createNote(title: "Note B", body: "")
+        _ = try await service.createNote(title: "Note C", body: "")
 
         _ = try await service.updateNote(id: noteA.id, title: "Note A", body: "[[Note B]] [[Note C]]")
 
@@ -38,7 +38,7 @@ final class GraphEdgesTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
-        let noteA = try await service.createNote(title: "Note A", body: "[[Note A]]")
+        _ = try await service.createNote(title: "Note A", body: "[[Note A]]")
 
         let edges = try await service.graphEdges()
 
@@ -50,7 +50,7 @@ final class GraphEdgesTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
-        let noteA = try await service.createNote(title: "Note A", body: "[[Nonexistent Note]]")
+        _ = try await service.createNote(title: "Note A", body: "[[Nonexistent Note]]")
 
         let edges = try await service.graphEdges()
 

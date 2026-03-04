@@ -18,15 +18,16 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Request Copilot as a reviewer
+            // Request Copilot as a reviewer using the official bot identifier
             await github.rest.pulls.requestReviewers({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
-              reviewers: ['copilot']
+              reviewers: ['copilot-pull-request-reviewer[bot]']
             }).catch(err => {
-              // Copilot may not be available; post a comment instead
-              github.rest.issues.createComment({
+              console.log('Failed to add Copilot reviewer:', err.message);
+              // Post comment mentioning github-copilot for manual review
+              return github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,

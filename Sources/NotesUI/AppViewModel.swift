@@ -132,7 +132,7 @@ public final class AppViewModel {
             async let r4: () = reloadTemplates()
             async let r5: () = reloadTasksWithoutWrapper()
             async let r6: Bool = service.requestNotificationPermission()
-            try await r1; try await r2; try await r3; try await r4; try await r5; _ = try await r6
+            try await r1; try await r2; try await r3; try await r4; try await r5; _ = await r6
         }
         Self.signposter.endInterval("load", state)
         // Start periodic auto-sync (every 5 minutes when app is active)
@@ -817,7 +817,7 @@ public final class AppViewModel {
         let calendarID = syncCalendarID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !calendarID.isEmpty else { return }
         // Silent sync: no isBusy flag, errors swallowed
-        try? await service.runSync(
+        _ = try? await service.runSync(
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: calendarID,

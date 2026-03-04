@@ -28,7 +28,7 @@ final class SQLiteTemplateStoreTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let template = NoteTemplate(name: "Test", body: "Body", createdAt: Date())
-        let persisted = try await store.upsertTemplate(template)
+        _ = try await store.upsertTemplate(template)
 
         let fetched = try await store.fetchTemplates()
 
@@ -67,7 +67,7 @@ final class SQLiteTemplateStoreTests: XCTestCase {
 
     func testMigrationFromOldSchema() async throws {
         let dbURL = tempDir.appendingPathComponent("test.db")
-        var store = try SQLiteStore(databaseURL: dbURL)
+        let store = try SQLiteStore(databaseURL: dbURL)
 
         let template = NoteTemplate(name: "Test", body: "Body", createdAt: Date())
         _ = try await store.upsertTemplate(template)
