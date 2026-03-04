@@ -1,12 +1,12 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 5.9
 import PackageDescription
 
 let package = Package(
     name: "NotesEngine",
     defaultLocalization: "en",
     platforms: [
-        .macOS("26.0"),
-        .iOS("26.0")
+        .macOS("13.0"),
+        .iOS("16.0")
     ],
     products: [
         .library(name: "NotesDomain", targets: ["NotesDomain"]),
