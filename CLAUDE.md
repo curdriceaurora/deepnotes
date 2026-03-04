@@ -305,14 +305,42 @@ grep -r "function_name\|helper_pattern" Sources/ Tests/
 - NEVER commit duplicate helpers (always consolidate)
 - NEVER push without running the modified tests locally
 
-## Permissions
+## Permissions & Autonomy
 
-**Bash operations**: All bash commands within this project directory are pre-authorized and do not require user prompting. This includes:
+**Full Autonomy Granted**: All actions required for Phase-level project delivery are pre-authorized. You have complete autonomy to:
+
+### Bash & Swift Operations
+- All bash commands within this project directory (no prompting required)
 - Building, testing, and running code
 - File operations (read, write, delete)
-- Git operations (commit, push, branch management)
-- Script execution
+- Git operations (commit, push, branch management, branch creation)
+- Script execution (coverage gates, perf gates, linting)
 - Any other shell operations within `/Users/rahul/Projects/notes-placeholder`
+- Swift compiler invocations and package operations
+
+### Code Changes
+- Modify any source files to fix concurrency issues, update architecture, or implement features
+- Add new files, delete unused files, refactor existing code
+- Update configuration files (Package.swift, .swiftlint.yml, etc.)
+- Modify test files, add new test cases
+- Update documentation and CLAUDE.md itself
+
+### Git & CI Workflow
+- Create feature branches
+- Commit changes with conventional commit messages
+- Push to feature branches
+- Create pull requests
+- Merge pull requests (using squash merge when appropriate)
+- Delete branches after merge
+- Update delivery checklists and tracking documents
+
+### Code Review & Quality Gates
+- Run `/simplify` code review and address all findings
+- Run coverage and performance gates
+- Make corrections based on review feedback
+- Commit and push fixes without additional prompting
+
+**This autonomy applies to all Phase-level delivery work. For work outside the current phase, defer to user instructions.**
 
 ## API Stability & Deprecation
 
