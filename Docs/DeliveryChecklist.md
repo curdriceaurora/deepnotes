@@ -27,9 +27,11 @@ Required before first public beta / external users:
 - [x] Add explicit `swift test` step in CI so failures are independently surfaced.
 - [x] Add branch protection requiring coverage workflow pass before merge.
 - [x] Add CI artifact upload for coverage reports.
+- [x] Add branch protection requiring code review approval before merge (2026-03-03).
 
 Acceptance criteria:
 - Every PR to `main` is blocked until tests and coverage gates pass.
+- ✅ Every PR to `main` requires at least 1 code review approval before merge (GitHub issue #2, #3 — CLOSED)
 
 ### 2. Production sync hardening
 - [x] Implement deterministic conflict policy: last-write-wins + source tie-break + normalized timestamps.
