@@ -20,34 +20,7 @@ final class NotesSmokeTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeViewModel() throws -> AppViewModel {
-        let service = try MockWorkspaceService()
-        let provider = InMemoryCalendarProvider()
-        return AppViewModel(
-            service: service,
-            calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
-        )
-    }
-
-    /// Polls `condition` every 20 ms until it becomes true or the deadline (default 2 s) passes.
-    private func waitUntil(
-        deadline: TimeInterval = 2.0,
-        file: StaticString = #file,
-        line: UInt = #line,
-        condition: @MainActor () -> Bool
-    ) async {
-        let start = Date()
-        while !condition() {
-            if Date().timeIntervalSince(start) >= deadline {
-                XCTFail("Condition not met within \(deadline) s", file: file, line: line)
-                return
-            }
-            try? await _Concurrency.Task.sleep(nanoseconds: 20_000_000) // 20 ms
-        }
-    }
-
-    private func flushAsyncActions() async throws {
-        try await _Concurrency.Task.sleep(nanoseconds: 160_000_000)
+        try makeTestAppViewModel()
     }
 
     // MARK: - §1 App Launch and DB Initialization
@@ -245,7 +218,9 @@ final class NotesSmokeTests: XCTestCase {
         XCTAssertGreaterThan(totalCount, 0, "Fixture must contain notes")
 
         await viewModel.setNoteSearchQuery("Vendor")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil {
+            viewModel.notes.count < totalCount
+        }
 
         XCTAssertLessThan(
             viewModel.notes.count, totalCount,
@@ -262,7 +237,10 @@ final class NotesSmokeTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        // Wait for search to complete: verify that at least one note has a snippet generated
+        await waitUntil {
+            viewModel.notes.contains { viewModel.noteSearchSnippet(for: $0.id) != nil }
+        }
 
         guard let first = viewModel.notes.first else {
             return XCTFail("Expected at least one result for 'launch'")
@@ -286,11 +264,15 @@ final class NotesSmokeTests: XCTestCase {
         let totalCount = viewModel.notes.count
 
         await viewModel.setNoteSearchQuery("Vendor")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil {
+            viewModel.notes.count < totalCount
+        }
         XCTAssertLessThan(viewModel.notes.count, totalCount)
 
         await viewModel.setNoteSearchQuery("")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil {
+            viewModel.notes.count == totalCount
+        }
         XCTAssertEqual(viewModel.notes.count, totalCount,
                        "Clearing search must restore the full notes list")
         XCTAssertNil(viewModel.noteSearchQuery.isEmpty ? nil as String? : "non-empty")
@@ -302,7 +284,9 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("zzz_no_match_zzz")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil {
+            viewModel.notes.isEmpty
+        }
 
         XCTAssertTrue(viewModel.notes.isEmpty,
                       "Search for non-matching word must produce empty list without crash")
