@@ -204,6 +204,7 @@ public struct NotesEditorView: View {
                     }
                     .accessibilityIdentifier("noteSearchField")
                     .accessibilityLabel("Search Notes")
+                    .accessibilityHint("Search notes by title or content")
             }
             .padding(8)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
@@ -666,6 +667,7 @@ public struct TasksListView: View {
             .padding(.vertical, 12)
             .accessibilityIdentifier("taskFilterPicker")
             .accessibilityLabel("Filter Tasks")
+            .accessibilityHint("Filter the task list by status: all, today, upcoming, overdue, or completed")
 
             List(viewModel.tasks, id: \.id) { task in
                 taskRow(task)
