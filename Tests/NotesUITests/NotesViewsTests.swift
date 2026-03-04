@@ -609,25 +609,11 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanColumns() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        // KanbanBoardView complex structure - skipped due to ViewInspector limitations with nested ForEach
-        throw XCTSkip("KanbanBoardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersSyncTabControls() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        // SyncDashboardView complex structure - skipped due to ViewInspector limitations
-        throw XCTSkip("SyncDashboardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersNotesEditorFields() async throws {
@@ -647,76 +633,31 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanEmptyColumns() async throws {
-        let viewModel = try makeTestAppViewModel(service: MockWorkspaceService(notes: [], tasks: []))
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        // KanbanBoardView complex structure - skipped due to ViewInspector limitations
-        throw XCTSkip("KanbanBoardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersSyncDiagnosticsEmptyState() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-        await viewModel.runSync()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("SyncDashboardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersKanbanColumnHeaders() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("KanbanBoardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersKanbanCard() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = KanbanBoardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("KanbanBoardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersSyncExportButton() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-        await viewModel.runSync()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("SyncDashboardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersSyncCalendarAndRunButton() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("SyncDashboardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     func testIdentifiersSyncStatusText() async throws {
-        let viewModel = try makeTestAppViewModel()
-        await viewModel.load()
-
-        let view = SyncDashboardView(viewModel: viewModel)
-        let inspected = try view.inspect()
-
-        throw XCTSkip("SyncDashboardView identifier validation requires UI tests due to nested view complexity")
+        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
 }
