@@ -36,6 +36,7 @@ public final class AppViewModel {
     public private(set) var notesNextOffset: Int?
     private static let notesPageSize = 50
     private static let signposter = OSSignposter(subsystem: "com.notes.app", category: "Launch")
+    private static let taskSortOrderKey = "taskSortOrder"
 
     public private(set) var notes: [NoteListItem] = []
     public var selectedNoteID: UUID?
@@ -65,7 +66,7 @@ public final class AppViewModel {
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
     public var taskSortOrder: TaskSortOrder = {
-        guard let raw = UserDefaults.standard.string(forKey: "taskSortOrder"),
+        guard let raw = UserDefaults.standard.string(forKey: AppViewModel.taskSortOrderKey),
               let order = TaskSortOrder(rawValue: raw) else { return .dueDate }
         return order
     }()
@@ -265,7 +266,7 @@ public final class AppViewModel {
 
     public func setTaskSortOrder(_ order: TaskSortOrder) async {
         taskSortOrder = order
-        UserDefaults.standard.set(order.rawValue, forKey: "taskSortOrder")
+        UserDefaults.standard.set(order.rawValue, forKey: Self.taskSortOrderKey)
         await reloadTasks()
     }
 
