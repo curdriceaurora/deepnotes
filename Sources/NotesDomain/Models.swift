@@ -168,6 +168,7 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
     public var deletedAt: Date?
     public var labels: [TaskLabel]
     public var kanbanColumnID: UUID?
+    public var subtasks: [Subtask]
 
     public init(
         id: UUID = UUID(),
@@ -186,7 +187,8 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
         version: Int64 = 0,
         deletedAt: Date? = nil,
         labels: [TaskLabel] = [],
-        kanbanColumnID: UUID? = nil
+        kanbanColumnID: UUID? = nil,
+        subtasks: [Subtask] = []
     ) throws {
         guard (0...5).contains(priority) else {
             throw DomainValidationError.invalidPriority(priority)
@@ -211,6 +213,7 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
         self.deletedAt = deletedAt
         self.labels = labels
         self.kanbanColumnID = kanbanColumnID
+        self.subtasks = subtasks
     }
 }
 
@@ -448,6 +451,20 @@ public struct TaskLabel: Codable, Equatable, Sendable, Hashable {
     public init(name: String, colorHex: String) {
         self.name = name
         self.colorHex = colorHex
+    }
+}
+
+public struct Subtask: Identifiable, Codable, Equatable, Sendable {
+    public var id: UUID
+    public var title: String
+    public var isCompleted: Bool
+    public var order: Int
+
+    public init(id: UUID = UUID(), title: String, isCompleted: Bool = false, order: Int) {
+        self.id = id
+        self.title = title
+        self.isCompleted = isCompleted
+        self.order = order
     }
 }
 

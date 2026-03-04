@@ -1705,6 +1705,118 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
     }
 
+    // MARK: - Subtask tests
+
+    func testAddSubtaskAppendsToParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentTask = viewModel.tasks[0]
+        let initialCount = parentTask.subtasks.count
+        viewModel.newSubtaskTitle = "New Subtask"
+
+        await viewModel.addSubtask(to: parentTask.id)
+
+        let updated = viewModel.tasks.first { $0.id == parentTask.id }
+        XCTAssertEqual(updated?.subtasks.count, initialCount + 1)
+        XCTAssertEqual(updated?.subtasks.last?.title, "New Subtask")
+    }
+
+    func testToggleSubtaskUpdatesCompletion() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentID = viewModel.tasks[0].id
+        viewModel.newSubtaskTitle = "Subtask 1"
+        await viewModel.addSubtask(to: parentID)
+        viewModel.newSubtaskTitle = "Subtask 2"
+        await viewModel.addSubtask(to: parentID)
+
+        guard let taskAfterAdd = viewModel.tasks.first(where: { $0.id == parentID }),
+              taskAfterAdd.subtasks.count == 2 else {
+            return XCTFail("Expected 2 subtasks to be added")
+        }
+
+        let firstSubtaskID = taskAfterAdd.subtasks[0].id
+        await viewModel.toggleSubtask(parentTaskID: parentID, subtaskID: firstSubtaskID, isCompleted: true)
+
+        let final = viewModel.tasks.first(where: { $0.id == parentID })
+        guard let finalTask = final else {
+            return XCTFail("Parent task not found after toggling first subtask")
+        }
+        guard let updatedSubtask = finalTask.subtasks.first(where: { $0.id == firstSubtaskID }) else {
+            return XCTFail("Subtask not found after toggle")
+        }
+        XCTAssertTrue(updatedSubtask.isCompleted)
+    }
+
+    func testToggleAllSubtasksCompletesParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentID = viewModel.tasks[0].id
+        viewModel.newSubtaskTitle = "Subtask 1"
+        await viewModel.addSubtask(to: parentID)
+        viewModel.newSubtaskTitle = "Subtask 2"
+        await viewModel.addSubtask(to: parentID)
+
+        guard let task = viewModel.tasks.first(where: { $0.id == parentID }) else {
+            return XCTFail("Expected parent task")
+        }
+
+        let subtaskIDs = task.subtasks.map(\.id)
+        for subtaskID in subtaskIDs {
+            await viewModel.toggleSubtask(parentTaskID: parentID, subtaskID: subtaskID, isCompleted: true)
+        }
+
+        await viewModel.setTaskFilter(.completed)
+        let updated = viewModel.tasks.first { $0.id == parentID }
+        XCTAssertEqual(updated?.status, .done)
+    }
+
+    func testDeleteSubtaskRemovesFromParent() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard !viewModel.tasks.isEmpty else {
+            return XCTFail("Expected at least 1 task")
+        }
+
+        let parentTask = viewModel.tasks[0]
+        viewModel.newSubtaskTitle = "Test Subtask"
+        await viewModel.addSubtask(to: parentTask.id)
+
+        guard let task = viewModel.tasks.first(where: { $0.id == parentTask.id }),
+              let subtask = task.subtasks.last else {
+            return XCTFail("Expected subtask to be added")
+        }
+
+        await viewModel.deleteSubtask(parentTaskID: parentTask.id, subtaskID: subtask.id)
+
+        let updated = viewModel.tasks.first { $0.id == parentTask.id }
+        XCTAssertTrue(updated?.subtasks.isEmpty ?? false)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -2164,6 +2276,54 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             throw NSError(domain: "workspace-spy", code: 404)
         }
         tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
+        return tasks[idx]
+    }
+
+    // MARK: - Subtask methods
+
+    private(set) var addSubtaskCallCount: Int = 0
+    private(set) var lastSubtaskParentID: UUID?
+
+    func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
+        addSubtaskCallCount += 1
+        lastSubtaskParentID = parentTaskID
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        let subtask = Subtask(title: title, order: tasks[idx].subtasks.count)
+        tasks[idx].subtasks.append(subtask)
+        return tasks[idx]
+    }
+
+    func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task {
+        guard let taskIdx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        guard let subtaskIdx = tasks[taskIdx].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
+
+        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+            tasks[taskIdx].status = .done
+            tasks[taskIdx].completedAt = Date()
+        }
+
+        return tasks[taskIdx]
+    }
+
+    func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "workspace-spy", code: 404)
+        }
+        tasks[idx].subtasks.removeAll { $0.id == subtaskID }
+
+        var order = 0
+        for i in tasks[idx].subtasks.indices {
+            tasks[idx].subtasks[i].order = order
+            order += 1
+        }
+
         return tasks[idx]
     }
 }

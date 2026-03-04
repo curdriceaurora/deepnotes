@@ -717,6 +717,15 @@ public struct TasksListView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(task.status.accentColor.opacity(0.12), in: Capsule())
+                    if !task.subtasks.isEmpty {
+                        let done = task.subtasks.filter(\.isCompleted).count
+                        Text("\(done)/\(task.subtasks.count)")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                    }
                     if let due = task.dueStart {
                         Label(due.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
                             .font(.caption)
@@ -1285,6 +1294,49 @@ private struct KanbanCardDetailSheet: View {
                     }
                 }
                 .accessibilityIdentifier("cardDetailLabels")
+
+                Section("Subtasks") {
+                    ForEach(editedTask.subtasks, id: \.id) { subtask in
+                        HStack {
+                            Button {
+                                _Concurrency.Task {
+                                    await viewModel.toggleSubtask(parentTaskID: editedTask.id, subtaskID: subtask.id, isCompleted: !subtask.isCompleted)
+                                }
+                            } label: {
+                                Image(systemName: subtask.isCompleted ? "checkmark.circle.fill" : "circle")
+                                    .font(.subheadline)
+                                    .foregroundStyle(subtask.isCompleted ? .green : .secondary)
+                            }
+                            .buttonStyle(.plain)
+
+                            Text(subtask.title)
+                                .strikethrough(subtask.isCompleted)
+                                .foregroundStyle(subtask.isCompleted ? .secondary : .primary)
+
+                            Spacer()
+
+                            Button(role: .destructive) {
+                                _Concurrency.Task {
+                                    await viewModel.deleteSubtask(parentTaskID: editedTask.id, subtaskID: subtask.id)
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    HStack {
+                        TextField("Add subtask…", text: $viewModel.newSubtaskTitle)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Add") {
+                            _Concurrency.Task { await viewModel.addSubtask(to: editedTask.id) }
+                        }
+                        .disabled(viewModel.newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .accessibilityIdentifier("cardDetailSubtasks")
             }
             .formStyle(.grouped)
 

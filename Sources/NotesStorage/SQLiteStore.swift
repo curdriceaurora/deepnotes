@@ -452,12 +452,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             let version = try nextVersion(for: "task_version")
             let now = max(task.updatedAt, Date())
 
-            let labelsJSON: String
-            if let data = try? JSONEncoder().encode(task.labels), let str = String(data: data, encoding: .utf8) {
-                labelsJSON = str
-            } else {
-                labelsJSON = "[]"
-            }
+            let labelsJSON = encodeToJSON(task.labels)
+            let subtasksJSON = encodeToJSON(task.subtasks)
 
             let sql = """
             INSERT INTO tasks (
@@ -477,8 +473,9 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 version,
                 deleted_at,
                 labels,
-                kanban_column_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                kanban_column_id,
+                subtasks
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 note_id = excluded.note_id,
                 stable_id = excluded.stable_id,
@@ -495,7 +492,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 version = excluded.version,
                 deleted_at = excluded.deleted_at,
                 labels = excluded.labels,
-                kanban_column_id = excluded.kanban_column_id;
+                kanban_column_id = excluded.kanban_column_id,
+                subtasks = excluded.subtasks;
             """
 
             try withStatement(sql) { statement in
@@ -516,6 +514,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 bindOptionalDate(task.deletedAt, to: 15, in: statement)
                 bindText(labelsJSON, to: 16, in: statement)
                 bindOptionalText(task.kanbanColumnID.map(UUIDString), to: 17, in: statement)
+                bindText(subtasksJSON, to: 18, in: statement)
                 try stepDone(statement)
             }
 
@@ -545,14 +544,14 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         ? """
           SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
                  priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-                 labels, kanban_column_id
+                 labels, kanban_column_id, subtasks
           FROM tasks
           ORDER BY updated_at DESC;
           """
         : """
           SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
                  priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-                 labels, kanban_column_id
+                 labels, kanban_column_id, subtasks
           FROM tasks
           WHERE deleted_at IS NULL
           ORDER BY updated_at DESC;
@@ -572,7 +571,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
                priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-               labels, kanban_column_id
+               labels, kanban_column_id, subtasks
         FROM tasks
         WHERE version > ?
         ORDER BY version ASC
@@ -1137,6 +1136,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         // New task columns for labels and kanban_column_id
         try ensureColumnExists(table: "tasks", column: "labels", definition: "TEXT NOT NULL DEFAULT '[]'", on: db)
         try ensureColumnExists(table: "tasks", column: "kanban_column_id", definition: "TEXT", on: db)
+        try ensureColumnExists(table: "tasks", column: "subtasks", definition: "TEXT NOT NULL DEFAULT '[]'", on: db)
 
         // Rebuild FTS to include tags content
         let ftsRebuildSQL = """
@@ -1337,7 +1337,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
                priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-               labels, kanban_column_id
+               labels, kanban_column_id, subtasks
         FROM tasks
         WHERE id = ?;
         """
@@ -1355,7 +1355,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let sql = """
         SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
                priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-               labels, kanban_column_id
+               labels, kanban_column_id, subtasks
         FROM tasks
         WHERE stable_id = ?;
         """
@@ -1426,14 +1426,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             noteID = nil
         }
 
-        let labels: [TaskLabel]
-        if let labelsJSON = columnOptionalText(statement, at: 15),
-           let data = labelsJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([TaskLabel].self, from: data) {
-            labels = decoded
-        } else {
-            labels = []
-        }
+        let labels: [TaskLabel] = decodeFromJSON(columnOptionalText(statement, at: 15)) ?? []
 
         let kanbanColumnID: UUID?
         if let colIDText = columnOptionalText(statement, at: 16) {
@@ -1441,6 +1434,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         } else {
             kanbanColumnID = nil
         }
+
+        let subtasks: [Subtask] = decodeFromJSON(columnOptionalText(statement, at: 17)) ?? []
 
         return try Task(
             id: id,
@@ -1459,7 +1454,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             version: sqlite3_column_int64(statement, 13),
             deletedAt: columnOptionalDate(statement, at: 14),
             labels: labels,
-            kanbanColumnID: kanbanColumnID
+            kanbanColumnID: kanbanColumnID,
+            subtasks: subtasks
         )
     }
 
@@ -1485,6 +1481,22 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             lastSyncedAt: columnOptionalDate(statement, at: 7),
             deletedAt: columnOptionalDate(statement, at: 8)
         )
+    }
+
+    private func encodeToJSON<T: Encodable>(_ value: T) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let str = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return str
+    }
+
+    private func decodeFromJSON<T: Decodable>(_ jsonString: String?) -> T? {
+        guard let jsonString = jsonString,
+              let data = jsonString.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(T.self, from: data)
     }
 
     private func execute(_ sql: String) throws {

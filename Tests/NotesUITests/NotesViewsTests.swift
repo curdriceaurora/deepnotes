@@ -1041,4 +1041,45 @@ actor MockWorkspaceService: WorkspaceServicing {
         tasks[idx].labels.removeAll { $0.name.lowercased() == labelName.lowercased() }
         return tasks[idx]
     }
+
+    func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        let subtask = Subtask(title: title, order: tasks[idx].subtasks.count)
+        tasks[idx].subtasks.append(subtask)
+        return tasks[idx]
+    }
+
+    func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task {
+        guard let taskIdx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        guard let subtaskIdx = tasks[taskIdx].subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
+
+        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+            tasks[taskIdx].status = .done
+            tasks[taskIdx].completedAt = Date()
+        }
+
+        return tasks[taskIdx]
+    }
+
+    func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task {
+        guard let idx = tasks.firstIndex(where: { $0.id == parentTaskID }) else {
+            throw NSError(domain: "mock", code: 404)
+        }
+        tasks[idx].subtasks.removeAll { $0.id == subtaskID }
+
+        var order = 0
+        for i in tasks[idx].subtasks.indices {
+            tasks[idx].subtasks[i].order = order
+            order += 1
+        }
+
+        return tasks[idx]
+    }
 }

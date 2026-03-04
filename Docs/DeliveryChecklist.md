@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-03 — Section 10 Foundation #3 (Bulk status change) completed + code review applied; Section 9 Polish (Kanban) completed; Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed
+Last updated: 2026-03-03 — Section 10 Foundation #1 (Subtask model) completed + code review applied; Section 10 Foundation #3 (Bulk status change) completed + code review applied; Section 9 Polish (Kanban) completed; Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed
 
 ## Decision: migration stress tests now?
 
@@ -311,7 +311,21 @@ Foundation:
     - Menu reconstruction memoization (architectural pattern, acceptable for <100 tasks)
     - See IMPROVEMENT_RECOMMENDATIONS.md for details
 
-- [ ] Add a subtask model: tasks can have ordered child tasks with independent completion state.
+- [x] **Add a subtask model** ✅ COMPLETE (2026-03-03)
+  - Subtask struct with UUID id, title, isCompleted, and order fields
+  - Stored as JSON in tasks table (follows labels pattern)
+  - Service methods: addSubtask, toggleSubtask, deleteSubtask
+  - Parent auto-completes when all subtasks marked done
+  - 4 new tests (append, toggle, toggle-all-auto-complete, delete)
+  - **Code Review Applied**:
+    - ✅ Extracted JSON encode/decode helpers to reduce duplication (used by labels, tags, subtasks)
+    - ✅ Removed render-time sorting (subtasks already stored ordered)
+    - ✅ Added documentation on auto-completion behavior and one-way logic
+  - **Deferred optimizations** (medium priority, performance-related):
+    - Full task list reload on every subtask operation (affects O(N) at scale; consider caching parent locally)
+    - allSatisfy(\.isCompleted) O(N) scan per toggle (track completedCount instead)
+    - Order renumbering on delete (sparse ordering acceptable, or compute index at display-time)
+    - See code comments and IMPROVEMENT_RECOMMENDATIONS.md for details
 - [ ] Add local notifications/reminders tied to task due dates (UserNotifications framework).
 - [ ] Add sort options in the task list: by due date, priority, title, or creation date.
 

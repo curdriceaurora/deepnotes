@@ -99,6 +99,9 @@ public protocol WorkspaceServicing: Sendable {
     func deleteKanbanColumn(id: UUID) async throws
     func addLabelToTask(taskID: UUID, label: TaskLabel) async throws -> Task
     func removeLabelFromTask(taskID: UUID, labelName: String) async throws -> Task
+    func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task
+    func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task
+    func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task
 }
 
 public actor WorkspaceService: WorkspaceServicing {
@@ -625,6 +628,49 @@ public actor WorkspaceService: WorkspaceServicing {
             throw StorageError.dataCorruption(reason: "Cannot update missing task \(taskID)")
         }
         task.labels.removeAll(where: { $0.name.lowercased() == labelName.lowercased() })
+        return try await updateTask(task)
+    }
+
+    public func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: parentTaskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(parentTaskID)")
+        }
+        let subtask = Subtask(title: title, order: task.subtasks.count)
+        task.subtasks.append(subtask)
+        return try await updateTask(task)
+    }
+
+    public func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: parentTaskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(parentTaskID)")
+        }
+        guard let index = task.subtasks.firstIndex(where: { $0.id == subtaskID }) else {
+            throw StorageError.dataCorruption(reason: "Cannot find subtask \(subtaskID)")
+        }
+        task.subtasks[index].isCompleted = isCompleted
+
+        // Auto-complete parent task when all subtasks are completed.
+        // Note: Parent can still be manually marked as done even with incomplete subtasks.
+        if isCompleted && task.subtasks.allSatisfy(\.isCompleted) && task.status != .done {
+            task.status = .done
+            task.completedAt = clock.now()
+        }
+
+        return try await updateTask(task)
+    }
+
+    public func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task {
+        guard var task = try await taskStore.fetchTask(id: parentTaskID), task.deletedAt == nil else {
+            throw StorageError.dataCorruption(reason: "Cannot update missing task \(parentTaskID)")
+        }
+        task.subtasks.removeAll(where: { $0.id == subtaskID })
+
+        var order = 0
+        for i in task.subtasks.indices {
+            task.subtasks[i].order = order
+            order += 1
+        }
+
         return try await updateTask(task)
     }
 

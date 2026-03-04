@@ -67,6 +67,7 @@ public final class AppViewModel {
     public var quickTaskTitle: String = ""
     public var quickTaskPriority: Int = 3
     public var selectedTaskForEditing: Task?
+    public var newSubtaskTitle: String = ""
 
     // Multi-select state
     public var isMultiSelectMode: Bool = false
@@ -214,6 +215,30 @@ public final class AppViewModel {
             try await reloadTasksWithoutWrapper()
         }
         selectedTaskForEditing = nil
+    }
+
+    public func addSubtask(to parentID: UUID) async {
+        let trimmed = newSubtaskTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        await runTask {
+            _ = try await service.addSubtask(to: parentID, title: trimmed)
+            try await reloadTasksWithoutWrapper()
+        }
+        newSubtaskTitle = ""
+    }
+
+    public func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async {
+        await runTask {
+            _ = try await service.toggleSubtask(parentTaskID: parentTaskID, subtaskID: subtaskID, isCompleted: isCompleted)
+            try await reloadTasksWithoutWrapper()
+        }
+    }
+
+    public func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async {
+        await runTask {
+            _ = try await service.deleteSubtask(parentTaskID: parentTaskID, subtaskID: subtaskID)
+            try await reloadTasksWithoutWrapper()
+        }
     }
 
     public func tagsForTask(_ task: Task) -> [String] {
