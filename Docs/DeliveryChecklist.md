@@ -441,6 +441,25 @@ Infrastructure and process improvements to support sustainable growth and profes
 | Medium (3-5h) | 2 | Release automation, Localization |
 | **Total** | **8** | ~20-25 hours implementation |
 
+---
+
+## UI Polish & Visual Design
+
+- [ ] **#16: Enhance UI with Glass Morphism (Liquid Glass) effects**
+  - **Discovery Phase** (REQUIRED FIRST):
+    * Audit current UI components (screenshots, identify candidates)
+    * Evaluate performance impact (Material effects on M-series, Intel, iPad)
+    * Define design guidelines (Material types per component, contrast, animations)
+    * Prototype 2-3 candidate elements (before/after mockups)
+    * Document findings (FPS delta, recommendations, complexity estimate)
+  - **Implementation Phase** (if approved):
+    * Create GlassView/GlassOverlay reusable components
+    * Apply to 5+ high-impact elements (toolbars, modals, cards)
+    * Verify WCAG AA contrast maintained
+    * Measure final perf vs baseline (< 5% regression acceptable)
+  - **Effort**: 4-6 hours (2h discovery + 2-4h implementation if approved)
+  - **Status**: Pending discovery
+
 ### Priority Notes
 
 - **Quick Wins** (#11, #12): Implement early for project maturity
