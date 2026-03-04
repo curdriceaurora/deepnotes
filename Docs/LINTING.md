@@ -19,17 +19,16 @@ SwiftLint configuration is in [`.swiftlint.yml`](../.swiftlint.yml) at the repos
 
 #### Key Rules
 
-- **Line length**: 140 characters max (160 error)
-- **Cyclomatic complexity**: 15 warning / 20 error
+- **Line length**: 140 warning / 160 error
+- **Cyclomatic complexity**: 15 warning / 25 error
 - **Function parameters**: 6 warning / 8 error
-- **File length**: 400 warning / 600 error
-- **Type body length**: 250 warning / 350 error (500 error for tests)
-- **Function body length**: 50 warning / 80 error
-- **Identifier names**: 2+ characters (excluded: `id`, `db`, `vm`, `at`, `to`, `i`, `j`, `k`, `x`, `y`)
+- **File length**: 1000 warning / 2500 error
+- **Type body length**: 500 warning / 1600 error
+- **Function body length**: 80 warning / 250 error
+- **Identifier names**: 2+ characters (excluded: `id`, `db`, `vm`, `at`, `to`, `i`, `j`, `k`, `x`, `y`, `c`, `e`, `l`, `p`, `r`, `s`)
 
 #### Opt-in rules enabled
 
-- `sorted_imports` — Enforces alphabetical import order
 - `closure_spacing` — Ensures consistent spacing around closures
 - `contains_over_first_not_nil` — Prefers `contains()` over `first(where:) != nil`
 - `empty_count` — Prefers `isEmpty` over `count == 0`
@@ -42,8 +41,12 @@ SwiftLint configuration is in [`.swiftlint.yml`](../.swiftlint.yml) at the repos
 #### Disabled rules
 
 - `todo` — Allows `// TODO:` and `// FIXME:` comments without warnings
-- `trailing_comma` — Allows trailing commas in multi-line collections
+- `trailing_comma` — SwiftFormat enforces trailing commas (`--trailingcommas always`); SwiftLint rule is redundant
 - `multiple_closures_with_trailing_closure` — Allows multiple trailing closures
+- `large_tuple` — Default max of 2 members is too strict for this codebase
+- `force_try` — Used legitimately in regex patterns and tests
+- `blanket_disable_command` — File-level disables needed for large existing files
+- `opening_brace` — SwiftFormat owns brace placement (conflicts when wrapping long declarations)
 
 ### Installation
 
@@ -260,19 +263,19 @@ guard let value = dictionary["key"] else { return }
 
 ❌ **Bad:**
 ```swift
+@testable import NotesStorage
 import Foundation
 import NotesDomain
-@testable import NotesStorage
 ```
 
 ✅ **Good:**
 ```swift
 import Foundation
-@testable import NotesStorage
 import NotesDomain
+@testable import NotesStorage
 ```
 
-(Test imports group at bottom per `--importgrouping testable-bottom`)
+(SwiftFormat owns import ordering: regular imports first, `@testable` at bottom per `--importgrouping testable-bottom`)
 
 ### Line Length
 
