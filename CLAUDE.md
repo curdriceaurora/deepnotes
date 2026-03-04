@@ -250,6 +250,38 @@ When given a numbered plan, you must:
 - Script execution
 - Any other shell operations within `/Users/rahul/Projects/notes-placeholder`
 
+## API Stability & Deprecation
+
+### Public API Changes
+
+All public APIs must maintain backward compatibility within a major version. Never remove or significantly change public APIs without a deprecation period.
+
+**Deprecation process:**
+
+1. Mark the old API as deprecated:
+   ```swift
+   @available(*, deprecated, renamed: "newName", message: "Use newName() instead")
+   public func oldName() { }
+   ```
+
+2. Document in `CHANGELOG.md` under "Deprecated" section
+
+3. Minimum deprecation period: **2 releases** (e.g., v1.0 → v1.1 → v2.0)
+
+4. Remove in next major version only
+
+**Breaking changes** (API removals, signature changes) are only allowed in major version bumps. Document all breaking changes in CHANGELOG.md.
+
+### Semantic Versioning
+
+This project follows SemVer:
+- **MAJOR.MINOR.PATCH** (e.g., v1.2.3)
+- **MAJOR**: Breaking API changes only
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes
+
+See `Package.swift` for current version.
+
 ## Known Limitations
 
 1. Calendar recurrence exception editing not fully hardened

@@ -1,0 +1,32 @@
+# CODEOWNERS
+# Designates code owners for GitHub automatic review assignment
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global fallback
+* @curdriceaurora
+
+# Critical paths requiring explicit review
+
+# Persistence layer (SQLite, schema, migrations)
+/Sources/NotesStorage/ @curdriceaurora
+/Sources/NotesStorage/SQLiteStore.swift @curdriceaurora
+
+# Sync engine (two-way sync, conflict resolution)
+/Sources/NotesSync/ @curdriceaurora
+
+# Domain models (breaking changes ripple widely)
+/Sources/NotesDomain/Models.swift @curdriceaurora
+
+# Database migrations (irreversible)
+/Scripts/run-coverage-gates.sh @curdriceaurora
+/Scripts/run-perf-gates.sh @curdriceaurora
+
+# CI/CD configuration
+/.github/workflows/ @curdriceaurora
+/.swiftlint.yml @curdriceaurora
+
+# Release documentation
+/Docs/ReleaseRunbook.md @curdriceaurora
+/Docs/DeliveryChecklist.md @curdriceaurora
+/CHANGELOG.md @curdriceaurora
+/SECURITY.md @curdriceaurora

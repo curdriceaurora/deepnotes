@@ -1,19 +1,41 @@
 import Foundation
 
+/// Represents the execution status of a task in a kanban workflow.
+///
+/// Tasks progress through these states: `backlog` → `next` → `doing` → `waiting` → `done`.
+/// The `waiting` state represents tasks blocked on external dependencies (e.g., awaiting feedback).
+///
+/// See also: ``KanbanColumn``, ``Task/status``
 public enum TaskStatus: String, Codable, CaseIterable, Sendable {
+    /// Task is not yet prioritized (backlog column in kanban board)
     case backlog
+    /// Task is ready to start (next/ready column)
     case next
+    /// Task is currently in progress (doing/in-progress column)
     case doing
+    /// Task is blocked waiting for external input (waiting column)
     case waiting
+    /// Task is completed (done column)
     case done
 }
 
+/// Defines the sort order for displaying tasks in lists and kanban boards.
+///
+/// Users can sort tasks by any of these criteria. The `title` property returns a user-friendly
+/// display name suitable for UI menus and settings.
 public enum TaskSortOrder: String, CaseIterable, Codable, Sendable {
+    /// Sort by task due date (earliest first), with null values sorted last
     case dueDate
+    /// Sort by task priority (0 = highest, 5 = lowest)
     case priority
+    /// Sort by task title in alphabetical order (case-insensitive)
     case title
+    /// Sort by task creation date (newest first)
     case creationDate
 
+    /// User-friendly display name for this sort order.
+    ///
+    /// - Returns: Localized string suitable for UI display (e.g., "Due Date", "Priority")
     public var title: String {
         switch self {
         case .dueDate: return "Due Date"
@@ -24,21 +46,68 @@ public enum TaskSortOrder: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// A note document containing markdown-formatted text and optional calendar metadata.
+///
+/// Notes support wiki-style `[[wikilinks]]` for cross-references, hashtags `#tag` for categorization,
+/// and optional synchronization with Apple Calendar.
+///
+/// ### Soft Deletion
+/// Notes are soft-deleted by setting `deletedAt`. Hard deletes never occur. This prevents ghost
+/// re-creation if sync is delayed.
+///
+/// ### Versioning
+/// Each note tracks `version` (incremented on write) and `updatedAt` (timestamp of last change).
+/// The sync engine uses these to query only changed records since the last sync.
+///
+/// ### Calendar Sync
+/// If `calendarSyncEnabled` is true, the note creates a calendar event with title and dateStart/dateEnd.
+/// Use `stableID` (immutable UUID string) to maintain event identity across edits/renames.
+///
+/// See also: ``NoteListItem``, ``NoteTemplate``, ``WikiLinkParser``
 public struct Note: Codable, Equatable, Sendable {
+    /// Unique identifier for this note (UUID)
     public var id: UUID
+    /// Immutable stable ID for sync purposes (UUID string, never changes on rename/edit)
     public var stableID: String
+    /// User-visible title of the note
     public var title: String
+    /// Markdown-formatted body text; supports `[[wikilinks]]` and `#tags`
     public var body: String
+    /// Hashtags extracted from the note body (lowercase, without `#`)
     public var tags: [String]
+    /// Optional calendar event start date
     public var dateStart: Date?
+    /// Optional calendar event end date
     public var dateEnd: Date?
+    /// True if the calendar event is all-day
     public var isAllDay: Bool
+    /// iCalendar RRULE for recurrence (RFC 5545 format)
     public var recurrenceRule: String?
+    /// True if this note is synced with Apple Calendar
     public var calendarSyncEnabled: Bool
+    /// Timestamp of last modification (used for sync versioning)
     public var updatedAt: Date
+    /// Monotonic version number (incremented on each write)
     public var version: Int64
+    /// Timestamp when soft-deleted (nil = not deleted)
     public var deletedAt: Date?
 
+    /// Creates a new note.
+    ///
+    /// - Parameters:
+    ///   - id: Unique identifier (default: random UUID)
+    ///   - stableID: Immutable sync ID (default: random UUID string)
+    ///   - title: User-visible title (required)
+    ///   - body: Markdown body text (required)
+    ///   - tags: Hashtags found in body (default: empty)
+    ///   - dateStart: Calendar event start date (default: nil)
+    ///   - dateEnd: Calendar event end date (default: nil); if after dateStart, will be clamped
+    ///   - isAllDay: True for all-day calendar events (default: false)
+    ///   - recurrenceRule: iCalendar RRULE string (default: nil)
+    ///   - calendarSyncEnabled: True to sync with Apple Calendar (default: false)
+    ///   - updatedAt: Timestamp of creation (required)
+    ///   - version: Version number (default: 0)
+    ///   - deletedAt: Soft-delete timestamp, nil if active (default: nil)
     public init(
         id: UUID = UUID(),
         stableID: String = UUID().uuidString.lowercased(),
@@ -118,9 +187,16 @@ public struct NoteListItemPage: Equatable, Sendable {
     }
 }
 
+/// Search mode for querying notes by text content.
+///
+/// Determines how search queries are matched against note titles and bodies.
+/// Results are ranked by relevance and paginated in chunks of 50.
 public enum NoteSearchMode: String, Codable, CaseIterable, Sendable {
+    /// Balanced search: matches keywords with fuzzy ranking (prefix > contains > fuzzy)
     case smart
+    /// Phrase search: exact phrase match in title or body
     case phrase
+    /// Prefix search: matches beginning of words only
     case prefix
 }
 
@@ -166,26 +242,87 @@ public struct NoteSearchPage: Codable, Equatable, Sendable {
     }
 }
 
+/// A to-do item with scheduling, priority, status, and optional calendar synchronization.
+///
+/// Tasks are organized by `status` in a kanban board and can be filtered by due date or
+/// priority. Each task has a `stableID` (immutable UUID string) used for calendar event binding,
+/// ensuring edits/renames do not create duplicate calendar entries.
+///
+/// ### Priority Levels
+/// Priority is an integer from 0 (highest) to 5 (lowest). Invalid ranges throw ``DomainValidationError/invalidPriority(_:)``.
+///
+/// ### Subtasks
+/// Tasks can contain 1-N subtasks. Completing all subtasks optionally auto-completes the parent.
+///
+/// ### Calendar Sync
+/// If linked to a calendar event via binding, the task syncs its title, due dates, and completion status.
+/// `stableID` is immutable to maintain event identity.
+///
+/// ### Soft Deletion
+/// Soft-deleted by setting `deletedAt`. Hard deletes never occur.
+///
+/// See also: ``TaskStatus``, ``TaskLabel``, ``Subtask``, ``CalendarBinding``
 public struct Task: Identifiable, Codable, Equatable, Sendable {
+    /// Unique identifier for this task (UUID)
     public var id: UUID
+    /// Optional ID of the linked note (if this task is in a note's context)
     public var noteID: UUID?
+    /// Immutable stable ID for calendar sync (never changes on rename/edit)
     public var stableID: String
+    /// User-visible task title
     public var title: String
+    /// Extended description or details
     public var details: String
+    /// Optional due date start (for range-based due dates)
     public var dueStart: Date?
+    /// Optional due date end (for range-based due dates)
     public var dueEnd: Date?
+    /// Current execution status in kanban workflow (backlog, next, doing, waiting, done)
     public var status: TaskStatus
+    /// Priority level 0-5 (0 = highest, 5 = lowest)
     public var priority: Int
+    /// iCalendar RRULE for recurrence (RFC 5545 format)
     public var recurrenceRule: String?
+    /// Ordering key for kanban columns (not strictly sequential)
     public var kanbanOrder: Double
+    /// Timestamp when task was marked complete (nil = not completed)
     public var completedAt: Date?
+    /// Timestamp of last modification (used for sync versioning)
     public var updatedAt: Date
+    /// Monotonic version number (incremented on each write)
     public var version: Int64
+    /// Timestamp when soft-deleted (nil = not deleted)
     public var deletedAt: Date?
+    /// Color-coded labels for categorization
     public var labels: [TaskLabel]
+    /// ID of the custom kanban column this task belongs to (nil = uses status column)
     public var kanbanColumnID: UUID?
+    /// Subtasks (1-N nested to-do items); completing all can auto-complete parent
     public var subtasks: [Subtask]
 
+    /// Creates a new task with validation.
+    ///
+    /// - Parameters:
+    ///   - id: Unique identifier (default: random UUID)
+    ///   - noteID: Optional linked note (default: nil)
+    ///   - stableID: Immutable sync ID (required)
+    ///   - title: User-visible title (required)
+    ///   - details: Extended description (default: empty)
+    ///   - dueStart: Due date start (default: nil)
+    ///   - dueEnd: Due date end (default: nil); must not be before dueStart
+    ///   - status: Kanban status (default: .backlog)
+    ///   - priority: Priority 0-5 (default: 3)
+    ///   - recurrenceRule: iCalendar RRULE (default: nil)
+    ///   - kanbanOrder: Ordering key (default: 0)
+    ///   - completedAt: Completion timestamp (default: nil)
+    ///   - updatedAt: Last modification timestamp (required)
+    ///   - version: Version number (default: 0)
+    ///   - deletedAt: Soft-delete timestamp (default: nil)
+    ///   - labels: Color-coded labels (default: empty)
+    ///   - kanbanColumnID: Custom column ID (default: nil)
+    ///   - subtasks: Nested to-do items (default: empty)
+    /// - Throws: ``DomainValidationError/invalidPriority(_:)`` if priority not in 0-5
+    /// - Throws: ``DomainValidationError/invalidDateRange`` if dueEnd before dueStart
     public init(
         id: UUID = UUID(),
         noteID: UUID? = nil,
@@ -233,22 +370,61 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+/// A calendar event imported from Apple Calendar or created from a synchronized task/note.
+///
+/// Calendar events maintain bidirectional sync with their source tasks or notes via a
+/// ``CalendarBinding``. The `eventIdentifier` and `externalIdentifier` are stored to handle
+/// identifier drift during sync conflicts.
+///
+/// See also: ``CalendarBinding``, ``ConflictResolutionPolicy``
 public struct CalendarEvent: Codable, Equatable, Sendable {
+    /// Event ID from Apple Calendar (nil if created locally)
     public var eventIdentifier: String?
+    /// External event ID from calendar provider (fallback identifier for conflict resolution)
     public var externalIdentifier: String?
+    /// ID of the calendar this event belongs to
     public var calendarID: String
+    /// Event title
     public var title: String
+    /// Event notes/description
     public var notes: String?
+    /// Event start date (nil for all-day events with dateOnly semantics)
     public var startDate: Date?
+    /// Event end date (must not be before startDate)
     public var endDate: Date?
+    /// True if this is an all-day event
     public var isAllDay: Bool
+    /// iCalendar RRULE for recurrence (RFC 5545 format)
     public var recurrenceRule: String?
+    /// Date of a recurrence exception (for "This Occurrence" edits)
     public var recurrenceExceptionDate: Date?
+    /// True if event is marked as completed/done
     public var isCompleted: Bool
+    /// Timestamp of last modification
     public var updatedAt: Date
+    /// Type of source entity (task or note)
     public var sourceEntityType: CalendarBindingEntityType?
+    /// Stable ID of the source entity (immutable sync ID)
     public var sourceStableID: String?
 
+    /// Creates a new calendar event with validation.
+    ///
+    /// - Parameters:
+    ///   - eventIdentifier: Apple Calendar event ID (default: nil)
+    ///   - externalIdentifier: External provider event ID (default: nil)
+    ///   - calendarID: Calendar ID (required)
+    ///   - title: Event title (required)
+    ///   - notes: Event description (default: nil)
+    ///   - startDate: Start date (default: nil)
+    ///   - endDate: End date (default: nil); must not be before startDate
+    ///   - isAllDay: True for all-day events (default: false)
+    ///   - recurrenceRule: iCalendar RRULE string (default: nil)
+    ///   - recurrenceExceptionDate: Date of exception (default: nil)
+    ///   - isCompleted: True if done (default: false)
+    ///   - updatedAt: Last modification timestamp (required)
+    ///   - sourceEntityType: Task or note origin (default: nil)
+    ///   - sourceStableID: Source entity's immutable ID (default: nil)
+    /// - Throws: ``DomainValidationError/invalidDateRange`` if endDate before startDate
     public init(
         eventIdentifier: String? = nil,
         externalIdentifier: String? = nil,
@@ -319,15 +495,35 @@ public struct CalendarChangeBatch: Equatable, Sendable {
     }
 }
 
+/// Maps a task or note to its synchronized calendar event.
+///
+/// Bindings enable bidirectional sync: local changes push to calendar, and calendar changes
+/// are pulled and reconciled. Version tracking (`lastEntityVersion`, `lastEventUpdatedAt`) and
+/// timestamps enable incremental sync without full re-downloads.
+///
+/// ### Identifiers
+/// Both `eventIdentifier` (from Apple Calendar) and `externalIdentifier` (from provider) are
+/// stored to handle identifier drift during sync conflicts.
+///
+/// See also: ``CalendarEvent``, ``ConflictResolutionPolicy``, ``SyncCheckpoint``
 public struct CalendarBinding: Codable, Equatable, Sendable {
+    /// Type of entity being synced (task or note)
     public var entityType: CalendarBindingEntityType
+    /// ID of the synced entity (task or note)
     public var entityID: UUID
+    /// Calendar ID the event belongs to
     public var calendarID: String
+    /// Event ID from Apple Calendar (nil if not yet synced)
     public var eventIdentifier: String?
+    /// External event ID (fallback for conflict resolution)
     public var externalIdentifier: String?
+    /// Version number of entity at last sync
     public var lastEntityVersion: Int64
+    /// Timestamp of event at last sync
     public var lastEventUpdatedAt: Date?
+    /// Timestamp of last successful sync
     public var lastSyncedAt: Date?
+    /// Soft-delete timestamp (nil = binding active)
     public var deletedAt: Date?
 
     public var taskID: UUID {
@@ -470,12 +666,30 @@ public struct TaskLabel: Codable, Equatable, Sendable, Hashable {
     }
 }
 
+/// A nested to-do item within a parent task.
+///
+/// Subtasks are stored as JSON in the parent `Task` and support completion tracking.
+/// When all subtasks of a parent task are marked complete, the parent task can optionally
+/// be auto-completed.
+///
+/// See also: ``Task/subtasks``
 public struct Subtask: Identifiable, Codable, Equatable, Sendable {
+    /// Unique identifier for this subtask
     public var id: UUID
+    /// Subtask title/description
     public var title: String
+    /// True if this subtask is completed
     public var isCompleted: Bool
+    /// Ordering position within the parent task's subtask list
     public var order: Int
 
+    /// Creates a new subtask.
+    ///
+    /// - Parameters:
+    ///   - id: Unique identifier (default: random UUID)
+    ///   - title: Subtask title (required)
+    ///   - isCompleted: True if done (default: false)
+    ///   - order: Ordering position (required)
     public init(id: UUID = UUID(), title: String, isCompleted: Bool = false, order: Int) {
         self.id = id
         self.title = title
