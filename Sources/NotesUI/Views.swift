@@ -1,3 +1,4 @@
+// swiftlint:disable file_length function_body_length cyclomatic_complexity
 import NotesDomain
 import NotesFeatures
 import NotesSync
@@ -80,7 +81,9 @@ public struct NotesRootView: View {
         } message: {
             if let occurrenceDate = viewModel.recurrenceEditPrompt?.occurrenceDate {
                 Text(
-                    "Choose whether to update only the detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or the parent series.",
+                    "Choose whether to update only the detached occurrence"
+                        + " (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened)))"
+                        + " or the parent series.",
                 )
             } else {
                 Text("Choose whether to update only the detached occurrence or the parent series.")
@@ -116,7 +119,9 @@ public struct NotesRootView: View {
         } message: {
             if let occurrenceDate = viewModel.recurrenceDeletePrompt?.occurrenceDate {
                 Text(
-                    "Delete only detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or delete the entire recurring series.",
+                    "Delete only detached occurrence"
+                        + " (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened)))"
+                        + " or delete the entire recurring series.",
                 )
             } else {
                 Text("Delete only this detached occurrence or the entire recurring series.")
@@ -1276,12 +1281,10 @@ private struct KanbanCardDetailSheet: View {
                     }
                 }
                 .onChange(of: hasDueStart) { _, enabled in
-                    if !enabled { editedTask.dueStart = nil }
-                    else if editedTask.dueStart == nil { editedTask.dueStart = Date() }
+                    if !enabled { editedTask.dueStart = nil } else if editedTask.dueStart == nil { editedTask.dueStart = Date() }
                 }
                 .onChange(of: hasDueEnd) { _, enabled in
-                    if !enabled { editedTask.dueEnd = nil }
-                    else if editedTask.dueEnd == nil { editedTask.dueEnd = Date() }
+                    if !enabled { editedTask.dueEnd = nil } else if editedTask.dueEnd == nil { editedTask.dueEnd = Date() }
                 }
 
                 Section("Linked Note") {

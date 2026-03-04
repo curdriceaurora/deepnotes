@@ -18,7 +18,7 @@
 
             let event = try CalendarEvent(calendarID: "cal-1", title: "Task", updatedAt: Date(timeIntervalSince1970: 1000))
 
-            await XCTAssertThrowsErrorAsync(try provider.upsertEvent(event)) { error in
+            await XCTAssertThrowsErrorAsync(try await provider.upsertEvent(event)) { error in
                 guard case let .unsupportedCalendarChange(reason) = error as? SyncError else {
                     return XCTFail("Unexpected error: \(error)")
                 }
@@ -33,7 +33,7 @@
             let provider = EventKitCalendarProvider(client: client, nowProvider: { Date() })
             let event = try CalendarEvent(calendarID: "missing", title: "Task", updatedAt: Date(timeIntervalSince1970: 1000))
 
-            await XCTAssertThrowsErrorAsync(try provider.upsertEvent(event)) { error in
+            await XCTAssertThrowsErrorAsync(try await provider.upsertEvent(event)) { error in
                 guard case let .unsupportedCalendarChange(reason) = error as? SyncError else {
                     return XCTFail("Unexpected error: \(error)")
                 }

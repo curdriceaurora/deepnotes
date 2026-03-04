@@ -40,7 +40,10 @@ public struct TaskCalendarMapper: Sendable {
     }
 
     public func task(from event: CalendarEvent, existingTask: Task?) throws -> Task {
-        let stableID = event.sourceStableID ?? extractStableID(from: event.notes) ?? existingTask?.stableID ?? UUID().uuidString.lowercased()
+        let stableID = event.sourceStableID
+            ?? extractStableID(from: event.notes)
+            ?? existingTask?.stableID
+            ?? UUID().uuidString.lowercased()
 
         let completedAt = event.isCompleted ? event.updatedAt : nil
         let status: TaskStatus = event.isCompleted ? .done : (existingTask?.status ?? .next)

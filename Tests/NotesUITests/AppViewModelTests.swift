@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length
 import Foundation
 import XCTest
 @testable import NotesDomain
@@ -1877,7 +1878,10 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     init() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         notes = [
-            Note(id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!, title: "Alpha", body: "[[Gamma]]", updatedAt: now, version: 1),
+            Note(
+                id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                title: "Alpha", body: "[[Gamma]]", updatedAt: now, version: 1,
+            ),
             Note(id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!, title: "Beta", body: "", updatedAt: now, version: 1),
         ]
 
@@ -1958,7 +1962,11 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     func addBulkNotes(count: Int) {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         for i in 0 ..< count {
-            let note = Note(id: UUID(), title: "Bulk Note \(i)", body: "Body \(i)", tags: ["bulk"], updatedAt: base.addingTimeInterval(Double(i)), version: 1)
+            let note = Note(
+                id: UUID(), title: "Bulk Note \(i)", body: "Body \(i)",
+                tags: ["bulk"], updatedAt: base.addingTimeInterval(Double(i)),
+                version: 1,
+            )
             notes.append(note)
         }
     }

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length function_body_length
 import Foundation
 import XCTest
 @testable import NotesDomain
@@ -24,7 +25,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let engine = makeEngine(store: store, provider: provider)
 
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
+            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
         ) { error in
             guard case .missingEventIdentifier = error as? SyncError else {
                 return XCTFail("Expected missingEventIdentifier, got \(error)")
@@ -82,7 +83,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let engine = makeEngine(store: store, provider: provider)
 
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(
+            try await engine.runOnce(
                 configuration: SyncEngineConfiguration(
                     checkpointID: "default",
                     calendarID: "cal",
@@ -167,7 +168,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         let engine = makeEngine(store: store, provider: provider)
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(
+            try await engine.runOnce(
                 configuration: SyncEngineConfiguration(
                     checkpointID: "default",
                     calendarID: "cal",
@@ -225,7 +226,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         let engine = makeEngine(store: store, provider: provider)
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(
+            try await engine.runOnce(
                 configuration: SyncEngineConfiguration(
                     checkpointID: "default",
                     calendarID: "cal",
@@ -308,7 +309,10 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let provider = StubCalendarProvider()
 
         let ghostTaskID = UUID()
-        try await store.upsertBinding(CalendarBinding(taskID: ghostTaskID, calendarID: "cal", eventIdentifier: "e-2", externalIdentifier: "ext-2"))
+        try await store.upsertBinding(CalendarBinding(
+            taskID: ghostTaskID, calendarID: "cal",
+            eventIdentifier: "e-2", externalIdentifier: "ext-2",
+        ))
 
         let incoming = try CalendarEvent(
             eventIdentifier: "e-2",
@@ -568,9 +572,15 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         var task = try Task(stableID: "task-del-ext", title: "Delete me", updatedAt: Date(timeIntervalSince1970: 100))
         task = try await store.upsertTask(task)
-        try await store.upsertBinding(CalendarBinding(taskID: task.id, calendarID: "cal", eventIdentifier: nil, externalIdentifier: "ext-del"))
+        try await store.upsertBinding(CalendarBinding(
+            taskID: task.id, calendarID: "cal",
+            eventIdentifier: nil, externalIdentifier: "ext-del",
+        ))
 
-        let deletion = CalendarDeletion(eventIdentifier: nil, externalIdentifier: "ext-del", calendarID: "cal", deletedAt: Date(timeIntervalSince1970: 200))
+        let deletion = CalendarDeletion(
+            eventIdentifier: nil, externalIdentifier: "ext-del",
+            calendarID: "cal", deletedAt: Date(timeIntervalSince1970: 200),
+        )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
         let engine = makeEngine(store: store, provider: provider)
@@ -653,7 +663,10 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let store = try makeStore()
         let provider = StubCalendarProvider()
 
-        var task = try Task(stableID: "task-fallback-taskwins", title: "Prefer task", updatedAt: Date(timeIntervalSince1970: 300), version: 0)
+        var task = try Task(
+            stableID: "task-fallback-taskwins", title: "Prefer task",
+            updatedAt: Date(timeIntervalSince1970: 300), version: 0,
+        )
         task = try await store.upsertTask(task)
         try await store.upsertBinding(
             CalendarBinding(
@@ -854,7 +867,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         let engine = makeEngine(store: store, provider: provider, includeNoteStore: true)
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
+            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
         ) { error in
             guard case .missingEventIdentifier = error as? SyncError else {
                 return XCTFail("Expected missingEventIdentifier, got \(error)")
@@ -1685,7 +1698,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         let engine = makeEngine(store: store, provider: provider)
         await XCTAssertThrowsErrorAsync(
-            try engine.runOnce(
+            try await engine.runOnce(
                 configuration: SyncEngineConfiguration(
                     checkpointID: "default",
                     calendarID: "cal",

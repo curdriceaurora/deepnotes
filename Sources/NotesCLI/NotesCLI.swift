@@ -178,7 +178,9 @@ struct NotesCLI {
 
             print("Sync completed")
             print(
-                "tasksPushed=\(report.tasksPushed) eventsPulled=\(report.eventsPulled) tasksImported=\(report.tasksImported) updatesFromCalendar=\(report.tasksUpdatedFromCalendar)",
+                "tasksPushed=\(report.tasksPushed) eventsPulled=\(report.eventsPulled)"
+                    + " tasksImported=\(report.tasksImported)"
+                    + " updatesFromCalendar=\(report.tasksUpdatedFromCalendar)",
             )
         }
     #endif

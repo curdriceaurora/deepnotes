@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length function_body_length cyclomatic_complexity
 import Foundation
 import NotesDomain
 import NotesFeatures
@@ -775,39 +776,51 @@ private struct Options: Codable {
             case "--warmup-runs":
                 options.warmupRuns = try parseNonNegativeInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--kanban-cards":
-                options.kanbanTaskCount = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.kanbanTaskCount = try parsePositiveInt(flag: argument, value: val)
             case "--launch-dataset-notes":
-                options.launchDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.launchDatasetNotes = try parsePositiveInt(flag: argument, value: val)
             case "--launch-dataset-tasks":
-                options.launchDatasetTasks = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.launchDatasetTasks = try parsePositiveInt(flag: argument, value: val)
             case "--editor-dataset-notes":
-                options.editorDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.editorDatasetNotes = try parsePositiveInt(flag: argument, value: val)
             case "--search-dataset-notes":
-                options.searchDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.searchDatasetNotes = try parsePositiveInt(flag: argument, value: val)
             case "--search-runs":
                 options.searchRuns = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--target-fps":
                 options.targetFPS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
                 options.maxKanbanFrameP95MS = 1000 / options.targetFPS
             case "--max-launch-p95-ms":
-                options.maxLaunchToInteractiveP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxLaunchToInteractiveP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-open-note-p95-ms":
-                options.maxOpenNoteP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxOpenNoteP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-save-note-p95-ms":
-                options.maxSaveNoteEditP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSaveNoteEditP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-wikilink-backlinks-p95-ms":
                 options.maxWikilinkBacklinksRefreshP95MS = try parsePositiveDouble(
                     flag: argument,
                     value: value(after: argument, index: &index, from: arguments),
                 )
             case "--max-create-note-p95-ms":
-                options.maxCreateNoteP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxCreateNoteP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-search-50k-p95-ms":
-                options.maxSearch50kP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSearch50kP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-kanban-drag-commit-p95-ms":
-                options.maxKanbanDragCommitP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxKanbanDragCommitP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--max-kanban-frame-p95-ms":
-                options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--skip-kanban-render":
                 options.skipKanbanRender = true
             case "--report-json":

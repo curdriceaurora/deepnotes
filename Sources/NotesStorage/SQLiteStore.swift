@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length function_body_length
 import Foundation
 import NotesDomain
 import SQLite3
@@ -1141,7 +1142,9 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         let ftsRebuildSQL = """
         DELETE FROM notes_fts;
         INSERT INTO notes_fts (note_id, title, body)
-        SELECT id, title, body || CASE WHEN tags != '[]' THEN ' ' || replace(replace(replace(tags, '["', ''), '"]', ''), '","', ' ') ELSE '' END
+        SELECT id, title, body || CASE WHEN tags != '[]'
+            THEN ' ' || replace(replace(replace(tags, '["', ''), '"]', ''), '","', ' ')
+            ELSE '' END
         FROM notes
         WHERE deleted_at IS NULL;
         """

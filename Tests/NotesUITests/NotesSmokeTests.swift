@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length
 import Foundation
 import ViewInspector
 import XCTest
@@ -164,7 +165,10 @@ final class NotesSmokeTests: XCTestCase {
             "Search must filter the notes list to fewer results",
         )
         XCTAssertTrue(
-            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || viewModel.noteSearchSnippet(for: $0.id) != nil },
+            viewModel.notes.allSatisfy {
+                $0.title.localizedCaseInsensitiveContains("Vendor")
+                    || viewModel.noteSearchSnippet(for: $0.id) != nil
+            },
             "All returned notes must match the query by title or have a search snippet",
         )
     }

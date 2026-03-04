@@ -1,3 +1,4 @@
+// swiftlint:disable file_length type_body_length function_body_length cyclomatic_complexity
 import Foundation
 import SQLite3
 import XCTest

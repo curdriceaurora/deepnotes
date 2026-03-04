@@ -50,7 +50,8 @@
 
         public init(
             eventStore: EKEventStore = EKEventStore(),
-            authorizationStatusProvider: @escaping @Sendable () -> EKAuthorizationStatus = { EKEventStore.authorizationStatus(for: .event) },
+            authorizationStatusProvider: @escaping @Sendable () -> EKAuthorizationStatus
+                = { EKEventStore.authorizationStatus(for: .event) },
             nowProvider: @escaping @Sendable () -> Date = { Date() },
         ) {
             self.client = EventKitStoreClient(

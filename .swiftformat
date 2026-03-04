@@ -24,7 +24,7 @@
 --importgrouping testable-bottom
 
 # Disabled rules
---disable redundantSelf
+--disable redundantSelf,hoistAwait
 
 # Exclusions
 --exclude .build,DerivedData

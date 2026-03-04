@@ -1,3 +1,4 @@
+// swiftlint:disable type_body_length function_body_length function_parameter_count
 import Foundation
 import NotesDomain
 
@@ -616,7 +617,10 @@ public final class TwoWaySyncEngine: Sendable {
         switch binding.entityType {
         case .task:
             try await taskStore.tombstoneTask(id: binding.entityID, at: deletion.deletedAt)
-            try await bindingStore.tombstoneBinding(entityType: .task, entityID: binding.entityID, calendarID: configuration.calendarID, at: now)
+            try await bindingStore.tombstoneBinding(
+                entityType: .task, entityID: binding.entityID,
+                calendarID: configuration.calendarID, at: now,
+            )
         case .note:
             guard let noteStore else {
                 recordDiagnostic(
@@ -633,7 +637,10 @@ public final class TwoWaySyncEngine: Sendable {
                 return false
             }
             try await noteStore.tombstoneNote(id: binding.entityID, at: deletion.deletedAt)
-            try await bindingStore.tombstoneBinding(entityType: .note, entityID: binding.entityID, calendarID: configuration.calendarID, at: now)
+            try await bindingStore.tombstoneBinding(
+                entityType: .note, entityID: binding.entityID,
+                calendarID: configuration.calendarID, at: now,
+            )
         }
         return true
     }

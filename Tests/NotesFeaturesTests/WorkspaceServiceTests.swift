@@ -56,7 +56,7 @@ final class WorkspaceServiceTests: XCTestCase {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
 
         await XCTAssertThrowsErrorAsync(
-            try service.updateNote(id: UUID(), title: "Missing", body: ""),
+            try await service.updateNote(id: UUID(), title: "Missing", body: ""),
         )
     }
 
@@ -251,14 +251,14 @@ final class WorkspaceServiceTests: XCTestCase {
     func testSetTaskStatusThrowsWhenTaskMissing() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
         await XCTAssertThrowsErrorAsync(
-            try service.setTaskStatus(taskID: UUID(), status: .done),
+            try await service.setTaskStatus(taskID: UUID(), status: .done),
         )
     }
 
     func testCreateTaskPropagatesValidationError() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
         await XCTAssertThrowsErrorAsync(
-            try service.createTask(NewTaskInput(title: "Bad Priority", priority: 9)),
+            try await service.createTask(NewTaskInput(title: "Bad Priority", priority: 9)),
         ) { error in
             XCTAssertEqual(error as? DomainValidationError, .invalidPriority(9))
         }
