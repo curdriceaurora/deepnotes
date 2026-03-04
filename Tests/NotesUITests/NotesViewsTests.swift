@@ -150,7 +150,9 @@ final class NotesViewsTests: XCTestCase {
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
         await waitUntil {
-            !viewModel.notes.isEmpty
+            // Wait for search to complete: snippet must be available for the first matching note
+            guard let first = viewModel.notes.first else { return false }
+            return viewModel.noteSearchSnippet(for: first.id) != nil
         }
 
         guard let first = viewModel.notes.first else {

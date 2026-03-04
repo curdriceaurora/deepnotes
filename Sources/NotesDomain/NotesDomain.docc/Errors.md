@@ -40,11 +40,15 @@ do {
 **Usage:**
 ```swift
 do {
-    var task = try await workspace.task(withID: taskID)
-    task.priority = 1 // 0-5, where 0 is highest
-    try await workspace.updateTask(task)
-} catch TaskError.invalidPriority(let value) {
-    print("Invalid priority value: \(value)")
+    let task = try Task(
+        id: UUID(),
+        stableID: "task-1",
+        title: "Important",
+        priority: 10,  // Invalid: must be 0-5
+        updatedAt: Date()
+    )
+} catch DomainValidationError.invalidPriority(let value) {
+    print("Invalid priority value: \(value); must be 0-5")
 }
 ```
 
