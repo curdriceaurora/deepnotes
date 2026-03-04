@@ -1,5 +1,4 @@
 {
-  "originHash" : "6a25ae87bdaa574f5d91921b33570d5e6686e35bfe2961e92919d0858a2904bb",
   "pins" : [
     {
       "identity" : "swift-cmark",
@@ -24,10 +23,10 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/nalexn/ViewInspector.git",
       "state" : {
-        "revision" : "e9a06346499a3a889165647e3f23f8a7b2609a1c",
-        "version" : "0.10.3"
+        "revision" : "5acfa0a3c095ac9ad050abe51c60d1831e8321da",
+        "version" : "0.10.0"
       }
     }
   ],
-  "version" : 3
+  "version" : 2
 }

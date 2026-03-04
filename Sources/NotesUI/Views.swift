@@ -1548,16 +1548,21 @@ public struct SyncDashboardView: View {
 }
 
 private extension View {
+    @available(macOS 15.0, iOS 17.2, *)
+    func syncStatusIconEffectWithRotate(isActive: Bool) -> some View {
+        self.symbolEffect(.rotate, isActive: isActive)
+    }
+
     func syncStatusIconEffect(isActive: Bool) -> some View {
         #if os(macOS)
         if #available(macOS 15.0, *) {
-            return AnyView(self.symbolEffect(.rotate, isActive: isActive))
+            return AnyView(self.syncStatusIconEffectWithRotate(isActive: isActive))
         } else {
             return AnyView(self)
         }
         #else
         if #available(iOS 17.2, *) {
-            return AnyView(self.symbolEffect(.rotate, isActive: isActive))
+            return AnyView(self.syncStatusIconEffectWithRotate(isActive: isActive))
         } else {
             return AnyView(self)
         }
