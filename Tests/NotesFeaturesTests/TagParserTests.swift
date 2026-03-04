@@ -1,61 +1,51 @@
-import Testing
+import XCTest
 @testable import NotesFeatures
 
-@Suite("TagParser")
-struct TagParserTests {
-    let parser = TagParser()
+final class TagParserTests: XCTestCase {
+    private let parser = TagParser()
 
-    @Test("Extracts single tag")
-    func extractsSingleTag() {
+    func testExtractsSingleTag() {
         let tags = parser.extractTags(from: "Hello #world")
-        #expect(tags == ["world"])
+        XCTAssertEqual(tags, ["world"])
     }
 
-    @Test("Extracts multiple tags")
-    func extractsMultipleTags() {
+    func testExtractsMultipleTags() {
         let tags = parser.extractTags(from: "#first some text #second")
-        #expect(tags == ["first", "second"])
+        XCTAssertEqual(tags, ["first", "second"])
     }
 
-    @Test("Tags are lowercased")
-    func tagsAreLowercased() {
+    func testTagsAreLowercased() {
         let tags = parser.extractTags(from: "#MyTag #UPPER")
-        #expect(tags == ["mytag", "upper"])
+        XCTAssertEqual(tags, ["mytag", "upper"])
     }
 
-    @Test("Deduplicates tags")
-    func deduplicatesTags() {
+    func testDeduplicatesTags() {
         let tags = parser.extractTags(from: "#hello #Hello #HELLO")
-        #expect(tags == ["hello"])
+        XCTAssertEqual(tags, ["hello"])
     }
 
-    @Test("Ignores tags without leading space or start of line")
-    func ignoresEmbeddedHash() {
+    func testIgnoresEmbeddedHash() {
         let tags = parser.extractTags(from: "text#notag but #real")
-        #expect(tags == ["real"])
+        XCTAssertEqual(tags, ["real"])
     }
 
-    @Test("Supports slash and hyphen in tags")
-    func supportsSlashAndHyphen() {
+    func testSupportsSlashAndHyphen() {
         let tags = parser.extractTags(from: "#project/sub-task")
-        #expect(tags == ["project/sub-task"])
+        XCTAssertEqual(tags, ["project/sub-task"])
     }
 
-    @Test("Empty body returns empty array")
-    func emptyBodyReturnsEmpty() {
+    func testEmptyBodyReturnsEmpty() {
         let tags = parser.extractTags(from: "")
-        #expect(tags.isEmpty)
+        XCTAssertTrue(tags.isEmpty)
     }
 
-    @Test("Tag must start with letter")
-    func tagMustStartWithLetter() {
+    func testTagMustStartWithLetter() {
         let tags = parser.extractTags(from: "#123 #a1")
-        #expect(tags == ["a1"])
+        XCTAssertEqual(tags, ["a1"])
     }
 
-    @Test("Tag at start of line")
-    func tagAtStartOfLine() {
+    func testTagAtStartOfLine() {
         let tags = parser.extractTags(from: "#first\n#second")
-        #expect(tags == ["first", "second"])
+        XCTAssertEqual(tags, ["first", "second"])
     }
 }
