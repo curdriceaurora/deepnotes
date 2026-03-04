@@ -51,7 +51,7 @@ public actor EventKitCalendarProvider: CalendarProvider {
     public init(
         eventStore: EKEventStore = EKEventStore(),
         authorizationStatusProvider: @escaping @Sendable () -> EKAuthorizationStatus = { EKEventStore.authorizationStatus(for: .event) },
-        nowProvider: @escaping @Sendable () -> Date = Date.init
+        nowProvider: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.client = EventKitStoreClient(
             eventStore: eventStore,
@@ -61,7 +61,7 @@ public actor EventKitCalendarProvider: CalendarProvider {
         self.snapshotByCalendar = [:]
     }
 
-    init(client: any EventStoreClient, nowProvider: @escaping @Sendable () -> Date = Date.init) {
+    init(client: any EventStoreClient, nowProvider: @escaping @Sendable () -> Date = { Date() }) {
         self.client = client
         self.nowProvider = nowProvider
         self.snapshotByCalendar = [:]
