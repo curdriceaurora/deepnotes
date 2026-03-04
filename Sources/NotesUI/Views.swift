@@ -11,7 +11,6 @@ public struct NotesRootView: View {
     public init(viewModel: AppViewModel) {
         self.viewModel = viewModel
     }
-    /Users/rahul/Projects/notes-placeholder/Sources/NotesUI/Views.swift Cannot form key path that captures non-Sendable type 'KeyPath<AttributeScopes.FoundationAttributes, AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute>'; this is an error in the Swift 6 language mode
 
     public var body: some View {
         TabView {
