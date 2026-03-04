@@ -164,6 +164,8 @@ public struct NotesEditorView: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut("o", modifiers: [.command])
                 .accessibilityIdentifier("quickOpenButton")
+                .accessibilityLabel("Quick Open")
+                .accessibilityHint("Opens the quick note switcher")
                 Button {
                     _Concurrency.Task { await viewModel.openDailyNote() }
                 } label: {
@@ -182,6 +184,8 @@ public struct NotesEditorView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("newNoteButton")
+                .accessibilityLabel("New Note")
+                .accessibilityHint("Creates a new note")
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -199,6 +203,8 @@ public struct NotesEditorView: View {
                         _Concurrency.Task { await viewModel.setNoteSearchQuery(newValue) }
                     }
                     .accessibilityIdentifier("noteSearchField")
+                    .accessibilityLabel("Search Notes")
+                    .accessibilityHint("Search notes by title or content")
             }
             .padding(8)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
@@ -423,6 +429,8 @@ public struct NotesEditorView: View {
                 .controlSize(.small)
                 .tint(.accentColor)
                 .accessibilityIdentifier("saveNoteButton")
+                .accessibilityLabel("Save")
+                .accessibilityHint("Saves the current note")
 
                 Divider().frame(height: 20)
 
@@ -466,6 +474,8 @@ public struct NotesEditorView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .accessibilityIdentifier("quickTaskButton")
+                .accessibilityLabel("Add Task")
+                .accessibilityHint("Creates the task from the field")
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
@@ -556,6 +566,8 @@ public struct NotesEditorView: View {
             }
             .keyboardShortcut("1", modifiers: [.command, .shift])
             .accessibilityIdentifier("insertHeadingButton")
+            .accessibilityLabel("Insert Heading")
+            .accessibilityHint("Inserts a # heading at the cursor")
 
             Button {
                 viewModel.insertMarkdownBullet()
@@ -564,6 +576,8 @@ public struct NotesEditorView: View {
             }
             .keyboardShortcut("8", modifiers: [.command, .shift])
             .accessibilityIdentifier("insertBulletButton")
+            .accessibilityLabel("Insert Bullet")
+            .accessibilityHint("Inserts a bullet list item")
 
             Button {
                 viewModel.insertMarkdownCheckbox()
@@ -572,6 +586,8 @@ public struct NotesEditorView: View {
             }
             .keyboardShortcut("x", modifiers: [.command, .shift])
             .accessibilityIdentifier("insertCheckboxButton")
+            .accessibilityLabel("Insert Checkbox")
+            .accessibilityHint("Inserts a task checkbox")
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
@@ -650,6 +666,8 @@ public struct TasksListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .accessibilityIdentifier("taskFilterPicker")
+            .accessibilityLabel("Filter Tasks")
+            .accessibilityHint("Filter the task list by status: all, today, upcoming, overdue, or completed")
 
             List(viewModel.tasks, id: \.id) { task in
                 taskRow(task)
@@ -1421,6 +1439,8 @@ public struct SyncDashboardView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(viewModel.isSyncing)
                     .accessibilityIdentifier("runSyncButton")
+                    .accessibilityLabel("Sync")
+                    .accessibilityHint("Runs calendar sync")
 
                     HStack(spacing: 6) {
                         syncStatusIcon(isSyncing: viewModel.isSyncing)

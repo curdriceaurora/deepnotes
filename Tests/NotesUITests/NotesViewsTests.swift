@@ -597,6 +597,7 @@ final class NotesViewsTests: XCTestCase {
         // Should find backlinks list
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"))
     }
+
 }
 
 actor MockWorkspaceService: WorkspaceServicing {
