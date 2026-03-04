@@ -64,6 +64,11 @@ public final class AppViewModel {
 
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
+    public var taskSortOrder: TaskSortOrder = {
+        guard let raw = UserDefaults.standard.string(forKey: "taskSortOrder"),
+              let order = TaskSortOrder(rawValue: raw) else { return .dueDate }
+        return order
+    }()
     public var quickTaskTitle: String = ""
     public var quickTaskPriority: Int = 3
     public var selectedTaskForEditing: Task?
@@ -255,6 +260,12 @@ public final class AppViewModel {
 
     public func setTaskFilter(_ filter: TaskListFilter) async {
         taskFilter = filter
+        await reloadTasks()
+    }
+
+    public func setTaskSortOrder(_ order: TaskSortOrder) async {
+        taskSortOrder = order
+        UserDefaults.standard.set(order.rawValue, forKey: "taskSortOrder")
         await reloadTasks()
     }
 
@@ -886,7 +897,7 @@ public final class AppViewModel {
     }
 
     private func reloadTasksWithoutWrapper() async throws {
-        async let filtered = service.listTasks(filter: taskFilter)
+        async let filtered = service.listTasks(filter: taskFilter, sortOrder: taskSortOrder)
         async let all = service.listAllTasks()
         tasks = try await filtered
         allTasks = try await all

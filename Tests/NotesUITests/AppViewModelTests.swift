@@ -1825,6 +1825,25 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(callCount, 1)
     }
 
+    func testSetTaskSortOrderByPriority() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskSortOrder(.priority)
+        XCTAssertEqual(viewModel.taskSortOrder, .priority)
+        let sortOrderCalled = await service.listTasksSortOrderCalled
+        XCTAssertEqual(sortOrderCalled, .priority)
+    }
+
+    func testSetTaskSortOrderPersistsToUserDefaults() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskSortOrder(.title)
+        let saved = UserDefaults.standard.string(forKey: "taskSortOrder")
+        XCTAssertEqual(saved, "title")
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -2340,5 +2359,12 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     func requestNotificationPermission() async -> Bool {
         requestNotificationPermissionCallCount += 1
         return true
+    }
+
+    private(set) var listTasksSortOrderCalled: TaskSortOrder?
+
+    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
+        listTasksSortOrderCalled = sortOrder
+        return try await listTasks(filter: filter)
     }
 }

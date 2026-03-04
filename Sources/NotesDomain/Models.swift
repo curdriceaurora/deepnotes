@@ -8,6 +8,22 @@ public enum TaskStatus: String, Codable, CaseIterable, Sendable {
     case done
 }
 
+public enum TaskSortOrder: String, CaseIterable, Codable, Sendable {
+    case dueDate
+    case priority
+    case title
+    case creationDate
+
+    public var title: String {
+        switch self {
+        case .dueDate: return "Due Date"
+        case .priority: return "Priority"
+        case .title: return "Title"
+        case .creationDate: return "Date Added"
+        }
+    }
+}
+
 public struct Note: Codable, Equatable, Sendable {
     public var id: UUID
     public var stableID: String

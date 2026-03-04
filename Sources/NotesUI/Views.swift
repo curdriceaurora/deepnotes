@@ -686,6 +686,23 @@ public struct TasksListView: View {
         }
         .toolbar {
             ToolbarItemGroup {
+                Menu {
+                    ForEach(TaskSortOrder.allCases, id: \.self) { order in
+                        Button {
+                            _Concurrency.Task { await viewModel.setTaskSortOrder(order) }
+                        } label: {
+                            if viewModel.taskSortOrder == order {
+                                Label(order.title, systemImage: "checkmark")
+                            } else {
+                                Text(order.title)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+                .accessibilityIdentifier("taskSortMenu")
+
                 Button {
                     viewModel.toggleMultiSelectMode()
                 } label: {

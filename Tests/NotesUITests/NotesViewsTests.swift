@@ -38,6 +38,16 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "tasksList"))
     }
 
+    func testTasksListContainsSortMenu() async throws {
+        let viewModel = try makeViewModel()
+        await viewModel.load()
+
+        let view = TasksListView(viewModel: viewModel)
+        let inspected = try view.inspect()
+
+        XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "taskSortMenu"))
+    }
+
     func testKanbanRendersAllStatusColumns() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
@@ -1085,5 +1095,9 @@ actor MockWorkspaceService: WorkspaceServicing {
 
     func requestNotificationPermission() async -> Bool {
         return true
+    }
+
+    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
+        return try await listTasks(filter: filter)
     }
 }

@@ -60,3 +60,12 @@ public actor UserNotificationScheduler: NotificationScheduling {
 }
 
 #endif
+
+// No-op scheduler for use in tests (where UNUserNotificationCenter may not be available)
+public actor NoOpNotificationScheduler: NotificationScheduling {
+    public init() {}
+    public func requestAuthorization() async -> Bool { true }
+    public func scheduleReminder(for task: Task) async { }
+    public func cancelReminder(for taskID: UUID) async { }
+    public func cancelAllReminders() async { }
+}

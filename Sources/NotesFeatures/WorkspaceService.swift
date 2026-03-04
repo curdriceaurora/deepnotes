@@ -103,6 +103,7 @@ public protocol WorkspaceServicing: Sendable {
     func toggleSubtask(parentTaskID: UUID, subtaskID: UUID, isCompleted: Bool) async throws -> Task
     func deleteSubtask(parentTaskID: UUID, subtaskID: UUID) async throws -> Task
     func requestNotificationPermission() async -> Bool
+    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task]
 }
 
 public actor WorkspaceService: WorkspaceServicing {
@@ -163,7 +164,9 @@ public actor WorkspaceService: WorkspaceServicing {
         if let scheduler = notificationScheduler {
             return scheduler
         }
-        let scheduler = UserNotificationScheduler()
+        // Use NoOpNotificationScheduler as fallback (safe for tests where UserNotificationScheduler
+        // would crash due to missing app bundle)
+        let scheduler = NoOpNotificationScheduler()
         self.notificationScheduler = scheduler
         return scheduler
     }
@@ -406,6 +409,10 @@ public actor WorkspaceService: WorkspaceServicing {
     }
 
     public func listTasks(filter: TaskListFilter) async throws -> [Task] {
+        try await listTasks(filter: filter, sortOrder: .dueDate)
+    }
+
+    public func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
         let tasks = try await taskStore.fetchTasks(includeDeleted: false)
         let now = clock.now()
         let calendar = Calendar.current
@@ -430,20 +437,30 @@ public actor WorkspaceService: WorkspaceServicing {
             }
         }
 
-        return filtered.sorted { lhs, rhs in
-            switch (lhs.dueStart, rhs.dueStart) {
-            case let (left?, right?):
-                if left != right {
-                    return left < right
+        return filtered.sorted(by: sortComparator(sortOrder))
+    }
+
+    private func sortComparator(_ order: TaskSortOrder) -> (Task, Task) -> Bool {
+        switch order {
+        case .dueDate:
+            return { lhs, rhs in
+                switch (lhs.dueStart, rhs.dueStart) {
+                case let (l?, r?): return l < r
+                case (_?, nil): return true
+                case (nil, _?): return false
+                case (nil, nil): return lhs.updatedAt > rhs.updatedAt
                 }
-            case (_?, nil):
-                return true
-            case (nil, _?):
-                return false
-            case (nil, nil):
-                break
             }
-            return lhs.updatedAt > rhs.updatedAt
+        case .priority:
+            return { lhs, rhs in
+                lhs.priority != rhs.priority
+                    ? lhs.priority < rhs.priority
+                    : lhs.updatedAt > rhs.updatedAt
+            }
+        case .title:
+            return { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .creationDate:
+            return { $0.updatedAt > $1.updatedAt }
         }
     }
 

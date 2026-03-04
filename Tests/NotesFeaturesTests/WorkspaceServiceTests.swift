@@ -450,6 +450,81 @@ final class WorkspaceServiceTests: XCTestCase {
         )
     }
 
+    func testListTasksSortedByDueDate() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+        let tomorrow = now.addingTimeInterval(86400)
+        let nextWeek = now.addingTimeInterval(86400 * 7)
+
+        let task1 = try await service.createTask(.init(
+            title: "Task A", dueStart: nextWeek, priority: 3
+        ))
+        let task2 = try await service.createTask(.init(
+            title: "Task B", dueStart: tomorrow, priority: 3
+        ))
+        let task3 = try await service.createTask(.init(
+            title: "Task C", priority: 3  // No due date
+        ))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .dueDate)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // tomorrow first
+        XCTAssertEqual(sorted[1].id, task1.id)  // next week second
+        XCTAssertEqual(sorted[2].id, task3.id)  // no due date last
+    }
+
+    func testListTasksSortedByPriority() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(
+            title: "Low Priority", dueStart: now, priority: 4
+        ))
+        let task2 = try await service.createTask(.init(
+            title: "High Priority", dueStart: now, priority: 1
+        ))
+        let task3 = try await service.createTask(.init(
+            title: "Medium Priority", dueStart: now, priority: 2
+        ))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .priority)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // priority 1
+        XCTAssertEqual(sorted[1].id, task3.id)  // priority 2
+        XCTAssertEqual(sorted[2].id, task1.id)  // priority 4
+    }
+
+    func testListTasksSortedByTitle() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(title: "Zebra", priority: 3))
+        let task2 = try await service.createTask(.init(title: "Apple", priority: 3))
+        let task3 = try await service.createTask(.init(title: "Mango", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .title)
+
+        XCTAssertEqual(sorted[0].id, task2.id)  // Apple
+        XCTAssertEqual(sorted[1].id, task3.id)  // Mango
+        XCTAssertEqual(sorted[2].id, task1.id)  // Zebra
+    }
+
+    func testListTasksSortedByCreationDate() async throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let service = try makeService(now: now)
+
+        let task1 = try await service.createTask(.init(title: "First", priority: 3))
+        let task2 = try await service.createTask(.init(title: "Second", priority: 3))
+        let task3 = try await service.createTask(.init(title: "Third", priority: 3))
+
+        let sorted = try await service.listTasks(filter: .all, sortOrder: .creationDate)
+
+        // Creation date sort is descending (newest first)
+        XCTAssertEqual(sorted[0].id, task3.id)
+        XCTAssertEqual(sorted[1].id, task2.id)
+        XCTAssertEqual(sorted[2].id, task1.id)
+    }
+
     private func makeStore() throws -> SQLiteStore {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("notes-engine-feature-tests")
