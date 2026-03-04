@@ -1,9 +1,9 @@
 import Foundation
-import SwiftUI
-import NotesUI
-import NotesStorage
 import NotesFeatures
+import NotesStorage
 import NotesSync
+import NotesUI
+import SwiftUI
 
 @main
 struct NotesApplication: App {
@@ -15,24 +15,24 @@ struct NotesApplication: App {
         do {
             try FileManager.default.createDirectory(
                 at: databaseURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
+                withIntermediateDirectories: true,
             )
 
             let store = try SQLiteStore(databaseURL: databaseURL)
             let service = WorkspaceService(store: store)
 
             #if canImport(EventKit)
-            let liveProvider = EventKitCalendarProvider()
-            let providerFactory: CalendarProviderFactory = { liveProvider }
+                let liveProvider = EventKitCalendarProvider()
+                let providerFactory: CalendarProviderFactory = { liveProvider }
             #else
-            let localProvider = InMemoryCalendarProvider()
-            let providerFactory: CalendarProviderFactory = { localProvider }
+                let localProvider = InMemoryCalendarProvider()
+                let providerFactory: CalendarProviderFactory = { localProvider }
             #endif
 
             _viewModel = State(initialValue: AppViewModel(
                 service: service,
                 calendarProviderFactory: providerFactory,
-                syncCalendarID: ""
+                syncCalendarID: "",
             ))
         } catch {
             fatalError("Failed to initialize app storage at \(databaseURL.path): \(error.localizedDescription)")

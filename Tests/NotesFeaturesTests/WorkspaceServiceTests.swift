@@ -1,8 +1,8 @@
-import XCTest
 import Foundation
+import XCTest
 @testable import NotesDomain
-@testable import NotesStorage
 @testable import NotesFeatures
+@testable import NotesStorage
 @testable import NotesSync
 
 final class WorkspaceServiceTests: XCTestCase {
@@ -29,7 +29,7 @@ final class WorkspaceServiceTests: XCTestCase {
             checkpointStore: store,
             templateStore: store,
             kanbanColumnStore: store,
-            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000)),
         )
 
         let target = try await service.createNote(title: "Q2 Launch Plan", body: "Roadmap")
@@ -56,7 +56,7 @@ final class WorkspaceServiceTests: XCTestCase {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
 
         await XCTAssertThrowsErrorAsync(
-            try await service.updateNote(id: UUID(), title: "Missing", body: "")
+            try await service.updateNote(id: UUID(), title: "Missing", body: ""),
         )
     }
 
@@ -88,7 +88,7 @@ final class WorkspaceServiceTests: XCTestCase {
             query: "launch",
             mode: .smart,
             limit: 1,
-            offset: 0
+            offset: 0,
         )
         XCTAssertEqual(firstPage.totalCount, 2)
         XCTAssertEqual(firstPage.hits.count, 1)
@@ -99,7 +99,7 @@ final class WorkspaceServiceTests: XCTestCase {
             query: "launch",
             mode: .smart,
             limit: 1,
-            offset: 1
+            offset: 1,
         )
         XCTAssertEqual(secondPage.totalCount, 2)
         XCTAssertEqual(secondPage.hits.count, 1)
@@ -115,7 +115,7 @@ final class WorkspaceServiceTests: XCTestCase {
             dueStart: now.addingTimeInterval(-3600),
             dueEnd: now.addingTimeInterval(-1800),
             status: .next,
-            priority: 2
+            priority: 2,
         ))
 
         _ = try await service.createTask(NewTaskInput(
@@ -123,15 +123,15 @@ final class WorkspaceServiceTests: XCTestCase {
             dueStart: now.addingTimeInterval(3600),
             dueEnd: now.addingTimeInterval(7200),
             status: .doing,
-            priority: 3
+            priority: 3,
         ))
 
         _ = try await service.createTask(NewTaskInput(
             title: "Upcoming",
-            dueStart: now.addingTimeInterval(86_400 * 2),
-            dueEnd: now.addingTimeInterval(86_400 * 2 + 3600),
+            dueStart: now.addingTimeInterval(86400 * 2),
+            dueEnd: now.addingTimeInterval(86400 * 2 + 3600),
             status: .waiting,
-            priority: 1
+            priority: 1,
         ))
 
         let overdue = try await service.listTasks(filter: .overdue)
@@ -200,14 +200,14 @@ final class WorkspaceServiceTests: XCTestCase {
             checkpointStore: store,
             templateStore: store,
             kanbanColumnStore: store,
-            clock: FixedClock(current: now)
+            clock: FixedClock(current: now),
         )
 
         var created: [Task] = []
-        created.reserveCapacity(1_000)
-        for idx in 0..<1_000 {
+        created.reserveCapacity(1000)
+        for idx in 0 ..< 1000 {
             let task = try await service.createTask(
-                NewTaskInput(title: "Task \(idx)", status: .backlog, priority: 2)
+                NewTaskInput(title: "Task \(idx)", status: .backlog, priority: 2),
             )
             created.append(task)
         }
@@ -229,8 +229,8 @@ final class WorkspaceServiceTests: XCTestCase {
                 return $0.id.uuidString < $1.id.uuidString
             }
 
-        XCTAssertEqual(backlogTasks.count, 1_000)
-        XCTAssertEqual(Set(backlogTasks.map(\.id)).count, 1_000)
+        XCTAssertEqual(backlogTasks.count, 1000)
+        XCTAssertEqual(Set(backlogTasks.map(\.id)).count, 1000)
         XCTAssertTrue(backlogTasks.allSatisfy { $0.kanbanOrder.isFinite && !$0.kanbanOrder.isNaN })
         XCTAssertEqual(backlogTasks.last?.id, first.id)
     }
@@ -251,14 +251,14 @@ final class WorkspaceServiceTests: XCTestCase {
     func testSetTaskStatusThrowsWhenTaskMissing() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
         await XCTAssertThrowsErrorAsync(
-            try await service.setTaskStatus(taskID: UUID(), status: .done)
+            try await service.setTaskStatus(taskID: UUID(), status: .done),
         )
     }
 
     func testCreateTaskPropagatesValidationError() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
         await XCTAssertThrowsErrorAsync(
-            try await service.createTask(NewTaskInput(title: "Bad Priority", priority: 9))
+            try await service.createTask(NewTaskInput(title: "Bad Priority", priority: 9)),
         ) { error in
             XCTAssertEqual(error as? DomainValidationError, .invalidPriority(9))
         }
@@ -276,13 +276,13 @@ final class WorkspaceServiceTests: XCTestCase {
             startDate: Date(timeIntervalSince1970: 1_700_000_500),
             endDate: Date(timeIntervalSince1970: 1_700_000_900),
             updatedAt: Date(timeIntervalSince1970: 1_700_000_500),
-            sourceStableID: "from-calendar"
+            sourceStableID: "from-calendar",
         )
         await provider.seed(event: event)
 
         let report = try await service.runSync(
             configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"),
-            calendarProvider: provider
+            calendarProvider: provider,
         )
 
         XCTAssertEqual(report.tasksImported, 1)
@@ -364,7 +364,7 @@ final class WorkspaceServiceTests: XCTestCase {
             checkpointStore: store,
             templateStore: store,
             kanbanColumnStore: store,
-            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000)),
         )
 
         let custom = try await service.createKanbanColumn(title: "Review")
@@ -415,7 +415,7 @@ final class WorkspaceServiceTests: XCTestCase {
             checkpointStore: store,
             templateStore: store,
             kanbanColumnStore: store,
-            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000))
+            clock: FixedClock(current: Date(timeIntervalSince1970: 1_700_000_000)),
         )
 
         let custom = try await service.createKanbanColumn(title: "Custom Col")
@@ -449,7 +449,7 @@ final class WorkspaceServiceTests: XCTestCase {
             checkpointStore: store,
             templateStore: store,
             kanbanColumnStore: store,
-            clock: FixedClock(current: now)
+            clock: FixedClock(current: now),
         )
     }
 
@@ -460,20 +460,20 @@ final class WorkspaceServiceTests: XCTestCase {
         let nextWeek = now.addingTimeInterval(86400 * 7)
 
         let task1 = try await service.createTask(.init(
-            title: "Task A", dueStart: nextWeek, priority: 3
+            title: "Task A", dueStart: nextWeek, priority: 3,
         ))
         let task2 = try await service.createTask(.init(
-            title: "Task B", dueStart: tomorrow, priority: 3
+            title: "Task B", dueStart: tomorrow, priority: 3,
         ))
         let task3 = try await service.createTask(.init(
-            title: "Task C", priority: 3  // No due date
+            title: "Task C", priority: 3, // No due date
         ))
 
         let sorted = try await service.listTasks(filter: .all, sortOrder: .dueDate)
 
-        XCTAssertEqual(sorted[0].id, task2.id)  // tomorrow first
-        XCTAssertEqual(sorted[1].id, task1.id)  // next week second
-        XCTAssertEqual(sorted[2].id, task3.id)  // no due date last
+        XCTAssertEqual(sorted[0].id, task2.id) // tomorrow first
+        XCTAssertEqual(sorted[1].id, task1.id) // next week second
+        XCTAssertEqual(sorted[2].id, task3.id) // no due date last
     }
 
     func testListTasksSortedByPriority() async throws {
@@ -481,20 +481,20 @@ final class WorkspaceServiceTests: XCTestCase {
         let service = try makeService(now: now)
 
         let task1 = try await service.createTask(.init(
-            title: "Low Priority", dueStart: now, priority: 4
+            title: "Low Priority", dueStart: now, priority: 4,
         ))
         let task2 = try await service.createTask(.init(
-            title: "High Priority", dueStart: now, priority: 1
+            title: "High Priority", dueStart: now, priority: 1,
         ))
         let task3 = try await service.createTask(.init(
-            title: "Medium Priority", dueStart: now, priority: 2
+            title: "Medium Priority", dueStart: now, priority: 2,
         ))
 
         let sorted = try await service.listTasks(filter: .all, sortOrder: .priority)
 
-        XCTAssertEqual(sorted[0].id, task2.id)  // priority 1
-        XCTAssertEqual(sorted[1].id, task3.id)  // priority 2
-        XCTAssertEqual(sorted[2].id, task1.id)  // priority 4
+        XCTAssertEqual(sorted[0].id, task2.id) // priority 1
+        XCTAssertEqual(sorted[1].id, task3.id) // priority 2
+        XCTAssertEqual(sorted[2].id, task1.id) // priority 4
     }
 
     func testListTasksSortedByTitle() async throws {
@@ -507,9 +507,9 @@ final class WorkspaceServiceTests: XCTestCase {
 
         let sorted = try await service.listTasks(filter: .all, sortOrder: .title)
 
-        XCTAssertEqual(sorted[0].id, task2.id)  // Apple
-        XCTAssertEqual(sorted[1].id, task3.id)  // Mango
-        XCTAssertEqual(sorted[2].id, task1.id)  // Zebra
+        XCTAssertEqual(sorted[0].id, task2.id) // Apple
+        XCTAssertEqual(sorted[1].id, task3.id) // Mango
+        XCTAssertEqual(sorted[2].id, task1.id) // Zebra
     }
 
     func testListTasksSortedByCreationDate() async throws {
@@ -560,7 +560,7 @@ final class WorkspaceServiceTests: XCTestCase {
 
         let sorted = try await service.listTasks(filter: .all, sortOrder: .title)
 
-        XCTAssertEqual(sorted.map { $0.title }, ["APPLE", "mAnGo", "zebra"])
+        XCTAssertEqual(sorted.map(\.title), ["APPLE", "mAnGo", "zebra"])
     }
 
     func testListTasksSortWithFilterToday() async throws {
@@ -573,7 +573,7 @@ final class WorkspaceServiceTests: XCTestCase {
 
         let sorted = try await service.listTasks(filter: .today, sortOrder: .priority)
 
-        XCTAssertEqual(sorted.map { $0.id }, [todayTask2.id, todayTask1.id])
+        XCTAssertEqual(sorted.map(\.id), [todayTask2.id, todayTask1.id])
     }
 
     func testListTasksSortWithFilterCompleted() async throws {
@@ -587,7 +587,7 @@ final class WorkspaceServiceTests: XCTestCase {
 
         let sorted = try await service.listTasks(filter: .completed, sortOrder: .priority)
 
-        XCTAssertEqual(sorted.map { $0.id }, [done2.id, done1.id])
+        XCTAssertEqual(sorted.map(\.id), [done2.id, done1.id])
     }
 
     func testSortOrderPreservesAcrossMultipleFilters() async throws {
@@ -599,11 +599,11 @@ final class WorkspaceServiceTests: XCTestCase {
 
         let expectedTitles = ["A-Task", "Z-Task"]
         var sorted = try await service.listTasks(filter: .all, sortOrder: .title)
-        XCTAssertEqual(sorted.map { $0.title }, expectedTitles)
+        XCTAssertEqual(sorted.map(\.title), expectedTitles)
 
         // Same sort should apply to different filter
         sorted = try await service.listTasks(filter: .upcoming, sortOrder: .title)
-        XCTAssertEqual(sorted.map { $0.title }, expectedTitles)
+        XCTAssertEqual(sorted.map(\.title), expectedTitles)
     }
 
     private func makeStore() throws -> SQLiteStore {
@@ -615,12 +615,12 @@ final class WorkspaceServiceTests: XCTestCase {
     }
 }
 
-private func XCTAssertThrowsErrorAsync<T>(
-    _ expression: @autoclosure () async throws -> T,
+private func XCTAssertThrowsErrorAsync(
+    _ expression: @autoclosure () async throws -> some Any,
     _ message: @autoclosure () -> String = "",
     file: StaticString = #filePath,
     line: UInt = #line,
-    _ errorHandler: (Error) -> Void = { _ in }
+    _ errorHandler: (Error) -> Void = { _ in },
 ) async {
     do {
         _ = try await expression()

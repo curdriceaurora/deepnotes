@@ -38,10 +38,10 @@ public enum TaskSortOrder: String, CaseIterable, Codable, Sendable {
     /// - Returns: Localized string suitable for UI display (e.g., "Due Date", "Priority")
     public var title: String {
         switch self {
-        case .dueDate: return "Due Date"
-        case .priority: return "Priority"
-        case .title: return "Title"
-        case .creationDate: return "Date Added"
+        case .dueDate: "Due Date"
+        case .priority: "Priority"
+        case .title: "Title"
+        case .creationDate: "Date Added"
         }
     }
 }
@@ -121,7 +121,7 @@ public struct Note: Codable, Equatable, Sendable {
         calendarSyncEnabled: Bool = false,
         updatedAt: Date,
         version: Int64 = 0,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
     ) {
         if let dateStart, let dateEnd, dateEnd < dateStart {
             // Keep Notes init non-throwing to preserve call-site ergonomics.
@@ -231,7 +231,7 @@ public struct NoteSearchPage: Codable, Equatable, Sendable {
         offset: Int,
         limit: Int,
         totalCount: Int,
-        hits: [NoteSearchHit]
+        hits: [NoteSearchHit],
     ) {
         self.query = query
         self.mode = mode
@@ -341,9 +341,9 @@ public struct Task: Identifiable, Codable, Equatable, Sendable {
         deletedAt: Date? = nil,
         labels: [TaskLabel] = [],
         kanbanColumnID: UUID? = nil,
-        subtasks: [Subtask] = []
+        subtasks: [Subtask] = [],
     ) throws {
-        guard (0...5).contains(priority) else {
+        guard (0 ... 5).contains(priority) else {
             throw DomainValidationError.invalidPriority(priority)
         }
         if let dueStart, let dueEnd, dueEnd < dueStart {
@@ -439,7 +439,7 @@ public struct CalendarEvent: Codable, Equatable, Sendable {
         isCompleted: Bool = false,
         updatedAt: Date,
         sourceEntityType: CalendarBindingEntityType? = nil,
-        sourceStableID: String? = nil
+        sourceStableID: String? = nil,
     ) throws {
         if let startDate, let endDate, endDate < startDate {
             throw DomainValidationError.invalidDateRange
@@ -471,7 +471,7 @@ public struct CalendarDeletion: Equatable, Sendable {
         eventIdentifier: String? = nil,
         externalIdentifier: String? = nil,
         calendarID: String,
-        deletedAt: Date
+        deletedAt: Date,
     ) {
         self.eventIdentifier = eventIdentifier
         self.externalIdentifier = externalIdentifier
@@ -545,7 +545,7 @@ public struct CalendarBinding: Codable, Equatable, Sendable {
         lastEntityVersion: Int64 = 0,
         lastEventUpdatedAt: Date? = nil,
         lastSyncedAt: Date? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
     ) {
         self.entityType = entityType
         self.entityID = entityID
@@ -566,7 +566,7 @@ public struct CalendarBinding: Codable, Equatable, Sendable {
         lastTaskVersion: Int64 = 0,
         lastEventUpdatedAt: Date? = nil,
         lastSyncedAt: Date? = nil,
-        deletedAt: Date? = nil
+        deletedAt: Date? = nil,
     ) {
         self.init(
             entityType: .task,
@@ -577,7 +577,7 @@ public struct CalendarBinding: Codable, Equatable, Sendable {
             lastEntityVersion: lastTaskVersion,
             lastEventUpdatedAt: lastEventUpdatedAt,
             lastSyncedAt: lastSyncedAt,
-            deletedAt: deletedAt
+            deletedAt: deletedAt,
         )
     }
 }
@@ -599,7 +599,7 @@ public struct SyncCheckpoint: Codable, Equatable, Sendable {
         taskVersionCursor: Int64,
         noteVersionCursor: Int64 = 0,
         calendarToken: String?,
-        updatedAt: Date
+        updatedAt: Date,
     ) {
         self.id = id
         self.taskVersionCursor = taskVersionCursor
@@ -712,7 +712,7 @@ public struct KanbanColumn: Identifiable, Codable, Equatable, Sendable {
         builtInStatus: TaskStatus? = nil,
         position: Int,
         wipLimit: Int? = nil,
-        colorHex: String? = nil
+        colorHex: String? = nil,
     ) {
         self.id = id
         self.title = title

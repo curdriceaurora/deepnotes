@@ -1,7 +1,7 @@
-import XCTest
 import Foundation
-@testable import NotesStorage
+import XCTest
 @testable import NotesDomain
+@testable import NotesStorage
 
 final class SQLiteStoreTests: XCTestCase {
     func testUpsertAndFetchNote() async throws {
@@ -10,7 +10,7 @@ final class SQLiteStoreTests: XCTestCase {
         let note = Note(
             title: "Q2 Launch Plan",
             body: "Roadmap and milestones",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
 
         let persisted = try await store.upsertNote(note)
@@ -33,7 +33,7 @@ final class SQLiteStoreTests: XCTestCase {
             status: .next,
             priority: 3,
             recurrenceRule: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
 
         let persisted = try await store.upsertTask(task)
@@ -51,7 +51,7 @@ final class SQLiteStoreTests: XCTestCase {
             id: UUID(),
             stableID: "task-repeatable-id",
             title: "Initial",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         let persistedFirst = try await store.upsertTask(first)
 
@@ -59,7 +59,7 @@ final class SQLiteStoreTests: XCTestCase {
             id: UUID(),
             stableID: "task-repeatable-id",
             title: "Edited title",
-            updatedAt: Date(timeIntervalSince1970: 1_700_010_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_010_000),
         )
 
         let persistedSecond = try await store.upsertTask(second)
@@ -78,7 +78,7 @@ final class SQLiteStoreTests: XCTestCase {
             title: "Ordered",
             status: .backlog,
             kanbanOrder: 42.5,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
 
         let persisted = try await store.upsertTask(task)
@@ -94,7 +94,7 @@ final class SQLiteStoreTests: XCTestCase {
         let task = try Task(
             stableID: "task-delete",
             title: "Delete me",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         let persisted = try await store.upsertTask(task)
 
@@ -117,7 +117,7 @@ final class SQLiteStoreTests: XCTestCase {
         let task = try Task(
             stableID: "task-delete-visible",
             title: "Needs cleanup",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         let persisted = try await store.upsertTask(task)
         try await store.tombstoneTask(id: persisted.id, at: Date(timeIntervalSince1970: 1_700_005_000))
@@ -135,10 +135,10 @@ final class SQLiteStoreTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
         let alpha = try await store.upsertNote(
-            Note(title: "Alpha Sprint Plan", body: "Discuss launch checklist and timeline", updatedAt: now)
+            Note(title: "Alpha Sprint Plan", body: "Discuss launch checklist and timeline", updatedAt: now),
         )
         _ = try await store.upsertNote(
-            Note(title: "Beta", body: "Contains vendor meeting details", updatedAt: now.addingTimeInterval(1))
+            Note(title: "Beta", body: "Contains vendor meeting details", updatedAt: now.addingTimeInterval(1)),
         )
 
         let alphaMatches = try await store.searchNotes(query: "alpha launch", limit: 20)
@@ -155,17 +155,17 @@ final class SQLiteStoreTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
         let phraseMatch = try await store.upsertNote(
-            Note(title: "Release", body: "launch checklist and owners", updatedAt: now)
+            Note(title: "Release", body: "launch checklist and owners", updatedAt: now),
         )
         _ = try await store.upsertNote(
-            Note(title: "Non Phrase", body: "launch prep then checklist later", updatedAt: now.addingTimeInterval(1))
+            Note(title: "Non Phrase", body: "launch prep then checklist later", updatedAt: now.addingTimeInterval(1)),
         )
 
         let page = try await store.searchNotes(
             query: "launch checklist",
             mode: .phrase,
             limit: 10,
-            offset: 0
+            offset: 0,
         )
 
         XCTAssertEqual(page.totalCount, 1)
@@ -177,17 +177,17 @@ final class SQLiteStoreTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
         let planning = try await store.upsertNote(
-            Note(title: "Planning Board", body: "Project plan details", updatedAt: now)
+            Note(title: "Planning Board", body: "Project plan details", updatedAt: now),
         )
         _ = try await store.upsertNote(
-            Note(title: "Execution", body: "Build and ship", updatedAt: now.addingTimeInterval(1))
+            Note(title: "Execution", body: "Build and ship", updatedAt: now.addingTimeInterval(1)),
         )
 
         let page = try await store.searchNotes(
             query: "plan",
             mode: .prefix,
             limit: 10,
-            offset: 0
+            offset: 0,
         )
 
         XCTAssertEqual(page.totalCount, 1)
@@ -199,20 +199,20 @@ final class SQLiteStoreTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
         let first = try await store.upsertNote(
-            Note(title: "One", body: "launch alpha details", updatedAt: now)
+            Note(title: "One", body: "launch alpha details", updatedAt: now),
         )
         let second = try await store.upsertNote(
-            Note(title: "Two", body: "launch beta notes", updatedAt: now.addingTimeInterval(1))
+            Note(title: "Two", body: "launch beta notes", updatedAt: now.addingTimeInterval(1)),
         )
         let third = try await store.upsertNote(
-            Note(title: "Three", body: "launch gamma timeline", updatedAt: now.addingTimeInterval(2))
+            Note(title: "Three", body: "launch gamma timeline", updatedAt: now.addingTimeInterval(2)),
         )
 
         let page1 = try await store.searchNotes(
             query: "launch",
             mode: .smart,
             limit: 2,
-            offset: 0
+            offset: 0,
         )
         XCTAssertEqual(page1.totalCount, 3)
         XCTAssertEqual(page1.hits.count, 2)
@@ -223,7 +223,7 @@ final class SQLiteStoreTests: XCTestCase {
             query: "launch",
             mode: .smart,
             limit: 2,
-            offset: 2
+            offset: 2,
         )
         XCTAssertEqual(page2.totalCount, 3)
         XCTAssertEqual(page2.hits.count, 1)

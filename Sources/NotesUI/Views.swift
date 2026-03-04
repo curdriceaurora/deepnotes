@@ -1,7 +1,8 @@
-import SwiftUI
+// swiftlint:disable file_length function_body_length cyclomatic_complexity
 import NotesDomain
 import NotesFeatures
 import NotesSync
+import SwiftUI
 
 @MainActor
 public struct NotesRootView: View {
@@ -58,9 +59,9 @@ public struct NotesRootView: View {
                     if !isPresented {
                         viewModel.dismissRecurrenceEditPrompt()
                     }
-                }
+                },
             ),
-            titleVisibility: .visible
+            titleVisibility: .visible,
         ) {
             Button("This Occurrence") {
                 _Concurrency.Task {
@@ -79,7 +80,11 @@ public struct NotesRootView: View {
             }
         } message: {
             if let occurrenceDate = viewModel.recurrenceEditPrompt?.occurrenceDate {
-                Text("Choose whether to update only the detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or the parent series.")
+                Text(
+                    "Choose whether to update only the detached occurrence"
+                        + " (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened)))"
+                        + " or the parent series.",
+                )
             } else {
                 Text("Choose whether to update only the detached occurrence or the parent series.")
             }
@@ -92,9 +97,9 @@ public struct NotesRootView: View {
                     if !isPresented {
                         viewModel.dismissRecurrenceDeletePrompt()
                     }
-                }
+                },
             ),
-            titleVisibility: .visible
+            titleVisibility: .visible,
         ) {
             Button("This Occurrence", role: .destructive) {
                 _Concurrency.Task {
@@ -113,7 +118,11 @@ public struct NotesRootView: View {
             }
         } message: {
             if let occurrenceDate = viewModel.recurrenceDeletePrompt?.occurrenceDate {
-                Text("Delete only detached occurrence (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened))) or delete the entire recurring series.")
+                Text(
+                    "Delete only detached occurrence"
+                        + " (\(occurrenceDate.formatted(date: .abbreviated, time: .shortened)))"
+                        + " or delete the entire recurring series.",
+                )
             } else {
                 Text("Delete only this detached occurrence or the entire recurring series.")
             }
@@ -232,12 +241,12 @@ public struct NotesEditorView: View {
                                         viewModel.selectedTagFilter == tag
                                             ? Color.accentColor.opacity(0.2)
                                             : Color.secondary.opacity(0.1),
-                                        in: Capsule()
+                                        in: Capsule(),
                                     )
                                     .foregroundStyle(
                                         viewModel.selectedTagFilter == tag
                                             ? Color.accentColor
-                                            : Color.secondary
+                                            : Color.secondary,
                                     )
                             }
                             .buttonStyle(.plain)
@@ -286,7 +295,7 @@ public struct NotesEditorView: View {
                 .listRowBackground(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 4),
                 )
                 .accessibilityIdentifier("noteRow_\(note.id.uuidString)")
                 .onAppear {
@@ -306,20 +315,20 @@ public struct NotesEditorView: View {
 
         var result = AttributedString()
         var searchStart = snippet.startIndex
-        while let openRange = snippet.range(of: openTag, range: searchStart..<snippet.endIndex) {
-            let prefix = String(snippet[searchStart..<openRange.lowerBound])
+        while let openRange = snippet.range(of: openTag, range: searchStart ..< snippet.endIndex) {
+            let prefix = String(snippet[searchStart ..< openRange.lowerBound])
             if !prefix.isEmpty {
                 result.append(AttributedString(prefix))
             }
 
             let markedStart = openRange.upperBound
-            guard let closeRange = snippet.range(of: closeTag, range: markedStart..<snippet.endIndex) else {
-                let remainder = String(snippet[openRange.lowerBound..<snippet.endIndex])
+            guard let closeRange = snippet.range(of: closeTag, range: markedStart ..< snippet.endIndex) else {
+                let remainder = String(snippet[openRange.lowerBound ..< snippet.endIndex])
                 result.append(AttributedString(remainder))
                 return result
             }
 
-            let markedValue = String(snippet[markedStart..<closeRange.lowerBound])
+            let markedValue = String(snippet[markedStart ..< closeRange.lowerBound])
             if !markedValue.isEmpty {
                 var highlighted = AttributedString(markedValue)
                 highlighted.foregroundColor = .accentColor
@@ -329,7 +338,7 @@ public struct NotesEditorView: View {
             searchStart = closeRange.upperBound
         }
 
-        let tail = String(snippet[searchStart..<snippet.endIndex])
+        let tail = String(snippet[searchStart ..< snippet.endIndex])
         if !tail.isEmpty {
             result.append(AttributedString(tail))
         }
@@ -389,7 +398,7 @@ public struct NotesEditorView: View {
                 .accessibilityIdentifier("noteBodyPreview")
             }
 
-            if viewModel.isWikiLinkSuggestionVisible && viewModel.noteEditMode == .edit {
+            if viewModel.isWikiLinkSuggestionVisible, viewModel.noteEditMode == .edit {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(Array(viewModel.wikiLinkSuggestions.enumerated()), id: \.offset) { index, suggestion in
@@ -442,7 +451,7 @@ public struct NotesEditorView: View {
                     .accessibilityIdentifier("quickTaskField")
 
                 Menu {
-                    ForEach(0...5, id: \.self) { priority in
+                    ForEach(0 ... 5, id: \.self) { priority in
                         Button {
                             viewModel.quickTaskPriority = priority
                         } label: {
@@ -967,7 +976,7 @@ public struct KanbanBoardView: View {
         }
         .accessibilityIdentifier(
             column.builtInStatus.map { "kanbanColumn_\($0.rawValue)" }
-                ?? "kanbanColumn_\(column.id.uuidString)"
+                ?? "kanbanColumn_\(column.id.uuidString)",
         )
     }
 
@@ -1096,7 +1105,7 @@ public struct KanbanBoardView: View {
         .dnCard(cornerRadius: 8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2)
+                .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2),
         )
         .animation(.spring(duration: 0.2), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
@@ -1118,18 +1127,18 @@ public struct KanbanBoardView: View {
         }
         .focusable()
         #if os(macOS)
-        .onMoveCommand { direction in
-            switch direction {
-            case .left:
-                moveLeftAction()
-            case .right:
-                moveRightAction()
-            default:
-                break
+            .onMoveCommand { direction in
+                switch direction {
+                case .left:
+                    moveLeftAction()
+                case .right:
+                    moveRightAction()
+                default:
+                    break
+                }
             }
-        }
         #endif
-        .accessibilityIdentifier("kanbanCard_\(task.id.uuidString)")
+            .accessibilityIdentifier("kanbanCard_\(task.id.uuidString)")
     }
 }
 
@@ -1235,7 +1244,7 @@ private struct KanbanCardDetailSheet: View {
 
                 Section("Priority") {
                     Picker("Priority", selection: $editedTask.priority) {
-                        ForEach(0...5, id: \.self) { p in
+                        ForEach(0 ... 5, id: \.self) { p in
                             HStack {
                                 if PriorityDisplay.shouldDisplay(p) {
                                     Circle()
@@ -1256,7 +1265,7 @@ private struct KanbanCardDetailSheet: View {
                     if hasDueStart {
                         DatePicker("Start", selection: Binding(
                             get: { editedTask.dueStart ?? Date() },
-                            set: { editedTask.dueStart = $0 }
+                            set: { editedTask.dueStart = $0 },
                         ))
                         .accessibilityIdentifier("cardDetailDueStart")
                     }
@@ -1266,18 +1275,16 @@ private struct KanbanCardDetailSheet: View {
                     if hasDueEnd {
                         DatePicker("End", selection: Binding(
                             get: { editedTask.dueEnd ?? Date() },
-                            set: { editedTask.dueEnd = $0 }
+                            set: { editedTask.dueEnd = $0 },
                         ))
                         .accessibilityIdentifier("cardDetailDueEnd")
                     }
                 }
                 .onChange(of: hasDueStart) { _, enabled in
-                    if !enabled { editedTask.dueStart = nil }
-                    else if editedTask.dueStart == nil { editedTask.dueStart = Date() }
+                    if !enabled { editedTask.dueStart = nil } else if editedTask.dueStart == nil { editedTask.dueStart = Date() }
                 }
                 .onChange(of: hasDueEnd) { _, enabled in
-                    if !enabled { editedTask.dueEnd = nil }
-                    else if editedTask.dueEnd == nil { editedTask.dueEnd = Date() }
+                    if !enabled { editedTask.dueEnd = nil } else if editedTask.dueEnd == nil { editedTask.dueEnd = Date() }
                 }
 
                 Section("Linked Note") {
@@ -1318,7 +1325,7 @@ private struct KanbanCardDetailSheet: View {
                                     .frame(width: 16, height: 16)
                                     .overlay(
                                         Circle()
-                                            .stroke(newLabelColorHex == hex ? Color.primary : Color.clear, lineWidth: 2)
+                                            .stroke(newLabelColorHex == hex ? Color.primary : Color.clear, lineWidth: 2),
                                     )
                                     .onTapGesture { newLabelColorHex = hex }
                             }
@@ -1517,7 +1524,7 @@ public struct SyncDashboardView: View {
                                     .foregroundStyle(.secondary)
                                 Text(
                                     "Entity: \(entry.entityType?.rawValue ?? "-")/\(entry.entityID?.uuidString ?? "-") " +
-                                    "• Task: \(entry.taskID?.uuidString ?? "-") • Event: \(entry.eventIdentifier ?? "-")"
+                                        "• Task: \(entry.taskID?.uuidString ?? "-") • Event: \(entry.eventIdentifier ?? "-")",
                                 )
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
@@ -1563,7 +1570,6 @@ public struct SyncDashboardView: View {
         .frame(maxWidth: .infinity)
     }
 
-    @ViewBuilder
     private func syncStatusIcon(isSyncing: Bool) -> some View {
         Image(systemName: isSyncing ? "arrow.triangle.2.circlepath" : "checkmark.circle")
             .font(.caption)
@@ -1590,17 +1596,17 @@ private extension View {
 private extension SyncDiagnosticSeverity {
     var uiIcon: String {
         switch self {
-        case .info: return "info.circle.fill"
-        case .warning: return "exclamationmark.triangle.fill"
-        case .error: return "xmark.octagon.fill"
+        case .info: "info.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .error: "xmark.octagon.fill"
         }
     }
 
     var uiColor: Color {
         switch self {
-        case .info: return .blue
-        case .warning: return .orange
-        case .error: return .red
+        case .info: .blue
+        case .warning: .orange
+        case .error: .red
         }
     }
 }
@@ -1792,8 +1798,8 @@ public struct GraphView: View {
 
             Divider()
 
-            GeometryReader { geometry in
-                TimelineView(.animation(minimumInterval: 1/60, paused: !isSimulating)) { _ in
+            GeometryReader { _ in
+                TimelineView(.animation(minimumInterval: 1 / 60, paused: !isSimulating)) { _ in
                     ZStack {
                         Color.secondary.opacity(0.03)
 
@@ -1801,14 +1807,14 @@ public struct GraphView: View {
                             var currentPositions = positions
                             var currentVelocities = velocities
 
-                            if isSimulating && !viewModel.graphNodes.isEmpty {
+                            if isSimulating, !viewModel.graphNodes.isEmpty {
                                 var simulator = GraphSimulator()
                                 (currentPositions, currentVelocities) = simulator.step(
                                     nodes: viewModel.graphNodes,
                                     edges: viewModel.graphEdges,
                                     positions: currentPositions,
                                     velocities: currentVelocities,
-                                    canvasSize: canvasSize
+                                    canvasSize: canvasSize,
                                 )
                                 positions = currentPositions
                                 velocities = currentVelocities
@@ -1816,7 +1822,8 @@ public struct GraphView: View {
 
                             for edge in viewModel.graphEdges {
                                 guard let fromPos = currentPositions[edge.fromID],
-                                      let toPos = currentPositions[edge.toID] else {
+                                      let toPos = currentPositions[edge.toID]
+                                else {
                                     continue
                                 }
 
@@ -1827,7 +1834,7 @@ public struct GraphView: View {
                                 context.stroke(
                                     path,
                                     with: .color(.secondary.opacity(0.3)),
-                                    lineWidth: 1
+                                    lineWidth: 1,
                                 )
                             }
 
@@ -1843,9 +1850,9 @@ public struct GraphView: View {
                                         x: position.x - radius,
                                         y: position.y - radius,
                                         width: radius * 2,
-                                        height: radius * 2
+                                        height: radius * 2,
                                     )),
-                                    with: .color(color.opacity(0.2))
+                                    with: .color(color.opacity(0.2)),
                                 )
 
                                 context.stroke(
@@ -1853,10 +1860,10 @@ public struct GraphView: View {
                                         x: position.x - radius,
                                         y: position.y - radius,
                                         width: radius * 2,
-                                        height: radius * 2
+                                        height: radius * 2,
                                     )),
                                     with: .color(color),
-                                    lineWidth: isSelected ? 2 : 1
+                                    lineWidth: isSelected ? 2 : 1,
                                 )
 
                                 let textContext = context
@@ -1865,7 +1872,7 @@ public struct GraphView: View {
                                         .font(.caption2.weight(.semibold))
                                         .foregroundColor(color),
                                     at: position,
-                                    anchor: .center
+                                    anchor: .center,
                                 )
                             }
                         }
@@ -1917,8 +1924,8 @@ public struct GraphView: View {
         var newPositions: [UUID: CGPoint] = [:]
         for node in viewModel.graphNodes {
             newPositions[node.id] = CGPoint(
-                x: CGFloat.random(in: 50...400),
-                y: CGFloat.random(in: 50...600)
+                x: CGFloat.random(in: 50 ... 400),
+                y: CGFloat.random(in: 50 ... 600),
             )
         }
         positions = newPositions
@@ -1926,13 +1933,13 @@ public struct GraphView: View {
     }
 }
 
-internal struct GraphSimulator {
+struct GraphSimulator {
     mutating func step(
         nodes: [GraphNode],
         edges: [GraphEdge],
         positions: [UUID: CGPoint],
         velocities: [UUID: CGSize],
-        canvasSize: CGSize
+        canvasSize: CGSize,
     ) -> (positions: [UUID: CGPoint], velocities: [UUID: CGSize]) {
         var newPositions = positions
         var newVelocities = velocities
@@ -1986,41 +1993,41 @@ internal struct GraphSimulator {
 private extension TaskStatus {
     var uiTitle: String {
         switch self {
-        case .backlog: return "Backlog"
-        case .next: return "Next"
-        case .doing: return "Doing"
-        case .waiting: return "Waiting"
-        case .done: return "Done"
+        case .backlog: "Backlog"
+        case .next: "Next"
+        case .doing: "Doing"
+        case .waiting: "Waiting"
+        case .done: "Done"
         }
     }
 
     var uiIcon: String {
         switch self {
-        case .backlog: return "tray"
-        case .next: return "bolt"
-        case .doing: return "play.circle"
-        case .waiting: return "pause.circle"
-        case .done: return "checkmark.circle"
+        case .backlog: "tray"
+        case .next: "bolt"
+        case .doing: "play.circle"
+        case .waiting: "pause.circle"
+        case .done: "checkmark.circle"
         }
     }
 
-    var previous: TaskStatus? {
+    var previous: TaskStatus? { // periphery:ignore
         switch self {
-        case .backlog: return nil
-        case .next: return .backlog
-        case .doing: return .next
-        case .waiting: return .doing
-        case .done: return .waiting
+        case .backlog: nil
+        case .next: .backlog
+        case .doing: .next
+        case .waiting: .doing
+        case .done: .waiting
         }
     }
 
-    var next: TaskStatus? {
+    var next: TaskStatus? { // periphery:ignore
         switch self {
-        case .backlog: return .next
-        case .next: return .doing
-        case .doing: return .waiting
-        case .waiting: return .done
-        case .done: return nil
+        case .backlog: .next
+        case .next: .doing
+        case .doing: .waiting
+        case .waiting: .done
+        case .done: nil
         }
     }
 }

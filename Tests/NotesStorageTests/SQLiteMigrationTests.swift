@@ -1,8 +1,9 @@
-import XCTest
+// swiftlint:disable file_length type_body_length function_body_length cyclomatic_complexity
 import Foundation
 import SQLite3
-@testable import NotesStorage
+import XCTest
 @testable import NotesDomain
+@testable import NotesStorage
 
 final class SQLiteMigrationTests: XCTestCase {
     func testFreshInstallBootstrapIsIdempotentAcrossReopen() async throws {
@@ -16,8 +17,8 @@ final class SQLiteMigrationTests: XCTestCase {
                     title: "Fresh task",
                     status: .backlog,
                     kanbanOrder: 1,
-                    updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
-                )
+                    updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                ),
             )
             XCTAssertEqual(created.kanbanOrder, 1)
         }
@@ -38,10 +39,16 @@ final class SQLiteMigrationTests: XCTestCase {
             _ = try SQLiteStore(databaseURL: dbURL)
         }
         let versionsAfterThirdOpen = try fetchMetaVersions(databaseURL: dbURL)
-        XCTAssertEqual(versionsAfterThirdOpen["task_version"], versionsAfterSecondOpen["task_version"],
-                       "Reopening without writes must not increment task_version cursor")
-        XCTAssertEqual(versionsAfterThirdOpen["note_version"], versionsAfterSecondOpen["note_version"],
-                       "Reopening without writes must not increment note_version cursor")
+        XCTAssertEqual(
+            versionsAfterThirdOpen["task_version"],
+            versionsAfterSecondOpen["task_version"],
+            "Reopening without writes must not increment task_version cursor",
+        )
+        XCTAssertEqual(
+            versionsAfterThirdOpen["note_version"],
+            versionsAfterSecondOpen["note_version"],
+            "Reopening without writes must not increment note_version cursor",
+        )
 
         // FTS rebuild on every open must not produce duplicate rows.
         do {
@@ -61,10 +68,10 @@ final class SQLiteMigrationTests: XCTestCase {
     ///  - A failed write during the post-migration session leaves the DB consistent
     ///    (pre-transaction validation rejection leaves previously committed data intact).
     func testLargeDataMigrationPerfAndRecovery() async throws {
-        let noteCount = 50_000
-        let taskCount = 10_000
-        let bindingCount = 5_000
-        let budgetMS: Double = 3_000
+        let noteCount = 50000
+        let taskCount = 10000
+        let bindingCount = 5000
+        let budgetMS: Double = 3000
         let runs = 5
 
         // ── Build Era 1 fixture template ──────────────────────────────────────
@@ -79,7 +86,7 @@ final class SQLiteMigrationTests: XCTestCase {
         samples.reserveCapacity(runs)
         let clock = ContinuousClock()
 
-        for _ in 0..<runs {
+        for _ in 0 ..< runs {
             let runURL = try makeDatabaseURL()
             try FileManager.default.copyItem(at: templateURL, to: runURL)
 
@@ -96,8 +103,12 @@ final class SQLiteMigrationTests: XCTestCase {
         let p95 = sorted[min(sorted.count - 1, p95Index)]
         XCTAssertLessThanOrEqual(
             p95, budgetMS,
-            String(format: "Migration p95 %.1f ms exceeds budget %.0f ms (samples: %@)",
-                   p95, budgetMS, samples.map { String(format: "%.1f", $0) }.joined(separator: ", "))
+            String(
+                format: "Migration p95 %.1f ms exceeds budget %.0f ms (samples: %@)",
+                p95,
+                budgetMS,
+                samples.map { String(format: "%.1f", $0) }.joined(separator: ", "),
+            ),
         )
 
         // ── Post-migration correctness (open the already-migrated template) ─────
@@ -110,8 +121,11 @@ final class SQLiteMigrationTests: XCTestCase {
         // Task data integrity: fetch a known task by stable ID.
         let knownTask = try await store.fetchTaskByStableID("perf-task-0")
         XCTAssertNotNil(knownTask, "Task 0 must survive large migration")
-        XCTAssertEqual(knownTask?.kanbanOrder, 0,
-                       "kanban_order must default to 0 for pre-kanban tasks after migration")
+        XCTAssertEqual(
+            knownTask?.kanbanOrder,
+            0,
+            "kanban_order must default to 0 for pre-kanban tasks after migration",
+        )
 
         // ── Write succeeds after migration ────────────────────────────────────
         let newTask = try Task(
@@ -119,7 +133,7 @@ final class SQLiteMigrationTests: XCTestCase {
             title: "Post-Migration Write",
             status: .next,
             kanbanOrder: 1,
-            updatedAt: Date(timeIntervalSince1970: 1_700_100_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_000),
         )
         let saved = try await store.upsertTask(newTask)
         XCTAssertGreaterThan(saved.version, 0)
@@ -129,7 +143,7 @@ final class SQLiteMigrationTests: XCTestCase {
             taskVersionCursor: saved.version,
             noteVersionCursor: 0,
             calendarToken: "token-after-migration",
-            updatedAt: Date(timeIntervalSince1970: 1_700_100_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_000),
         )
         try await store.saveCheckpoint(cp)
         let fetchedCP = try await store.fetchCheckpoint(id: "post-migration-cp")
@@ -142,11 +156,11 @@ final class SQLiteMigrationTests: XCTestCase {
         // committed data, not that the SQLite ROLLBACK path is exercised.
         // (The actual ROLLBACK path is covered in SQLiteCrashRecoveryTests.)
         let badTask = try Task(
-            stableID: "",   // guard fires before any transaction is opened
+            stableID: "", // guard fires before any transaction is opened
             title: "Bad",
             status: .backlog,
             kanbanOrder: 2,
-            updatedAt: Date(timeIntervalSince1970: 1_700_100_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_100_100),
         )
         do {
             _ = try await store.upsertTask(badTask)
@@ -170,13 +184,13 @@ final class SQLiteMigrationTests: XCTestCase {
         databaseURL: URL,
         noteCount: Int,
         taskCount: Int,
-        bindingCount: Int
+        bindingCount: Int,
     ) throws {
         var dbPointer: OpaquePointer?
         guard sqlite3_open_v2(
             databaseURL.path, &dbPointer,
             SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
-            nil
+            nil,
         ) == SQLITE_OK, let db = dbPointer else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open large fixture DB")
         }
@@ -258,11 +272,11 @@ final class SQLiteMigrationTests: XCTestCase {
         // so IDs must be valid UUIDs. Collect them for use in the task binding inserts below.
         var noteIDs: [String] = []
         noteIDs.reserveCapacity(noteCount)
-        for _ in 0..<noteCount {
+        for _ in 0 ..< noteCount {
             noteIDs.append(UUID().uuidString.lowercased())
         }
 
-        for i in 0..<noteCount {
+        for i in 0 ..< noteCount {
             let id = noteIDs[i]
             let title = "PerfNote \(i)"
             let body = "Body content for performance migration fixture note number \(i)."
@@ -286,9 +300,9 @@ final class SQLiteMigrationTests: XCTestCase {
         }
         let statuses = ["backlog", "next", "doing", "waiting", "done"]
         let taskSQL = """
-            INSERT INTO tasks (id, note_id, stable_id, title, details, status, priority, updated_at, version)
-            VALUES (?, ?, ?, ?, '', ?, 3, ?, ?);
-            """
+        INSERT INTO tasks (id, note_id, stable_id, title, details, status, priority, updated_at, version)
+        VALUES (?, ?, ?, ?, '', ?, 3, ?, ?);
+        """
         var taskStmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, taskSQL, -1, &taskStmt, nil) == SQLITE_OK, let taskStmt else {
             throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
@@ -296,11 +310,11 @@ final class SQLiteMigrationTests: XCTestCase {
         defer { sqlite3_finalize(taskStmt) }
         var taskIDs: [String] = []
         taskIDs.reserveCapacity(taskCount)
-        for i in 0..<taskCount {
+        for i in 0 ..< taskCount {
             let id = UUID().uuidString.lowercased()
             taskIDs.append(id)
             let stableID = "perf-task-\(i)"
-            let noteID = noteIDs[i % noteCount]   // valid UUID reference
+            let noteID = noteIDs[i % noteCount] // valid UUID reference
             let status = statuses[i % statuses.count]
             sqlite3_bind_text(taskStmt, 1, id, -1, transient)
             sqlite3_bind_text(taskStmt, 2, noteID, -1, transient)
@@ -323,17 +337,17 @@ final class SQLiteMigrationTests: XCTestCase {
             throw StorageError.executeStatement(reason: "BEGIN failed for bindings")
         }
         let bindSQL = """
-            INSERT INTO calendar_bindings
-                (task_id, calendar_id, event_identifier, external_identifier,
-                 last_task_version, last_event_updated_at, last_synced_at)
-            VALUES (?, 'perf-cal', ?, ?, ?, ?, ?);
-            """
+        INSERT INTO calendar_bindings
+            (task_id, calendar_id, event_identifier, external_identifier,
+             last_task_version, last_event_updated_at, last_synced_at)
+        VALUES (?, 'perf-cal', ?, ?, ?, ?, ?);
+        """
         var bindStmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, bindSQL, -1, &bindStmt, nil) == SQLITE_OK, let bindStmt else {
             throw StorageError.prepareStatement(reason: String(cString: sqlite3_errmsg(db)))
         }
         defer { sqlite3_finalize(bindStmt) }
-        for i in 0..<bindingCount {
+        for i in 0 ..< bindingCount {
             let taskID = taskIDs[i % taskCount]
             let eventID = "event-\(i)"
             let extID = "ext-\(i)"
@@ -355,7 +369,7 @@ final class SQLiteMigrationTests: XCTestCase {
 
     private func ms(_ duration: Duration) -> Double {
         let c = duration.components
-        return Double(c.seconds) * 1_000 + Double(c.attoseconds) / 1_000_000_000_000_000
+        return Double(c.seconds) * 1000 + Double(c.attoseconds) / 1_000_000_000_000_000
     }
 
     // MARK: - Schema upgrade matrix
@@ -385,7 +399,7 @@ final class SQLiteMigrationTests: XCTestCase {
         // calendar_bindings migrated to polymorphic schema — binding is accessible
         let binding = try await store.fetchBinding(
             eventIdentifier: "era1-event",
-            calendarID: "era1-cal"
+            calendarID: "era1-cal",
         )
         XCTAssertNotNil(binding, "Existing binding should be migrated to polymorphic schema")
         XCTAssertEqual(binding?.calendarID, "era1-cal")
@@ -422,7 +436,7 @@ final class SQLiteMigrationTests: XCTestCase {
         // Old task_id binding was migrated: entity_type = 'task', entity_id = task UUID
         let binding = try await store.fetchBinding(
             eventIdentifier: "era2-event",
-            calendarID: "era2-cal"
+            calendarID: "era2-cal",
         )
         XCTAssertNotNil(binding, "task_id-keyed binding should be migrated")
         XCTAssertEqual(binding?.eventIdentifier, "era2-event")
@@ -489,7 +503,7 @@ final class SQLiteMigrationTests: XCTestCase {
             databaseURL.path,
             &dbPointer,
             SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
-            nil
+            nil,
         )
         guard openCode == SQLITE_OK, let dbPointer else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not create legacy fixture DB")
@@ -880,7 +894,7 @@ final class SQLiteMigrationTests: XCTestCase {
             databaseURL.path,
             &dbPointer,
             SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
-            nil
+            nil,
         )
         guard openCode == SQLITE_OK, let dbPointer else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not create fixture DB")
@@ -893,15 +907,20 @@ final class SQLiteMigrationTests: XCTestCase {
 
     private func tableColumns(table: String, databaseURL: URL) throws -> Set<String> {
         var dbPointer: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &dbPointer,
-                              SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
-              let dbPointer else {
+        guard sqlite3_open_v2(
+            databaseURL.path,
+            &dbPointer,
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
+            nil,
+        ) == SQLITE_OK,
+            let dbPointer
+        else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open for column inspection")
         }
         defer { sqlite3_close(dbPointer) }
         // PRAGMA table_info does not support bound parameters; use an allowlist
         // of known table names rather than interpolating caller-supplied strings.
-        let allowedTables: Set<String> = ["notes", "tasks", "calendar_bindings", "sync_checkpoints", "meta"]
+        let allowedTables: Set = ["notes", "tasks", "calendar_bindings", "sync_checkpoints", "meta"]
         guard allowedTables.contains(table) else {
             throw StorageError.executeStatement(reason: "tableColumns: unknown table '\(table)'")
         }
@@ -922,9 +941,14 @@ final class SQLiteMigrationTests: XCTestCase {
 
     private func tableNames(databaseURL: URL) throws -> Set<String> {
         var dbPointer: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &dbPointer,
-                              SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK,
-              let dbPointer else {
+        guard sqlite3_open_v2(
+            databaseURL.path,
+            &dbPointer,
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
+            nil,
+        ) == SQLITE_OK,
+            let dbPointer
+        else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open for table inspection")
         }
         defer { sqlite3_close(dbPointer) }
@@ -949,7 +973,7 @@ final class SQLiteMigrationTests: XCTestCase {
             databaseURL.path,
             &dbPointer,
             SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
-            nil
+            nil,
         )
         guard openCode == SQLITE_OK, let dbPointer else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not open DB for meta assertion")

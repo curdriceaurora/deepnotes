@@ -1,10 +1,11 @@
-import XCTest
+// swiftlint:disable file_length function_body_length
 import Foundation
 import ViewInspector
+import XCTest
 @testable import NotesDomain
 @testable import NotesFeatures
-@testable import NotesUI
 @testable import NotesSync
+@testable import NotesUI
 
 @MainActor
 final class NotesViewsTests: XCTestCase {
@@ -212,7 +213,7 @@ final class NotesViewsTests: XCTestCase {
         // Verify the view model agrees that backlinks are present before inspecting.
         XCTAssertFalse(
             viewModel.backlinks.isEmpty,
-            "Backlinks must be non-empty for the selected note before asserting the list renders"
+            "Backlinks must be non-empty for the selected note before asserting the list renders",
         )
 
         let view = NotesEditorView(viewModel: viewModel)
@@ -263,10 +264,15 @@ final class NotesViewsTests: XCTestCase {
         try await flushAsyncActions()
 
         await viewModel.setTaskFilter(.completed)
-        XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == target.id }),
-                      "Toggled task must appear in completed filter")
-        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == target.id })?.status, .done,
-                       "Toggled task must have status .done")
+        XCTAssertTrue(
+            viewModel.tasks.contains(where: { $0.id == target.id }),
+            "Toggled task must appear in completed filter",
+        )
+        XCTAssertEqual(
+            viewModel.tasks.first(where: { $0.id == target.id })?.status,
+            .done,
+            "Toggled task must have status .done",
+        )
     }
 
     func testTasksListDeleteButtonRemovesTask() async throws {
@@ -372,7 +378,7 @@ final class NotesViewsTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [task.id.uuidString],
             to: .doing,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(moved)
         await viewModel.setTaskFilter(.all)
@@ -403,7 +409,7 @@ final class NotesViewsTests: XCTestCase {
         let move1 = await viewModel.handleTaskDrop(
             taskPayloads: [first.id.uuidString],
             to: .waiting,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(move1)
 
@@ -411,7 +417,7 @@ final class NotesViewsTests: XCTestCase {
         let move2 = await viewModel.handleTaskDrop(
             taskPayloads: [second.id.uuidString],
             to: .waiting,
-            beforeTaskID: first.id
+            beforeTaskID: first.id,
         )
         XCTAssertTrue(move2)
 
@@ -424,8 +430,11 @@ final class NotesViewsTests: XCTestCase {
         else {
             return XCTFail("Both moved tasks should be present in waiting column")
         }
-        XCTAssertLessThan(secondIdx, firstIdx,
-            "Second card dropped before first should appear earlier in the column")
+        XCTAssertLessThan(
+            secondIdx,
+            firstIdx,
+            "Second card dropped before first should appear earlier in the column",
+        )
     }
 
     /// Reordering within the same column via the drop API is reflected in the view model
@@ -447,7 +456,7 @@ final class NotesViewsTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [bottom.uuidString],
             to: .backlog,
-            beforeTaskID: top
+            beforeTaskID: top,
         )
         XCTAssertTrue(moved)
 
@@ -553,7 +562,7 @@ final class NotesViewsTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let taggedNotes = [
             Note(id: UUID(), title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1),
-            Note(id: UUID(), title: "Note 2", body: "#rust code", tags: ["rust"], updatedAt: now, version: 1)
+            Note(id: UUID(), title: "Note 2", body: "#rust code", tags: ["rust"], updatedAt: now, version: 1),
         ]
         let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
         let provider = InMemoryCalendarProvider()
@@ -570,7 +579,7 @@ final class NotesViewsTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let noteID = UUID()
         let taggedNotes = [
-            Note(id: noteID, title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1)
+            Note(id: noteID, title: "Note 1", body: "#swift code", tags: ["swift"], updatedAt: now, version: 1),
         ]
         let service = MockWorkspaceService(notes: taggedNotes, tasks: [])
         let provider = InMemoryCalendarProvider()
@@ -597,7 +606,6 @@ final class NotesViewsTests: XCTestCase {
         // Should find backlinks list
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"))
     }
-
 }
 
 actor MockWorkspaceService: WorkspaceServicing {
@@ -618,7 +626,7 @@ actor MockWorkspaceService: WorkspaceServicing {
                 body: "References [[Vendor Notes]]",
                 updatedAt: now,
                 version: 1,
-                deletedAt: nil
+                deletedAt: nil,
             ),
             Note(
                 id: noteID2,
@@ -626,7 +634,7 @@ actor MockWorkspaceService: WorkspaceServicing {
                 body: "Connected to [[Q2 Launch Plan]]",
                 updatedAt: now,
                 version: 1,
-                deletedAt: nil
+                deletedAt: nil,
             ),
             Note(
                 id: noteID3,
@@ -634,11 +642,11 @@ actor MockWorkspaceService: WorkspaceServicing {
                 body: "Weekly sync meeting agenda and notes.",
                 updatedAt: now,
                 version: 1,
-                deletedAt: nil
-            )
+                deletedAt: nil,
+            ),
         ]
-        let tasks: [Task] = [
-            try Task(
+        let tasks: [Task] = try [
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000001")),
                 noteID: noteID1,
                 stableID: "task-backlog",
@@ -646,9 +654,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .backlog,
                 priority: 2,
                 kanbanOrder: 1,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000006")),
                 noteID: noteID1,
                 stableID: "task-backlog-2",
@@ -656,9 +664,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .backlog,
                 priority: 2,
                 kanbanOrder: 2,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000002")),
                 noteID: noteID1,
                 stableID: "task-next",
@@ -668,9 +676,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .next,
                 priority: 3,
                 kanbanOrder: 1,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000003")),
                 noteID: noteID1,
                 stableID: "task-doing",
@@ -678,9 +686,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .doing,
                 priority: 3,
                 kanbanOrder: 1,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000004")),
                 noteID: noteID1,
                 stableID: "task-waiting",
@@ -688,9 +696,9 @@ actor MockWorkspaceService: WorkspaceServicing {
                 status: .waiting,
                 priority: 2,
                 kanbanOrder: 1,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 id: XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000005")),
                 noteID: noteID1,
                 stableID: "task-done",
@@ -699,8 +707,8 @@ actor MockWorkspaceService: WorkspaceServicing {
                 priority: 1,
                 kanbanOrder: 1,
                 completedAt: now,
-                updatedAt: now
-            )
+                updatedAt: now,
+            ),
         ]
         return (notes, tasks)
     }
@@ -742,7 +750,7 @@ actor MockWorkspaceService: WorkspaceServicing {
                 offset: normalizedOffset,
                 limit: normalizedLimit,
                 totalCount: notes.count,
-                hits: Array(notes[start..<end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+                hits: Array(notes[start ..< end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) },
             )
         }
 
@@ -750,7 +758,7 @@ actor MockWorkspaceService: WorkspaceServicing {
             .filter { $0.title.localizedCaseInsensitiveContains(trimmed) || $0.body.localizedCaseInsensitiveContains(trimmed) }
         let start = min(normalizedOffset, filtered.count)
         let end = min(filtered.count, start + normalizedLimit)
-        let hits = Array(filtered[start..<end]).map { note in
+        let hits = Array(filtered[start ..< end]).map { note in
             NoteSearchHit(note: note, snippet: "<mark>\(trimmed)</mark> in \(note.title)", rank: 0)
         }
         return NoteSearchPage(
@@ -759,7 +767,7 @@ actor MockWorkspaceService: WorkspaceServicing {
             offset: normalizedOffset,
             limit: normalizedLimit,
             totalCount: filtered.count,
-            hits: hits
+            hits: hits,
         )
     }
 
@@ -817,7 +825,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
         let start = min(max(0, offset), allItems.count)
         let end = min(allItems.count, start + max(1, limit))
-        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start ..< end]))
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
@@ -855,7 +863,7 @@ actor MockWorkspaceService: WorkspaceServicing {
             priority: input.priority,
             recurrenceRule: input.recurrenceRule,
             kanbanOrder: nextOrder,
-            updatedAt: Date()
+            updatedAt: Date(),
         )
         tasks.insert(task, at: 0)
         return task
@@ -906,7 +914,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         try await setTaskStatus(taskID: taskID, status: isCompleted ? .done : .next)
     }
 
-    func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport {
+    func runSync(configuration: SyncEngineConfiguration, calendarProvider _: CalendarProvider) async throws -> SyncRunReport {
         var report = SyncRunReport()
         report.tasksPushed = tasks.count
         report.eventsPulled = 0
@@ -924,19 +932,19 @@ actor MockWorkspaceService: WorkspaceServicing {
                 calendarID: configuration.calendarID,
                 providerError: nil,
                 timestamp: Date(timeIntervalSince1970: 1_700_000_111),
-                attempt: 1
-            )
+                attempt: 1,
+            ),
         ]
         return report
     }
 
     func seedDemoDataIfNeeded() async throws {}
 
-    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+    func unlinkedMentions(for _: UUID) async throws -> [NoteBacklink] {
         []
     }
 
-    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+    func linkMention(in sourceNoteID: UUID, targetTitle _: String) async throws -> Note {
         guard let note = notes.first(where: { $0.id == sourceNoteID }) else {
             throw NSError(domain: "mock", code: 404)
         }
@@ -955,8 +963,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         if let existing = notes.first(where: { $0.title == title }) {
             return existing
         }
-        let note = Note(id: UUID(), title: title, body: "", updatedAt: Date(), version: 1)
-        return note
+        return Note(id: UUID(), title: title, body: "", updatedAt: Date(), version: 1)
     }
 
     func listTemplates() async throws -> [NoteTemplate] {
@@ -967,11 +974,10 @@ actor MockWorkspaceService: WorkspaceServicing {
         NoteTemplate(name: name, body: body, createdAt: Date())
     }
 
-    func deleteTemplate(id: UUID) async throws {}
+    func deleteTemplate(id _: UUID) async throws {}
 
-    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
-        let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
-        return note
+    func createNote(title: String, body: String, templateID _: UUID?) async throws -> Note {
+        Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
     }
 
     // MARK: - Kanban Column & Label methods
@@ -981,7 +987,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
         KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
         KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
-        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4),
     ]
 
     func listKanbanColumns() async throws -> [KanbanColumn] {
@@ -1045,7 +1051,7 @@ actor MockWorkspaceService: WorkspaceServicing {
         }
         tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
 
-        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+        if isCompleted, tasks[taskIdx].subtasks.allSatisfy(\.isCompleted), tasks[taskIdx].status != .done {
             tasks[taskIdx].status = .done
             tasks[taskIdx].completedAt = Date()
         }
@@ -1069,10 +1075,10 @@ actor MockWorkspaceService: WorkspaceServicing {
     }
 
     func requestNotificationPermission() async -> Bool {
-        return true
+        true
     }
 
-    func listTasks(filter: TaskListFilter, sortOrder: TaskSortOrder) async throws -> [Task] {
-        return try await listTasks(filter: filter)
+    func listTasks(filter: TaskListFilter, sortOrder _: TaskSortOrder) async throws -> [Task] {
+        try await listTasks(filter: filter)
     }
 }

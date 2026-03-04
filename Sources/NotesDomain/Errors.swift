@@ -7,12 +7,12 @@ public enum DomainValidationError: Error, Equatable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidPriority(let value):
-            return "Task priority must be between 0 and 5, got \(value)."
+        case let .invalidPriority(value):
+            "Task priority must be between 0 and 5, got \(value)."
         case .invalidDateRange:
-            return "Start date must be before end date."
+            "Start date must be before end date."
         case .missingStableID:
-            return "Stable task ID is required for deterministic sync."
+            "Stable task ID is required for deterministic sync."
         }
     }
 }
@@ -26,16 +26,16 @@ public enum StorageError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .openDatabase(let path, let reason):
-            return "Failed to open SQLite database at \(path): \(reason)"
-        case .prepareStatement(let reason):
-            return "Failed to prepare SQL statement: \(reason)"
-        case .executeStatement(let reason):
-            return "Failed to execute SQL statement: \(reason)"
-        case .transactionFailed(let reason):
-            return "SQLite transaction failed: \(reason)"
-        case .dataCorruption(let reason):
-            return "Unexpected SQLite data: \(reason)"
+        case let .openDatabase(path, reason):
+            "Failed to open SQLite database at \(path): \(reason)"
+        case let .prepareStatement(reason):
+            "Failed to prepare SQL statement: \(reason)"
+        case let .executeStatement(reason):
+            "Failed to execute SQL statement: \(reason)"
+        case let .transactionFailed(reason):
+            "SQLite transaction failed: \(reason)"
+        case let .dataCorruption(reason):
+            "Unexpected SQLite data: \(reason)"
         }
     }
 }
@@ -47,9 +47,9 @@ public enum SyncError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingEventIdentifier:
-            return "Calendar provider did not return an event identifier; cannot persist binding."
-        case .unsupportedCalendarChange(let reason):
-            return "Received unsupported calendar change: \(reason)"
+            "Calendar provider did not return an event identifier; cannot persist binding."
+        case let .unsupportedCalendarChange(reason):
+            "Received unsupported calendar change: \(reason)"
         }
     }
 }
@@ -61,18 +61,18 @@ public enum CalendarProviderError: Error, LocalizedError, Sendable {
     public var isRetryable: Bool {
         switch self {
         case .transient:
-            return true
+            true
         case .permanent:
-            return false
+            false
         }
     }
 
     public var errorDescription: String? {
         switch self {
-        case .transient(let reason):
-            return "Transient calendar provider failure: \(reason)"
-        case .permanent(let reason):
-            return "Permanent calendar provider failure: \(reason)"
+        case let .transient(reason):
+            "Transient calendar provider failure: \(reason)"
+        case let .permanent(reason):
+            "Permanent calendar provider failure: \(reason)"
         }
     }
 }

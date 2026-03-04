@@ -1,0 +1,30 @@
+# Swift version
+--swiftversion 6.2
+
+# Indentation & width
+--indent 4
+--tabwidth 4
+--maxwidth 160
+
+# Wrapping
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+
+# Style
+--trailingcommas always
+--semicolons never
+--commas always
+--decimalgrouping 3,6
+--hexgrouping 4,8
+--octalgrouping 4,8
+
+# Imports
+--importgrouping testable-bottom
+
+# Disabled rules
+--disable redundantSelf,hoistAwait
+
+# Exclusions
+--exclude .build,DerivedData

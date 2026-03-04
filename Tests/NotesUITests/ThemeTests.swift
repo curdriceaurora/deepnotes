@@ -1,11 +1,10 @@
-import XCTest
 import SwiftUI
+import XCTest
 @testable import NotesDomain
 @testable import NotesUI
 
 @MainActor
 final class ThemeTests: XCTestCase {
-
     // MARK: - DueDateStyle
 
     func testDueDateStyleReturnsOrangeForToday() {
@@ -13,14 +12,14 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(color, .orange, "Today's date should return orange")
     }
 
-    func testDueDateStyleReturnsRedForOverdue() {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+    func testDueDateStyleReturnsRedForOverdue() throws {
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let color = DueDateStyle.color(for: yesterday)
         XCTAssertEqual(color, .red, "Overdue date should return red")
     }
 
-    func testDueDateStyleReturnsSecondaryForFuture() {
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+    func testDueDateStyleReturnsSecondaryForFuture() throws {
+        let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
         let color = DueDateStyle.color(for: tomorrow)
         XCTAssertEqual(color, .secondary, "Future date should return secondary")
     }
@@ -44,8 +43,11 @@ final class ThemeTests: XCTestCase {
     func testAllStatusCasesHaveDistinctColors() {
         let colors = TaskStatus.allCases.map(\.accentColor)
         let unique = Set(colors.map { "\($0)" })
-        XCTAssertEqual(unique.count, TaskStatus.allCases.count,
-                       "Each status should map to a distinct color")
+        XCTAssertEqual(
+            unique.count,
+            TaskStatus.allCases.count,
+            "Each status should map to a distinct color",
+        )
     }
 
     // MARK: - DNCardModifier

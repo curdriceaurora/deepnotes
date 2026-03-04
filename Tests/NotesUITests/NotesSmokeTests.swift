@@ -1,12 +1,14 @@
-import XCTest
+// swiftlint:disable file_length type_body_length
 import Foundation
 import ViewInspector
+import XCTest
 @testable import NotesDomain
 @testable import NotesFeatures
-@testable import NotesUI
 @testable import NotesSync
+@testable import NotesUI
 
 // MARK: - Smoke test suite
+
 //
 // Each test corresponds to one or more items in Docs/SmokeChecklist.md.
 // The tag comment "// smoke-test: §<section>.<item>" maps tests back to the
@@ -16,7 +18,6 @@ import ViewInspector
 
 @MainActor
 final class NotesSmokeTests: XCTestCase {
-
     // MARK: - Helpers
 
     private func makeViewModel() throws -> AppViewModel {
@@ -46,7 +47,7 @@ final class NotesSmokeTests: XCTestCase {
         // The banner is only rendered when errorMessage is non-nil.
         XCTAssertThrowsError(
             try inspected.find(viewWithAccessibilityIdentifier: "globalErrorBanner"),
-            "globalErrorBanner must NOT be present on a clean launch"
+            "globalErrorBanner must NOT be present on a clean launch",
         )
     }
 
@@ -63,8 +64,11 @@ final class NotesSmokeTests: XCTestCase {
         try inspected.find(viewWithAccessibilityIdentifier: "newNoteButton").button().tap()
 
         await waitUntil { viewModel.notes.count == countBefore + 1 }
-        XCTAssertEqual(viewModel.notes.count, countBefore + 1,
-                       "A new note must appear in the list after tapping +")
+        XCTAssertEqual(
+            viewModel.notes.count,
+            countBefore + 1,
+            "A new note must appear in the list after tapping +",
+        )
     }
 
     // smoke-test: §2 — Saving a note persists title change; updated title visible in list.
@@ -87,7 +91,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.notes.contains { $0.title == "Smoke Edited Title" },
-            "Updated title must appear in the notes list after save"
+            "Updated title must appear in the notes list after save",
         )
     }
 
@@ -106,7 +110,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.selectedNoteBody.contains("# "),
-            "Heading prefix must be inserted into body"
+            "Heading prefix must be inserted into body",
         )
     }
 
@@ -122,7 +126,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.selectedNoteBody.contains("- "),
-            "Bullet prefix must be inserted into body"
+            "Bullet prefix must be inserted into body",
         )
     }
 
@@ -138,7 +142,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.selectedNoteBody.contains("- [ ] "),
-            "Checkbox prefix must be inserted into body"
+            "Checkbox prefix must be inserted into body",
         )
     }
 
@@ -158,11 +162,14 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertLessThan(
             viewModel.notes.count, totalCount,
-            "Search must filter the notes list to fewer results"
+            "Search must filter the notes list to fewer results",
         )
         XCTAssertTrue(
-            viewModel.notes.allSatisfy { $0.title.localizedCaseInsensitiveContains("Vendor") || viewModel.noteSearchSnippet(for: $0.id) != nil },
-            "All returned notes must match the query by title or have a search snippet"
+            viewModel.notes.allSatisfy {
+                $0.title.localizedCaseInsensitiveContains("Vendor")
+                    || viewModel.noteSearchSnippet(for: $0.id) != nil
+            },
+            "All returned notes must match the query by title or have a search snippet",
         )
     }
 
@@ -185,7 +192,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "noteSnippet_\(first.id.uuidString)"),
-            "A snippet must be rendered for a matched note"
+            "A snippet must be rendered for a matched note",
         )
         // Verify the view model has stored a non-empty snippet.
         XCTAssertNotNil(viewModel.noteSearchSnippet(for: first.id))
@@ -207,8 +214,11 @@ final class NotesSmokeTests: XCTestCase {
         await waitUntil {
             viewModel.notes.count == totalCount
         }
-        XCTAssertEqual(viewModel.notes.count, totalCount,
-                       "Clearing search must restore the full notes list")
+        XCTAssertEqual(
+            viewModel.notes.count,
+            totalCount,
+            "Clearing search must restore the full notes list",
+        )
         XCTAssertNil(viewModel.noteSearchQuery.isEmpty ? nil as String? : "non-empty")
     }
 
@@ -222,8 +232,10 @@ final class NotesSmokeTests: XCTestCase {
             viewModel.notes.isEmpty
         }
 
-        XCTAssertTrue(viewModel.notes.isEmpty,
-                      "Search for non-matching word must produce empty list without crash")
+        XCTAssertTrue(
+            viewModel.notes.isEmpty,
+            "Search for non-matching word must produce empty list without crash",
+        )
     }
 
     // MARK: - §5 Notes Tab — Quick Open
@@ -251,10 +263,12 @@ final class NotesSmokeTests: XCTestCase {
             viewModel.quickOpenResults.allSatisfy {
                 $0.title.localizedCaseInsensitiveContains("Vendor")
             },
-            "Quick Open results must match the typed partial title"
+            "Quick Open results must match the typed partial title",
         )
-        XCTAssertFalse(viewModel.quickOpenResults.isEmpty,
-                       "Quick Open must return at least one result for 'Vendor'")
+        XCTAssertFalse(
+            viewModel.quickOpenResults.isEmpty,
+            "Quick Open must return at least one result for 'Vendor'",
+        )
     }
 
     // smoke-test: §5 — Selecting a Quick Open result dismisses sheet and selects note.
@@ -271,8 +285,11 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.selectQuickOpenResult(noteID: target.id)
 
         XCTAssertFalse(viewModel.isQuickOpenPresented, "Quick Open sheet must close after selection")
-        XCTAssertEqual(viewModel.selectedNoteID, target.id,
-                       "The selected note must match the tapped Quick Open result")
+        XCTAssertEqual(
+            viewModel.selectedNoteID,
+            target.id,
+            "The selected note must match the tapped Quick Open result",
+        )
     }
 
     // smoke-test: §5 — Tapping Close button dismisses Quick Open without changing selection.
@@ -293,8 +310,11 @@ final class NotesSmokeTests: XCTestCase {
         try await flushAsyncActions()
 
         XCTAssertFalse(viewModel.isQuickOpenPresented, "Quick Open must be dismissed after Close")
-        XCTAssertEqual(viewModel.selectedNoteID, previousSelection,
-                       "Close must not change the currently selected note")
+        XCTAssertEqual(
+            viewModel.selectedNoteID,
+            previousSelection,
+            "Close must not change the currently selected note",
+        )
     }
 
     // MARK: - §6 Notes Tab — Wiki Links and Backlinks
@@ -311,11 +331,13 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "wikiSuggestionsBar"),
-            "wikiSuggestionsBar must appear when body contains '[['"
+            "wikiSuggestionsBar must appear when body contains '[['",
         )
         XCTAssertTrue(viewModel.isWikiLinkSuggestionVisible)
-        XCTAssertFalse(viewModel.wikiLinkSuggestions.isEmpty,
-                       "Suggestions must include other note titles")
+        XCTAssertFalse(
+            viewModel.wikiLinkSuggestions.isEmpty,
+            "Suggestions must include other note titles",
+        )
     }
 
     // smoke-test: §6 — Applying a wiki suggestion inserts the link and hides suggestions.
@@ -332,10 +354,12 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.selectedNoteBody.contains("[[\(suggestion)]]"),
-            "Applied suggestion must be wrapped in [[…]] in the body"
+            "Applied suggestion must be wrapped in [[…]] in the body",
         )
-        XCTAssertFalse(viewModel.isWikiLinkSuggestionVisible,
-                       "Suggestions bar must hide after a suggestion is applied")
+        XCTAssertFalse(
+            viewModel.isWikiLinkSuggestionVisible,
+            "Suggestions bar must hide after a suggestion is applied",
+        )
     }
 
     // smoke-test: §6 — Backlinks are populated for a note that is referenced by another note.
@@ -349,11 +373,13 @@ final class NotesSmokeTests: XCTestCase {
         }
         await viewModel.selectNote(id: vendorNote.id)
 
-        XCTAssertFalse(viewModel.backlinks.isEmpty,
-                       "Backlinks must be non-empty for a referenced note")
+        XCTAssertFalse(
+            viewModel.backlinks.isEmpty,
+            "Backlinks must be non-empty for a referenced note",
+        )
         XCTAssertTrue(
             viewModel.backlinks.contains { $0.sourceTitle == "Q2 Launch Plan" },
-            "Q2 Launch Plan must appear as a backlink for Vendor Notes"
+            "Q2 Launch Plan must appear as a backlink for Vendor Notes",
         )
     }
 
@@ -373,7 +399,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"),
-            "backlinksList must be rendered when a note has incoming backlinks"
+            "backlinksList must be rendered when a note has incoming backlinks",
         )
     }
 
@@ -388,7 +414,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "backlinksEmptyState"),
-            "backlinksEmptyState must be rendered when no note is selected"
+            "backlinksEmptyState must be rendered when no note is selected",
         )
     }
 
@@ -420,11 +446,17 @@ final class NotesSmokeTests: XCTestCase {
         try inspected.find(viewWithAccessibilityIdentifier: "quickTaskButton").button().tap()
         try await flushAsyncActions()
 
-        XCTAssertEqual(viewModel.quickTaskTitle, "",
-                       "Quick task field must be cleared after creation")
+        XCTAssertEqual(
+            viewModel.quickTaskTitle,
+            "",
+            "Quick task field must be cleared after creation",
+        )
         await viewModel.setTaskFilter(.all)
-        XCTAssertEqual(viewModel.tasks.count, initialTaskCount + 1,
-                       "Task count must increase by 1 after quick task creation")
+        XCTAssertEqual(
+            viewModel.tasks.count,
+            initialTaskCount + 1,
+            "Task count must increase by 1 after quick task creation",
+        )
     }
 
     // smoke-test: §7 — Created quick task appears in Tasks tab with linked noteID.
@@ -443,8 +475,11 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.setTaskFilter(.all)
         let created = viewModel.tasks.first { $0.title == "Linked task" }
         XCTAssertNotNil(created, "Linked task must appear in task list")
-        XCTAssertEqual(created?.noteID, noteToLink.id,
-                       "Quick task must carry the ID of the currently selected note")
+        XCTAssertEqual(
+            created?.noteID,
+            noteToLink.id,
+            "Quick task must carry the ID of the currently selected note",
+        )
     }
 
     // MARK: - §8 Tasks Tab — List and Filter
@@ -457,7 +492,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.tasks.contains { $0.status == .done },
-            ".all filter must include tasks with status .done"
+            ".all filter must include tasks with status .done",
         )
     }
 
@@ -467,11 +502,13 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.load()
         await viewModel.setTaskFilter(.completed)
 
-        XCTAssertFalse(viewModel.tasks.isEmpty,
-                       "Completed filter must return at least one done task from fixture")
+        XCTAssertFalse(
+            viewModel.tasks.isEmpty,
+            "Completed filter must return at least one done task from fixture",
+        )
         XCTAssertTrue(
             viewModel.tasks.allSatisfy { $0.status == .done },
-            "Completed filter must return only tasks with .done status"
+            "Completed filter must return only tasks with .done status",
         )
     }
 
@@ -483,7 +520,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.tasks.allSatisfy { $0.dueStart != nil },
-            "Today filter must only return tasks with a due date"
+            "Today filter must only return tasks with a due date",
         )
     }
 
@@ -540,10 +577,15 @@ final class NotesSmokeTests: XCTestCase {
         try await flushAsyncActions()
 
         await viewModel.setTaskFilter(.completed)
-        XCTAssertTrue(viewModel.tasks.contains(where: { $0.id == target.id }),
-                      "Task must appear under .completed filter after toggle")
-        XCTAssertEqual(viewModel.tasks.first(where: { $0.id == target.id })?.status, .done,
-                       "Status must be .done after toggle")
+        XCTAssertTrue(
+            viewModel.tasks.contains(where: { $0.id == target.id }),
+            "Task must appear under .completed filter after toggle",
+        )
+        XCTAssertEqual(
+            viewModel.tasks.first(where: { $0.id == target.id })?.status,
+            .done,
+            "Status must be .done after toggle",
+        )
     }
 
     // smoke-test: §9 — Toggling a done task back marks it active (not done).
@@ -561,8 +603,11 @@ final class NotesSmokeTests: XCTestCase {
 
         let reverted = viewModel.tasks.first { $0.id == target.id }
         XCTAssertNotNil(reverted)
-        XCTAssertNotEqual(reverted?.status, .done,
-                          "Task status must not be .done after toggling back")
+        XCTAssertNotEqual(
+            reverted?.status,
+            .done,
+            "Task status must not be .done after toggling back",
+        )
     }
 
     // MARK: - §10 Tasks Tab — Delete (Tombstone)
@@ -583,8 +628,10 @@ final class NotesSmokeTests: XCTestCase {
         try await flushAsyncActions()
 
         await viewModel.setTaskFilter(.all)
-        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == target.id }),
-                       "Deleted task must no longer appear in the task list")
+        XCTAssertFalse(
+            viewModel.tasks.contains(where: { $0.id == target.id }),
+            "Deleted task must no longer appear in the task list",
+        )
     }
 
     // smoke-test: §10 — Deleted task is absent from every filter.
@@ -602,7 +649,7 @@ final class NotesSmokeTests: XCTestCase {
             await viewModel.setTaskFilter(filter)
             XCTAssertFalse(
                 viewModel.tasks.contains(where: { $0.id == target.id }),
-                "Deleted task must not appear under filter '\(filter.rawValue)'"
+                "Deleted task must not appear under filter '\(filter.rawValue)'",
             )
         }
     }
@@ -621,7 +668,7 @@ final class NotesSmokeTests: XCTestCase {
         for status in expected {
             XCTAssertNoThrow(
                 try inspected.find(viewWithAccessibilityIdentifier: "kanbanColumn_\(status.rawValue)"),
-                "Column '\(status.rawValue)' must be present"
+                "Column '\(status.rawValue)' must be present",
             )
         }
     }
@@ -653,7 +700,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "kanbanCard_\(backlogTask.id.uuidString)"),
-            "kanbanCard_* identifier must be present for each card"
+            "kanbanCard_* identifier must be present for each card",
         )
     }
 
@@ -675,7 +722,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.setTaskFilter(.all)
         XCTAssertEqual(
             viewModel.tasks.first(where: { $0.id == task.id })?.status, .next,
-            "Card moved right from backlog must land in .next"
+            "Card moved right from backlog must land in .next",
         )
     }
 
@@ -697,7 +744,7 @@ final class NotesSmokeTests: XCTestCase {
         await viewModel.setTaskFilter(.all)
         XCTAssertEqual(
             viewModel.tasks.first(where: { $0.id == task.id })?.status, .next,
-            "Card moved left from doing must land in .next"
+            "Card moved left from doing must land in .next",
         )
     }
 
@@ -717,8 +764,10 @@ final class NotesSmokeTests: XCTestCase {
         try await flushAsyncActions()
 
         await viewModel.setTaskFilter(.all)
-        XCTAssertFalse(viewModel.tasks.contains(where: { $0.id == target.id }),
-                       "Deleted card must be absent from the board after delete")
+        XCTAssertFalse(
+            viewModel.tasks.contains(where: { $0.id == target.id }),
+            "Deleted card must be absent from the board after delete",
+        )
     }
 
     // smoke-test: §12 — moveLeft absent on backlog (leftmost column).
@@ -735,7 +784,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertThrowsError(
             try inspected.find(viewWithAccessibilityIdentifier: "moveLeft_\(backlogTask.id.uuidString)"),
-            "moveLeft button must NOT appear on a card in the leftmost (backlog) column"
+            "moveLeft button must NOT appear on a card in the leftmost (backlog) column",
         )
     }
 
@@ -753,7 +802,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertThrowsError(
             try inspected.find(viewWithAccessibilityIdentifier: "moveRight_\(doneTask.id.uuidString)"),
-            "moveRight button must NOT appear on a card in the rightmost (done) column"
+            "moveRight button must NOT appear on a card in the rightmost (done) column",
         )
     }
 
@@ -772,15 +821,19 @@ final class NotesSmokeTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [task.id.uuidString],
             to: .doing,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(moved)
 
         await viewModel.setTaskFilter(.all)
-        XCTAssertTrue(viewModel.tasks(for: .doing).contains(where: { $0.id == task.id }),
-                      "Dropped task must appear in the .doing column")
-        XCTAssertFalse(viewModel.tasks(for: .backlog).contains(where: { $0.id == task.id }),
-                       "Dropped task must no longer be in .backlog")
+        XCTAssertTrue(
+            viewModel.tasks(for: .doing).contains(where: { $0.id == task.id }),
+            "Dropped task must appear in the .doing column",
+        )
+        XCTAssertFalse(
+            viewModel.tasks(for: .backlog).contains(where: { $0.id == task.id }),
+            "Dropped task must no longer be in .backlog",
+        )
     }
 
     // smoke-test: §13 — Drop API reorders within same column.
@@ -799,7 +852,7 @@ final class NotesSmokeTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [bottom.id.uuidString],
             to: .backlog,
-            beforeTaskID: top.id
+            beforeTaskID: top.id,
         )
         XCTAssertTrue(moved)
 
@@ -810,8 +863,11 @@ final class NotesSmokeTests: XCTestCase {
         else {
             return XCTFail("Both tasks must still be in backlog after reorder")
         }
-        XCTAssertLessThan(newTopIdx, newSecondIdx,
-                          "Previously-bottom card must now appear before previously-top card")
+        XCTAssertLessThan(
+            newTopIdx,
+            newSecondIdx,
+            "Previously-bottom card must now appear before previously-top card",
+        )
     }
 
     // smoke-test: §13 — Relative order is preserved when dropping two cards into same target column.
@@ -837,8 +893,11 @@ final class NotesSmokeTests: XCTestCase {
         else {
             return XCTFail("Both tasks must be in waiting after cross-column drops")
         }
-        XCTAssertLessThan(secondIdx, firstIdx,
-                          "Second task dropped before first must appear earlier in the column")
+        XCTAssertLessThan(
+            secondIdx,
+            firstIdx,
+            "Second task dropped before first must appear earlier in the column",
+        )
     }
 
     // MARK: - §14 & §15 Sync Tab — UI and Sync Run
@@ -866,10 +925,12 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertThrowsError(
             try inspected.find(viewWithAccessibilityIdentifier: "syncReportSection"),
-            "syncReportSection must not be visible before any sync has run"
+            "syncReportSection must not be visible before any sync has run",
         )
-        XCTAssertNil(viewModel.lastSyncReport,
-                     "lastSyncReport must be nil before first sync run")
+        XCTAssertNil(
+            viewModel.lastSyncReport,
+            "lastSyncReport must be nil before first sync run",
+        )
     }
 
     // smoke-test: §15 — After runSync, lastSyncReport is set and report section appears.
@@ -886,8 +947,10 @@ final class NotesSmokeTests: XCTestCase {
         let view2 = SyncDashboardView(viewModel: viewModel)
         let inspected2 = try view2.inspect()
         XCTAssertNotNil(viewModel.lastSyncReport, "lastSyncReport must be set after sync run")
-        XCTAssertNoThrow(try inspected2.find(viewWithAccessibilityIdentifier: "syncReportSection"),
-                         "syncReportSection must appear after a sync run")
+        XCTAssertNoThrow(
+            try inspected2.find(viewWithAccessibilityIdentifier: "syncReportSection"),
+            "syncReportSection must appear after a sync run",
+        )
     }
 
     // smoke-test: §15 — runSync button triggers state change (status text updates).
@@ -911,8 +974,10 @@ final class NotesSmokeTests: XCTestCase {
         viewModel.syncCalendarID = "   "
         await viewModel.runSync()
 
-        XCTAssertNotNil(viewModel.errorMessage,
-                        "A blank calendar ID must result in an error being surfaced")
+        XCTAssertNotNil(
+            viewModel.errorMessage,
+            "A blank calendar ID must result in an error being surfaced",
+        )
     }
 
     // MARK: - §16 & §17 Sync Tab — Diagnostics Export
@@ -928,7 +993,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "exportSyncDiagnosticsButton"),
-            "exportSyncDiagnosticsButton must appear after a sync run"
+            "exportSyncDiagnosticsButton must appear after a sync run",
         )
     }
 
@@ -943,8 +1008,10 @@ final class NotesSmokeTests: XCTestCase {
         try inspected.find(viewWithAccessibilityIdentifier: "exportSyncDiagnosticsButton").button().tap()
         try await flushAsyncActions()
 
-        XCTAssertNotNil(viewModel.lastDiagnosticsExportURL,
-                        "Export must set lastDiagnosticsExportURL")
+        XCTAssertNotNil(
+            viewModel.lastDiagnosticsExportURL,
+            "Export must set lastDiagnosticsExportURL",
+        )
     }
 
     // smoke-test: §16 — exportDiagnostics() causes syncDiagnosticsExportPath to appear.
@@ -959,7 +1026,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticsExportPath"),
-            "syncDiagnosticsExportPath must render after diagnostics are exported"
+            "syncDiagnosticsExportPath must render after diagnostics are exported",
         )
     }
 
@@ -974,11 +1041,11 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticsSection"),
-            "syncDiagnosticsSection must appear after sync that produced diagnostics"
+            "syncDiagnosticsSection must appear after sync that produced diagnostics",
         )
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "syncDiagnosticRow_0"),
-            "At least one syncDiagnosticRow must be rendered"
+            "At least one syncDiagnosticRow must be rendered",
         )
     }
 
@@ -993,7 +1060,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "recurrenceConflictBanner"),
-            "recurrenceConflictBanner must appear when a detached recurrence exception was detected"
+            "recurrenceConflictBanner must appear when a detached recurrence exception was detected",
         )
     }
 
@@ -1012,7 +1079,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertNoThrow(
             try inspected.find(viewWithAccessibilityIdentifier: "globalErrorBanner"),
-            "globalErrorBanner must render when the view model has an errorMessage"
+            "globalErrorBanner must render when the view model has an errorMessage",
         )
     }
 
@@ -1036,7 +1103,7 @@ final class NotesSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             viewModel.notes.contains { $0.id == createdNote.id },
-            "Created note must still be present after in-session reload"
+            "Created note must still be present after in-session reload",
         )
     }
 
@@ -1047,7 +1114,9 @@ final class NotesSmokeTests: XCTestCase {
 
         await viewModel.runSync()
 
-        XCTAssertNotNil(viewModel.lastSyncReport?.finalCalendarToken,
-                        "Sync checkpoint token must be captured in the sync report")
+        XCTAssertNotNil(
+            viewModel.lastSyncReport?.finalCalendarToken,
+            "Sync checkpoint token must be captured in the sync report",
+        )
     }
 }

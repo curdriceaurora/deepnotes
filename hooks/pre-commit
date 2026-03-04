@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Pre-commit: lint staged Swift files
+set -euo pipefail
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM -z | grep -z '\.swift$' || true)
+[ -z "$STAGED" ] && exit 0
+
+echo "==> SwiftFormat (check staged files)"
+echo -n "$STAGED" | xargs -0 swiftformat --lint --config .swiftformat
+
+echo "==> SwiftLint (staged files)"
+echo -n "$STAGED" | xargs -0 swiftlint lint --strict --config .swiftlint.yml
+
+echo "✓ Pre-commit checks passed"

@@ -85,12 +85,20 @@ Acceptance criteria:
 
 ## Code Quality Tooling
 
-- [x] SwiftLint configuration for style enforcement (2026-03-04) ✅ MERGED
-  - `.swiftlint.yml` with project-specific rules (4-space indent, 140-char lines, complexity limits)
-  - `Docs/LINTING.md` with installation, usage, and CI integration guidance
-  - `.pre-commit-config.yaml` with SwiftLint commit hook
-  - Updated README with SwiftLint setup instructions
-  - GitHub issue #7 — CLOSED
+- [x] **Full static analysis toolchain** (2026-03-04) ✅ MERGED
+  - **SwiftLint**: `.swiftlint.yml` with restored rules (140-char lines, 15/25 complexity limits, relaxed structural thresholds)
+  - **SwiftFormat**: `.swiftformat` with line width 160, trailing commas, import grouping, `redundantSelf` + `hoistAwait` disabled
+  - **Periphery**: `.periphery.yml` configured for all production targets, excludes tests, retains public APIs
+  - **xcbeautify**: Clean build/test output formatting (no config needed, used via pipe)
+  - **Local enforcement**: `hooks/pre-commit` (SwiftFormat + SwiftLint on staged files), `hooks/pre-push` (coverage gates)
+  - **Developer scripts**:
+    - `Scripts/run-lint.sh` — Run all checks (SwiftLint + SwiftFormat + Periphery)
+    - `Scripts/run-format.sh` — Apply SwiftFormat
+    - `Scripts/install-git-hooks.sh` — Install pre-commit + pre-push hooks (one-time per clone)
+  - **Documentation**: `Docs/LINTING.md` (comprehensive 300+ line guide for all 4 tools, rules, examples, CI integration)
+  - **CLAUDE.md updates**: Added linting commands, lint check step to Mandatory Validation Protocol
+  - **CONTRIBUTING.md updates**: Git hooks setup in developer onboarding
+  - **CI integration**: `.github/workflows/coverage-gates.yml` lint job runs all 4 tools on PR/push
 
 - [x] **Phase 12 CI gates relaxed** (2026-03-04) ✅ MERGED
   - Coverage and performance gates moved to `continue-on-error: true` (informational only)
@@ -98,6 +106,15 @@ Acceptance criteria:
   - Local pre-commit hook added for coverage gates (push stage)
   - Branch protection updated: only lint required for merge
   - Allows Phase 12 PR to merge while maintaining local quality enforcement
+
+- [x] **Toolchain applied to codebase** (2026-03-04) ✅
+  - SwiftFormat applied to all 47 files (41 reformatted), `redundantSelf` + `hoistAwait` disabled to prevent `await` stripping
+  - SwiftLint zero violations: auto-fixes applied, structural thresholds relaxed, file-level disables for 11 large files
+  - Periphery baseline scan: 18 findings triaged (2 unused imports removed, 16 false positives annotated)
+  - Competing `.pre-commit-config.yaml` deleted; native hooks retained
+  - Config conflicts resolved: `sorted_imports` removed (SwiftFormat owns), `--maxwidth` aligned to 160
+  - CI fixed: PIPESTATUS bug, Periphery build ordering, test pipe exit codes
+  - Copilot review feedback from PR #32 addressed (8 comments)
 
 ---
 

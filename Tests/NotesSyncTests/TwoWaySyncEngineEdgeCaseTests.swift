@@ -1,5 +1,6 @@
-import XCTest
+// swiftlint:disable file_length type_body_length function_body_length
 import Foundation
+import XCTest
 @testable import NotesDomain
 @testable import NotesStorage
 @testable import NotesSync
@@ -17,14 +18,14 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             externalIdentifier: nil,
             calendarID: "cal",
             title: "A",
-            updatedAt: Date(timeIntervalSince1970: 101)
+            updatedAt: Date(timeIntervalSince1970: 101),
         )
         await provider.queueUpsertResponse(.success(returned))
 
         let engine = makeEngine(store: store, provider: provider)
 
         await XCTAssertThrowsErrorAsync(
-            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"))
+            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
         ) { error in
             guard case .missingEventIdentifier = error as? SyncError else {
                 return XCTFail("Expected missingEventIdentifier, got \(error)")
@@ -46,7 +47,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Retry task",
             updatedAt: Date(timeIntervalSince1970: 101),
-            sourceStableID: "task-retry"
+            sourceStableID: "task-retry",
         )
         await provider.queueUpsertResponse(.success(successful))
 
@@ -56,8 +57,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 checkpointID: "default",
                 calendarID: "cal",
                 providerMaxRetryAttempts: 2,
-                providerRetryBaseDelayMilliseconds: 1
-            )
+                providerRetryBaseDelayMilliseconds: 1,
+            ),
         )
 
         XCTAssertEqual(report.tasksPushed, 1)
@@ -87,9 +88,9 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                     checkpointID: "default",
                     calendarID: "cal",
                     providerMaxRetryAttempts: 5,
-                    providerRetryBaseDelayMilliseconds: 0
-                )
-            )
+                    providerRetryBaseDelayMilliseconds: 0,
+                ),
+            ),
         )
 
         let upserts = await provider.upsertedEvents
@@ -109,8 +110,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 checkpointID: "default",
                 calendarID: "cal",
                 providerMaxRetryAttempts: 2,
-                providerRetryBaseDelayMilliseconds: 0
-            )
+                providerRetryBaseDelayMilliseconds: 0,
+            ),
         )
 
         XCTAssertEqual(report.finalCalendarToken, "next-token")
@@ -137,7 +138,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "URL retry",
             updatedAt: Date(timeIntervalSince1970: 101),
-            sourceStableID: "task-url-retry"
+            sourceStableID: "task-url-retry",
         )
         await provider.queueUpsertResponse(.success(successful))
 
@@ -147,8 +148,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 checkpointID: "default",
                 calendarID: "cal",
                 providerMaxRetryAttempts: 2,
-                providerRetryBaseDelayMilliseconds: 0
-            )
+                providerRetryBaseDelayMilliseconds: 0,
+            ),
         )
 
         XCTAssertEqual(report.tasksPushed, 1)
@@ -172,9 +173,9 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                     checkpointID: "default",
                     calendarID: "cal",
                     providerMaxRetryAttempts: 3,
-                    providerRetryBaseDelayMilliseconds: 0
-                )
-            )
+                    providerRetryBaseDelayMilliseconds: 0,
+                ),
+            ),
         )
 
         let upserts = await provider.upsertedEvents
@@ -195,7 +196,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "NSError retry",
             updatedAt: Date(timeIntervalSince1970: 101),
-            sourceStableID: "task-nserror-retry"
+            sourceStableID: "task-nserror-retry",
         )
         await provider.queueUpsertResponse(.success(successful))
 
@@ -205,8 +206,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 checkpointID: "default",
                 calendarID: "cal",
                 providerMaxRetryAttempts: 2,
-                providerRetryBaseDelayMilliseconds: 0
-            )
+                providerRetryBaseDelayMilliseconds: 0,
+            ),
         )
 
         XCTAssertEqual(report.tasksPushed, 1)
@@ -230,9 +231,9 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                     checkpointID: "default",
                     calendarID: "cal",
                     providerMaxRetryAttempts: 3,
-                    providerRetryBaseDelayMilliseconds: 0
-                )
-            )
+                    providerRetryBaseDelayMilliseconds: 0,
+                ),
+            ),
         )
 
         let upserts = await provider.upsertedEvents
@@ -252,8 +253,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .calendarPriority
-            )
+                policy: .calendarPriority,
+            ),
         )
 
         XCTAssertEqual(report.eventsDeletedFromTasks, 0)
@@ -291,7 +292,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             externalIdentifier: "ext-1",
             calendarID: "other-cal",
             title: "Outside",
-            updatedAt: Date(timeIntervalSince1970: 120)
+            updatedAt: Date(timeIntervalSince1970: 120),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "next"))
 
@@ -308,14 +309,17 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let provider = StubCalendarProvider()
 
         let ghostTaskID = UUID()
-        try await store.upsertBinding(CalendarBinding(taskID: ghostTaskID, calendarID: "cal", eventIdentifier: "e-2", externalIdentifier: "ext-2"))
+        try await store.upsertBinding(CalendarBinding(
+            taskID: ghostTaskID, calendarID: "cal",
+            eventIdentifier: "e-2", externalIdentifier: "ext-2",
+        ))
 
         let incoming = try CalendarEvent(
             eventIdentifier: "e-2",
             externalIdentifier: "ext-2",
             calendarID: "cal",
             title: "Ghost",
-            updatedAt: Date(timeIntervalSince1970: 120)
+            updatedAt: Date(timeIntervalSince1970: 120),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "next"))
 
@@ -337,7 +341,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             title: "Detached exception",
             recurrenceExceptionDate: Date(timeIntervalSince1970: 118),
             updatedAt: Date(timeIntervalSince1970: 120),
-            sourceStableID: nil
+            sourceStableID: nil,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(exception)], nextToken: "next"))
 
@@ -362,16 +366,16 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-series-task",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 101),
-                lastSyncedAt: Date(timeIntervalSince1970: 101)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 101),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 102)
-            )
+                updatedAt: Date(timeIntervalSince1970: 102),
+            ),
         )
 
         let exception = try CalendarEvent(
@@ -381,7 +385,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             title: "Series exception update",
             recurrenceExceptionDate: Date(timeIntervalSince1970: 149),
             updatedAt: Date(timeIntervalSince1970: 150),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(exception)], nextToken: "t2"))
 
@@ -390,8 +394,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .calendarPriority
-            )
+                policy: .calendarPriority,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -414,8 +418,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-3",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 100),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
 
         try await store.saveCheckpoint(
@@ -423,8 +427,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "token-1",
-                updatedAt: Date(timeIntervalSince1970: 301)
-            )
+                updatedAt: Date(timeIntervalSince1970: 301),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -433,7 +437,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar Edit",
             updatedAt: Date(timeIntervalSince1970: 250),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "token-2"))
 
@@ -442,8 +446,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .taskPriority
-            )
+                policy: .taskPriority,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 0)
@@ -467,16 +471,16 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-tie-break",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 200),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "token-1",
-                updatedAt: Date(timeIntervalSince1970: 251)
-            )
+                updatedAt: Date(timeIntervalSince1970: 251),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -485,7 +489,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar tie",
             updatedAt: Date(timeIntervalSince1970: 250.2),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "token-2"))
 
@@ -496,8 +500,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 calendarID: "cal",
                 policy: .lastWriteWins,
                 timestampNormalizationSeconds: 1,
-                lastWriteWinsTieBreaker: .task
-            )
+                lastWriteWinsTieBreaker: .task,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 0)
@@ -521,8 +525,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-lookup",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 110),
-                lastSyncedAt: Date(timeIntervalSince1970: 110)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 110),
+            ),
         )
 
         try await store.saveCheckpoint(
@@ -530,8 +534,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 111)
-            )
+                updatedAt: Date(timeIntervalSince1970: 111),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -540,7 +544,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Updated from external",
             updatedAt: Date(timeIntervalSince1970: 160),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
 
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
@@ -550,8 +554,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .calendarPriority
-            )
+                policy: .calendarPriority,
+            ),
         )
 
         XCTAssertEqual(report.eventsPulled, 1)
@@ -568,9 +572,15 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
 
         var task = try Task(stableID: "task-del-ext", title: "Delete me", updatedAt: Date(timeIntervalSince1970: 100))
         task = try await store.upsertTask(task)
-        try await store.upsertBinding(CalendarBinding(taskID: task.id, calendarID: "cal", eventIdentifier: nil, externalIdentifier: "ext-del"))
+        try await store.upsertBinding(CalendarBinding(
+            taskID: task.id, calendarID: "cal",
+            eventIdentifier: nil, externalIdentifier: "ext-del",
+        ))
 
-        let deletion = CalendarDeletion(eventIdentifier: nil, externalIdentifier: "ext-del", calendarID: "cal", deletedAt: Date(timeIntervalSince1970: 200))
+        let deletion = CalendarDeletion(
+            eventIdentifier: nil, externalIdentifier: "ext-del",
+            calendarID: "cal", deletedAt: Date(timeIntervalSince1970: 200),
+        )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
         let engine = makeEngine(store: store, provider: provider)
@@ -589,13 +599,13 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             eventIdentifier: "e-mismatch",
             externalIdentifier: nil,
             calendarID: "other-cal",
-            deletedAt: Date(timeIntervalSince1970: 200)
+            deletedAt: Date(timeIntervalSince1970: 200),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
         let engine = makeEngine(store: store, provider: provider)
         let report = try await engine.runOnce(
-            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")
+            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"),
         )
 
         XCTAssertEqual(report.eventsPulled, 1)
@@ -610,13 +620,13 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             eventIdentifier: "missing-event-id",
             externalIdentifier: nil,
             calendarID: "cal",
-            deletedAt: Date(timeIntervalSince1970: 200)
+            deletedAt: Date(timeIntervalSince1970: 200),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
         let engine = makeEngine(store: store, provider: provider)
         let report = try await engine.runOnce(
-            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")
+            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"),
         )
 
         XCTAssertEqual(report.eventsPulled, 1)
@@ -634,14 +644,14 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskID: task.id,
                 calendarID: "cal",
                 eventIdentifier: "event-123",
-                externalIdentifier: "ext-123"
-            )
+                externalIdentifier: "ext-123",
+            ),
         )
         try await store.tombstoneTask(id: task.id, at: Date(timeIntervalSince1970: 150))
 
         let engine = makeEngine(store: store, provider: provider)
         let report = try await engine.runOnce(
-            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")
+            configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"),
         )
 
         XCTAssertEqual(report.eventsDeletedFromTasks, 1)
@@ -653,7 +663,10 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         let store = try makeStore()
         let provider = StubCalendarProvider()
 
-        var task = try Task(stableID: "task-fallback-taskwins", title: "Prefer task", updatedAt: Date(timeIntervalSince1970: 300), version: 0)
+        var task = try Task(
+            stableID: "task-fallback-taskwins", title: "Prefer task",
+            updatedAt: Date(timeIntervalSince1970: 300), version: 0,
+        )
         task = try await store.upsertTask(task)
         try await store.upsertBinding(
             CalendarBinding(
@@ -663,16 +676,16 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-fallback",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 100),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "token-1",
-                updatedAt: Date(timeIntervalSince1970: 301)
-            )
+                updatedAt: Date(timeIntervalSince1970: 301),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -681,7 +694,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar edit",
             updatedAt: Date(timeIntervalSince1970: 250),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "token-2"))
 
@@ -691,7 +704,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Persisted",
             updatedAt: Date(timeIntervalSince1970: 350),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueUpsertResponse(.success(persistedWithMissingIdentifiers))
 
@@ -700,8 +713,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .taskPriority
-            )
+                policy: .taskPriority,
+            ),
         )
 
         let binding = try await store.fetchBinding(taskID: task.id, calendarID: "cal")
@@ -723,16 +736,16 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-existing",
                 lastTaskVersion: task.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 110),
-                lastSyncedAt: Date(timeIntervalSince1970: 110)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 110),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
                 id: "default",
                 taskVersionCursor: task.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 111)
-            )
+                updatedAt: Date(timeIntervalSince1970: 111),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -741,7 +754,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar update",
             updatedAt: Date(timeIntervalSince1970: 160),
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
 
@@ -750,8 +763,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .calendarPriority
-            )
+                policy: .calendarPriority,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -772,7 +785,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             isAllDay: false,
             recurrenceRule: "FREQ=WEEKLY",
             calendarSyncEnabled: true,
-            updatedAt: Date(timeIntervalSince1970: 1_700_010_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_010_000),
         )
         note = try await store.upsertNote(note)
 
@@ -802,8 +815,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 title: "Undated",
                 body: "",
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
         let syncDisabled = try await store.upsertNote(
             Note(
@@ -812,8 +825,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 110),
                 calendarSyncEnabled: false,
-                updatedAt: Date(timeIntervalSince1970: 110)
-            )
+                updatedAt: Date(timeIntervalSince1970: 110),
+            ),
         )
 
         let engine = makeEngine(store: store, provider: provider, includeNoteStore: true)
@@ -837,8 +850,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
 
         let persisted = try CalendarEvent(
@@ -848,13 +861,13 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             title: "Missing event identifier",
             updatedAt: Date(timeIntervalSince1970: 101),
             sourceEntityType: .note,
-            sourceStableID: "note-no-event-id"
+            sourceStableID: "note-no-event-id",
         )
         await provider.queueUpsertResponse(.success(persisted))
 
         let engine = makeEngine(store: store, provider: provider, includeNoteStore: true)
         await XCTAssertThrowsErrorAsync(
-            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal"))
+            try await engine.runOnce(configuration: SyncEngineConfiguration(checkpointID: "default", calendarID: "cal")),
         ) { error in
             guard case .missingEventIdentifier = error as? SyncError else {
                 return XCTFail("Expected missingEventIdentifier, got \(error)")
@@ -871,8 +884,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 stableID: "note-delete-unbound",
                 title: "Delete unbound",
                 body: "",
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
         try await store.tombstoneNote(id: note.id, at: Date(timeIntervalSince1970: 120))
         let fetchedNoteAfterTombstone = try await store.fetchNote(id: note.id)
@@ -897,8 +910,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 stableID: "note-delete-binding-no-event",
                 title: "Delete no event",
                 body: "",
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -906,8 +919,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 entityID: note.id,
                 calendarID: "cal",
                 eventIdentifier: nil,
-                externalIdentifier: "ext-note-no-event"
-            )
+                externalIdentifier: "ext-note-no-event",
+            ),
         )
         try await store.tombstoneNote(id: note.id, at: Date(timeIntervalSince1970: 130))
         let fetchedNoteAfterTombstone = try await store.fetchNote(id: note.id)
@@ -932,8 +945,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 stableID: "note-delete-binding-event",
                 title: "Delete event",
                 body: "",
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -941,8 +954,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 entityID: note.id,
                 calendarID: "cal",
                 eventIdentifier: "event-note-delete",
-                externalIdentifier: "ext-note-delete"
-            )
+                externalIdentifier: "ext-note-delete",
+            ),
         )
         try await store.tombstoneNote(id: note.id, at: Date(timeIntervalSince1970: 130))
         let fetchedNoteAfterTombstone = try await store.fetchNote(id: note.id)
@@ -969,7 +982,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             title: "Note from calendar",
             notes: "entity-type:note\nnote-stable-id:note-external",
             updatedAt: Date(timeIntervalSince1970: 160),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(noteEvent)], nextToken: "next"))
 
@@ -983,7 +996,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 $0.operation == .pullEventUpsert
                     && $0.entityType == .note
                     && $0.message.contains("note store is unavailable")
-            }
+            },
         )
     }
 
@@ -998,8 +1011,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 entityID: ghostNoteID,
                 calendarID: "cal",
                 eventIdentifier: "event-note-ghost",
-                externalIdentifier: "ext-note-ghost"
-            )
+                externalIdentifier: "ext-note-ghost",
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -1008,7 +1021,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Ghost note",
             updatedAt: Date(timeIntervalSince1970: 160),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "next"))
 
@@ -1022,7 +1035,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 $0.operation == .pullEventUpsert
                     && $0.entityType == .note
                     && $0.message.contains("missing or deleted note")
-            }
+            },
         )
     }
 
@@ -1038,7 +1051,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             recurrenceExceptionDate: Date(timeIntervalSince1970: 155),
             updatedAt: Date(timeIntervalSince1970: 160),
             sourceEntityType: .note,
-            sourceStableID: "note-series"
+            sourceStableID: "note-series",
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "next"))
 
@@ -1052,7 +1065,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 $0.operation == .pullEventUpsert
                     && $0.entityType == .note
                     && $0.message.contains("detached recurrence exception")
-            }
+            },
         )
     }
 
@@ -1071,7 +1084,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             isAllDay: true,
             recurrenceRule: "FREQ=DAILY",
             updatedAt: Date(timeIntervalSince1970: 180),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "next"))
 
@@ -1084,7 +1097,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         XCTAssertEqual(importedNote?.isAllDay, true)
         XCTAssertEqual(importedNote?.calendarSyncEnabled, true)
 
-        let binding = try await store.fetchBinding(entityType: .note, entityID: importedNote!.id, calendarID: "cal")
+        let binding = try await store.fetchBinding(entityType: .note, entityID: XCTUnwrap(importedNote?.id), calendarID: "cal")
         XCTAssertEqual(binding?.eventIdentifier, "event-note-import")
     }
 
@@ -1099,8 +1112,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 210)
-            )
+                updatedAt: Date(timeIntervalSince1970: 210),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1111,8 +1124,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-stale",
                 lastEntityVersion: note.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 230),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
@@ -1120,8 +1133,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: note.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 231)
-            )
+                updatedAt: Date(timeIntervalSince1970: 231),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -1130,7 +1143,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar stale title",
             updatedAt: Date(timeIntervalSince1970: 220),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
 
@@ -1156,8 +1169,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 150)
-            )
+                updatedAt: Date(timeIntervalSince1970: 150),
+            ),
         )
         let noteOnlyChanged = try await store.upsertNote(
             Note(
@@ -1166,8 +1179,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250),
+            ),
         )
         let eventOnlyChanged = try await store.upsertNote(
             Note(
@@ -1176,8 +1189,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 150)
-            )
+                updatedAt: Date(timeIntervalSince1970: 150),
+            ),
         )
 
         let unchangedLastSynced = unchanged.updatedAt.addingTimeInterval(10)
@@ -1193,8 +1206,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-unchanged",
                 lastEntityVersion: unchanged.version,
                 lastEventUpdatedAt: unchangedLastSynced.addingTimeInterval(-20),
-                lastSyncedAt: unchangedLastSynced
-            )
+                lastSyncedAt: unchangedLastSynced,
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1205,8 +1218,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-note-only",
                 lastEntityVersion: noteOnlyChanged.version,
                 lastEventUpdatedAt: noteOnlyLastSynced.addingTimeInterval(-20),
-                lastSyncedAt: noteOnlyLastSynced
-            )
+                lastSyncedAt: noteOnlyLastSynced,
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1217,8 +1230,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-event-only",
                 lastEntityVersion: eventOnlyChanged.version,
                 lastEventUpdatedAt: eventOnlyLastSynced.addingTimeInterval(-20),
-                lastSyncedAt: eventOnlyLastSynced
-            )
+                lastSyncedAt: eventOnlyLastSynced,
+            ),
         )
 
         let maxVersion = max(unchanged.version, max(noteOnlyChanged.version, eventOnlyChanged.version))
@@ -1228,8 +1241,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: maxVersion,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 201)
-            )
+                updatedAt: Date(timeIntervalSince1970: 201),
+            ),
         )
 
         let unchangedEvent = try CalendarEvent(
@@ -1238,7 +1251,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Unchanged calendar title",
             updatedAt: unchangedLastSynced.addingTimeInterval(-5),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         let noteOnlyEvent = try CalendarEvent(
             eventIdentifier: "event-note-note-only",
@@ -1246,7 +1259,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Note-only calendar title",
             updatedAt: noteOnlyLastSynced.addingTimeInterval(-5),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         let eventOnlyEvent = try CalendarEvent(
             eventIdentifier: "event-note-event-only",
@@ -1254,10 +1267,10 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Event-only calendar title",
             updatedAt: eventOnlyLastSynced.addingTimeInterval(5),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(
-            CalendarChangeBatch(changes: [.upsert(unchangedEvent), .upsert(noteOnlyEvent), .upsert(eventOnlyEvent)], nextToken: "t2")
+            CalendarChangeBatch(changes: [.upsert(unchangedEvent), .upsert(noteOnlyEvent), .upsert(eventOnlyEvent)], nextToken: "t2"),
         )
 
         let engine = makeEngine(store: store, provider: provider, includeNoteStore: true)
@@ -1265,8 +1278,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .lastWriteWins
-            )
+                policy: .lastWriteWins,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -1288,8 +1301,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1300,8 +1313,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-task-priority",
                 lastEntityVersion: note.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 190),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
@@ -1309,8 +1322,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: note.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 201)
-            )
+                updatedAt: Date(timeIntervalSince1970: 201),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -1319,7 +1332,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar edit",
             updatedAt: Date(timeIntervalSince1970: 260),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
 
@@ -1328,8 +1341,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .taskPriority
-            )
+                policy: .taskPriority,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 0)
@@ -1351,8 +1364,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1363,8 +1376,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-calendar-priority",
                 lastEntityVersion: note.version,
                 lastEventUpdatedAt: Date(timeIntervalSince1970: 190),
-                lastSyncedAt: Date(timeIntervalSince1970: 200)
-            )
+                lastSyncedAt: Date(timeIntervalSince1970: 200),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
@@ -1372,8 +1385,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: note.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 201)
-            )
+                updatedAt: Date(timeIntervalSince1970: 201),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -1382,7 +1395,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar wins",
             updatedAt: Date(timeIntervalSince1970: 260),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
 
@@ -1391,8 +1404,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             configuration: SyncEngineConfiguration(
                 checkpointID: "default",
                 calendarID: "cal",
-                policy: .calendarPriority
-            )
+                policy: .calendarPriority,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -1414,8 +1427,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 260.9)
-            )
+                updatedAt: Date(timeIntervalSince1970: 260.9),
+            ),
         )
         let eventNewer = try await store.upsertNote(
             Note(
@@ -1424,8 +1437,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250.1)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250.1),
+            ),
         )
         let tied = try await store.upsertNote(
             Note(
@@ -1434,8 +1447,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250.9)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250.9),
+            ),
         )
 
         try await store.upsertBinding(
@@ -1447,8 +1460,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-lww-note-newer",
                 lastEntityVersion: noteNewer.version,
                 lastEventUpdatedAt: noteNewer.updatedAt.addingTimeInterval(-20),
-                lastSyncedAt: noteNewer.updatedAt.addingTimeInterval(-10)
-            )
+                lastSyncedAt: noteNewer.updatedAt.addingTimeInterval(-10),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1459,8 +1472,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-lww-event-newer",
                 lastEntityVersion: eventNewer.version,
                 lastEventUpdatedAt: eventNewer.updatedAt.addingTimeInterval(-20),
-                lastSyncedAt: eventNewer.updatedAt.addingTimeInterval(-10)
-            )
+                lastSyncedAt: eventNewer.updatedAt.addingTimeInterval(-10),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1471,8 +1484,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-lww-tie-task",
                 lastEntityVersion: tied.version,
                 lastEventUpdatedAt: tied.updatedAt.addingTimeInterval(-20),
-                lastSyncedAt: tied.updatedAt.addingTimeInterval(-10)
-            )
+                lastSyncedAt: tied.updatedAt.addingTimeInterval(-10),
+            ),
         )
 
         let maxVersion = max(noteNewer.version, max(eventNewer.version, tied.version))
@@ -1482,8 +1495,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: maxVersion,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 201)
-            )
+                updatedAt: Date(timeIntervalSince1970: 201),
+            ),
         )
 
         let incomingNoteNewer = try CalendarEvent(
@@ -1492,7 +1505,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar older",
             updatedAt: noteNewer.updatedAt.addingTimeInterval(-2),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         let incomingEventNewer = try CalendarEvent(
             eventIdentifier: "event-note-lww-event-newer",
@@ -1500,7 +1513,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar newer",
             updatedAt: eventNewer.updatedAt.addingTimeInterval(2),
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         let incomingTie = try CalendarEvent(
             eventIdentifier: "event-note-lww-tie-task",
@@ -1508,10 +1521,10 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar tie",
             updatedAt: tied.updatedAt,
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(
-            CalendarChangeBatch(changes: [.upsert(incomingNoteNewer), .upsert(incomingEventNewer), .upsert(incomingTie)], nextToken: "t2")
+            CalendarChangeBatch(changes: [.upsert(incomingNoteNewer), .upsert(incomingEventNewer), .upsert(incomingTie)], nextToken: "t2"),
         )
 
         let engine = makeEngine(store: store, provider: provider, includeNoteStore: true)
@@ -1521,8 +1534,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 calendarID: "cal",
                 policy: .lastWriteWins,
                 timestampNormalizationSeconds: 1,
-                lastWriteWinsTieBreaker: .task
-            )
+                lastWriteWinsTieBreaker: .task,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -1543,8 +1556,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 body: "",
                 dateStart: Date(timeIntervalSince1970: 100),
                 calendarSyncEnabled: true,
-                updatedAt: Date(timeIntervalSince1970: 250.9)
-            )
+                updatedAt: Date(timeIntervalSince1970: 250.9),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1555,8 +1568,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 externalIdentifier: "ext-note-lww-tie-calendar",
                 lastEntityVersion: note.version,
                 lastEventUpdatedAt: note.updatedAt.addingTimeInterval(-20),
-                lastSyncedAt: note.updatedAt.addingTimeInterval(-10)
-            )
+                lastSyncedAt: note.updatedAt.addingTimeInterval(-10),
+            ),
         )
         try await store.saveCheckpoint(
             SyncCheckpoint(
@@ -1564,8 +1577,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 taskVersionCursor: 0,
                 noteVersionCursor: note.version,
                 calendarToken: "t1",
-                updatedAt: Date(timeIntervalSince1970: 201)
-            )
+                updatedAt: Date(timeIntervalSince1970: 201),
+            ),
         )
 
         let incoming = try CalendarEvent(
@@ -1574,7 +1587,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             calendarID: "cal",
             title: "Calendar tie calendar breaker",
             updatedAt: note.updatedAt,
-            sourceEntityType: .note
+            sourceEntityType: .note,
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.upsert(incoming)], nextToken: "t2"))
 
@@ -1585,8 +1598,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 calendarID: "cal",
                 policy: .lastWriteWins,
                 timestampNormalizationSeconds: 1,
-                lastWriteWinsTieBreaker: .calendar
-            )
+                lastWriteWinsTieBreaker: .calendar,
+            ),
         )
 
         XCTAssertEqual(report.tasksUpdatedFromCalendar, 1)
@@ -1608,15 +1621,15 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 entityID: noteID,
                 calendarID: "cal",
                 eventIdentifier: "event-note-delete-no-store",
-                externalIdentifier: "ext-note-delete-no-store"
-            )
+                externalIdentifier: "ext-note-delete-no-store",
+            ),
         )
 
         let deletion = CalendarDeletion(
             eventIdentifier: "event-note-delete-no-store",
             externalIdentifier: "ext-note-delete-no-store",
             calendarID: "cal",
-            deletedAt: Date(timeIntervalSince1970: 200)
+            deletedAt: Date(timeIntervalSince1970: 200),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
@@ -1629,7 +1642,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 $0.operation == .pullEventDelete
                     && $0.entityType == .note
                     && $0.message.contains("note store is unavailable")
-            }
+            },
         )
     }
 
@@ -1642,8 +1655,8 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 stableID: "note-delete-calendar",
                 title: "Delete from calendar",
                 body: "",
-                updatedAt: Date(timeIntervalSince1970: 100)
-            )
+                updatedAt: Date(timeIntervalSince1970: 100),
+            ),
         )
         try await store.upsertBinding(
             CalendarBinding(
@@ -1651,15 +1664,15 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                 entityID: note.id,
                 calendarID: "cal",
                 eventIdentifier: "event-note-delete-calendar",
-                externalIdentifier: "ext-note-delete-calendar"
-            )
+                externalIdentifier: "ext-note-delete-calendar",
+            ),
         )
 
         let deletion = CalendarDeletion(
             eventIdentifier: "event-note-delete-calendar",
             externalIdentifier: "ext-note-delete-calendar",
             calendarID: "cal",
-            deletedAt: Date(timeIntervalSince1970: 200)
+            deletedAt: Date(timeIntervalSince1970: 200),
         )
         await provider.queueFetchBatch(CalendarChangeBatch(changes: [.delete(deletion)], nextToken: "next"))
 
@@ -1690,9 +1703,9 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
                     checkpointID: "default",
                     calendarID: "cal",
                     providerMaxRetryAttempts: 3,
-                    providerRetryBaseDelayMilliseconds: 0
-                )
-            )
+                    providerRetryBaseDelayMilliseconds: 0,
+                ),
+            ),
         )
 
         let upserts = await provider.upsertedEvents
@@ -1727,7 +1740,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
     private func makeEngine(
         store: SQLiteStore,
         provider: StubCalendarProvider,
-        includeNoteStore: Bool = false
+        includeNoteStore: Bool = false,
     ) -> TwoWaySyncEngine {
         TwoWaySyncEngine(
             taskStore: store,
@@ -1735,7 +1748,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
             bindingStore: store,
             checkpointStore: store,
             calendarProvider: provider,
-            clock: FixedClock(current: Date(timeIntervalSince1970: 500))
+            clock: FixedClock(current: Date(timeIntervalSince1970: 500)),
         )
     }
 }
@@ -1766,9 +1779,9 @@ private actor StubCalendarProvider: CalendarProvider {
         if !upsertQueue.isEmpty {
             let next = upsertQueue.removeFirst()
             switch next {
-            case .success(let success):
+            case let .success(success):
                 return success
-            case .failure(let error):
+            case let .failure(error):
                 throw error
             }
         }
@@ -1783,18 +1796,18 @@ private actor StubCalendarProvider: CalendarProvider {
         return e
     }
 
-    func deleteEvent(eventIdentifier: String, calendarID: String) async throws {
+    func deleteEvent(eventIdentifier: String, calendarID _: String) async throws {
         deletedEventIdentifiers.append(eventIdentifier)
     }
 
-    func fetchChanges(since token: String?, calendarID: String) async throws -> CalendarChangeBatch {
+    func fetchChanges(since token: String?, calendarID _: String) async throws -> CalendarChangeBatch {
         fetchChangesCallCount += 1
         if !fetchQueue.isEmpty {
             let result = fetchQueue.removeFirst()
             switch result {
-            case .success(let batch):
+            case let .success(batch):
                 return batch
-            case .failure(let error):
+            case let .failure(error):
                 throw error
             }
         }
@@ -1810,12 +1823,12 @@ private struct FixedClock: Clock {
     }
 }
 
-private func XCTAssertThrowsErrorAsync<T>(
-    _ expression: @autoclosure () async throws -> T,
+private func XCTAssertThrowsErrorAsync(
+    _ expression: @autoclosure () async throws -> some Any,
     _ message: @autoclosure () -> String = "",
     file: StaticString = #filePath,
     line: UInt = #line,
-    _ errorHandler: (Error) -> Void = { _ in }
+    _ errorHandler: (Error) -> Void = { _ in },
 ) async {
     do {
         _ = try await expression()

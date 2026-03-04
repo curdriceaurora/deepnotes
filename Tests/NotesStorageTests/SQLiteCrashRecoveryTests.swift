@@ -1,13 +1,12 @@
-import XCTest
 import Foundation
 import SQLite3
-@testable import NotesStorage
+import XCTest
 @testable import NotesDomain
+@testable import NotesStorage
 
 /// Tests that crash-like interruptions (failed transactions, bad migration inputs,
 /// partial writes) leave the database in a consistent, reopenable state.
 final class SQLiteCrashRecoveryTests: XCTestCase {
-
     // MARK: - Migration recovery
 
     /// Opening a database that has a truncated / zero-byte file should fail with a
@@ -23,7 +22,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             // Must surface as a StorageError rather than an untyped error.
             XCTAssertTrue(
                 error is StorageError,
-                "Expected StorageError, got \(error)"
+                "Expected StorageError, got \(error)",
             )
         }
 
@@ -84,7 +83,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         XCTAssertThrowsError(try SQLiteStore(databaseURL: dbURL)) { error in
             XCTAssertTrue(
                 error is StorageError,
-                "Migration failure must surface as StorageError, got \(error)"
+                "Migration failure must surface as StorageError, got \(error)",
             )
         }
 
@@ -105,7 +104,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         let note1 = Note(
             title: "Unique Title",
             body: "original body",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         let persisted = try await store.upsertNote(note1)
         let versionAfterFirstWrite = persisted.version
@@ -114,9 +113,9 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // won't merge by stableID, then conflicts on the UNIQUE title index.
         let note2 = Note(
             stableID: "different-stable-id",
-            title: "Unique Title",   // intentional duplicate
+            title: "Unique Title", // intentional duplicate
             body: "conflicting body",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
         )
         do {
             _ = try await store.upsertNote(note2)
@@ -143,7 +142,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         let versionAfterFail = noteAfterFail?.version ?? 0
         XCTAssertLessThanOrEqual(
             versionAfterFail, versionAfterFirstWrite + 1,
-            "note_version must not drift beyond the last successfully committed version"
+            "note_version must not drift beyond the last successfully committed version",
         )
     }
 
@@ -158,7 +157,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             title: "Seed",
             status: .backlog,
             kanbanOrder: 1,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         _ = try await store.upsertTask(seed)
         let seedFetched = try await store.fetchTaskByStableID("seed-task")
@@ -170,7 +169,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             title: "Bad Task",
             status: .backlog,
             kanbanOrder: 2,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
         )
         do {
             _ = try await store.upsertTask(badTask)
@@ -182,8 +181,11 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // Seed task still accessible, version unchanged.
         let refetched = try await store.fetchTaskByStableID("seed-task")
         XCTAssertNotNil(refetched)
-        XCTAssertEqual(refetched?.version, versionBaseline,
-                       "Meta version must not advance when write is rejected before transaction")
+        XCTAssertEqual(
+            refetched?.version,
+            versionBaseline,
+            "Meta version must not advance when write is rejected before transaction",
+        )
     }
 
     /// Two tasks with the same `stable_id` (but different primary-key UUIDs) trigger a
@@ -196,12 +198,12 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         let store = try makeStore()
 
         let task1 = try Task(
-            id: UUID(uuidString: "AA000000-0000-0000-0000-000000000001")!,
+            id: XCTUnwrap(UUID(uuidString: "AA000000-0000-0000-0000-000000000001")),
             stableID: "shared-stable-id",
             title: "First Task",
             status: .backlog,
             kanbanOrder: 1,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         let committed = try await store.upsertTask(task1)
         let versionAfterFirstWrite = committed.version
@@ -210,12 +212,12 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // The store will try to INSERT a new row; the UNIQUE constraint on stable_id
         // fires inside the transaction and the store must roll back.
         let task2 = try Task(
-            id: UUID(uuidString: "BB000000-0000-0000-0000-000000000002")!,
+            id: XCTUnwrap(UUID(uuidString: "BB000000-0000-0000-0000-000000000002")),
             stableID: "shared-stable-id",
             title: "Conflicting Task",
             status: .next,
             kanbanOrder: 2,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
         )
         do {
             _ = try await store.upsertTask(task2)
@@ -234,7 +236,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         // successful write established (no phantom increment from the rolled-back attempt).
         XCTAssertLessThanOrEqual(
             refetched?.version ?? 0, versionAfterFirstWrite + 1,
-            "task_version must not drift beyond the last successfully committed version"
+            "task_version must not drift beyond the last successfully committed version",
         )
     }
 
@@ -251,7 +253,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             taskVersionCursor: 1,
             noteVersionCursor: 0,
             calendarToken: "token-v1",
-            updatedAt: now
+            updatedAt: now,
         )
         try await store.saveCheckpoint(cp)
 
@@ -266,8 +268,11 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         XCTAssertNotNil(fetched)
         XCTAssertEqual(fetched?.taskVersionCursor, 5)
         XCTAssertEqual(fetched?.noteVersionCursor, 3)
-        XCTAssertEqual(fetched?.calendarToken, "token-v2",
-                       "Latest checkpoint token must be persisted; no stale intermediate value")
+        XCTAssertEqual(
+            fetched?.calendarToken,
+            "token-v2",
+            "Latest checkpoint token must be persisted; no stale intermediate value",
+        )
     }
 
     /// After a failed note write, saving a checkpoint must still succeed —
@@ -282,7 +287,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         let note1 = Note(
             title: "Title Conflict Test",
             body: "first",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
         _ = try await store.upsertNote(note1)
 
@@ -291,7 +296,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             stableID: UUID().uuidString,
             title: "Title Conflict Test",
             body: "second",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
         )
         _ = try? await store.upsertNote(note2)
 
@@ -301,7 +306,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             taskVersionCursor: 99,
             noteVersionCursor: 42,
             calendarToken: nil,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_200)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_200),
         )
         try await store.saveCheckpoint(cp)
 
@@ -326,7 +331,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
                 title: "Should Survive",
                 status: .next,
                 kanbanOrder: 1,
-                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             ))
 
             // Attempt a bad write (empty stableID validation fires).
@@ -335,7 +340,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
                 title: "Bad",
                 status: .backlog,
                 kanbanOrder: 2,
-                updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
             )
             _ = try? await store.upsertTask(badTask)
             // store goes out of scope, connection closed
@@ -360,7 +365,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
                 taskVersionCursor: 77,
                 noteVersionCursor: 13,
                 calendarToken: "durable-token",
-                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             ))
         } // store dealloc → sqlite3_close
 
@@ -369,8 +374,11 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
         XCTAssertNotNil(cp)
         XCTAssertEqual(cp?.taskVersionCursor, 77)
         XCTAssertEqual(cp?.noteVersionCursor, 13)
-        XCTAssertEqual(cp?.calendarToken, "durable-token",
-                       "Checkpoint token must be durably written and readable after reopen")
+        XCTAssertEqual(
+            cp?.calendarToken,
+            "durable-token",
+            "Checkpoint token must be durably written and readable after reopen",
+        )
     }
 
     // MARK: - Helpers
@@ -394,7 +402,7 @@ final class SQLiteCrashRecoveryTests: XCTestCase {
             databaseURL.path,
             &dbPointer,
             SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
-            nil
+            nil,
         )
         guard openCode == SQLITE_OK, let dbPointer else {
             throw StorageError.openDatabase(path: databaseURL.path, reason: "Could not create fixture DB")

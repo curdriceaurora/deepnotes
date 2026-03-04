@@ -8,20 +8,30 @@ on:
 
 jobs:
   lint:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Install SwiftLint
-        run: brew install swiftlint
-      - name: Run SwiftLint
-        run: swiftlint lint --strict
+      - name: Install lint tools
+        run: brew install swiftlint swiftformat xcbeautify
+      - name: Install Periphery
+        continue-on-error: true
+        run: brew install periphery
+      - name: SwiftLint
+        run: swiftlint lint --strict --config .swiftlint.yml
+      - name: SwiftFormat (check)
+        run: swiftformat Sources/ Tests/ --lint --config .swiftformat
+      - name: Build (xcbeautify)
+        run: swift build 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
+      - name: Periphery (dead code)
+        continue-on-error: true
+        run: periphery scan
   coverage:
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Run test suite with coverage
-        run: swift test --enable-code-coverage
+        run: swift test --enable-code-coverage 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
       - name: Validate coverage minimums
         continue-on-error: true
         run: ./Scripts/coverage-gates.sh
@@ -39,7 +49,7 @@ jobs:
           path: coverage-artifacts
 
   performance:
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

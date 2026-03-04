@@ -1,5 +1,5 @@
-import SwiftUI
 import NotesDomain
+import SwiftUI
 
 // MARK: - Shared View Modifiers
 
@@ -20,14 +20,14 @@ struct DNColumnModifier: ViewModifier {
         content
             .background(
                 .regularMaterial,
-                in: RoundedRectangle(cornerRadius: 14)
+                in: RoundedRectangle(cornerRadius: 14),
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(
                         isDropTarget ? Color.accentColor : Color.clear,
-                        lineWidth: 2
-                    )
+                        lineWidth: 2,
+                    ),
             )
             .shadow(color: .primary.opacity(0.05), radius: 2, y: 1)
     }
@@ -63,28 +63,28 @@ enum DueDateStyle {
 enum PriorityDisplay {
     static func label(for priority: Int) -> String? {
         switch priority {
-        case 0: return "Urgent"
-        case 1: return "High"
-        case 2: return "Medium"
-        case 3: return "Low"
-        case 4: return "Minimal"
-        default: return nil
+        case 0: "Urgent"
+        case 1: "High"
+        case 2: "Medium"
+        case 3: "Low"
+        case 4: "Minimal"
+        default: nil
         }
     }
 
     static func color(for priority: Int) -> Color {
         switch priority {
-        case 0: return .red
-        case 1: return .orange
-        case 2: return .yellow
-        case 3: return .blue
-        case 4: return .purple
-        default: return .secondary
+        case 0: .red
+        case 1: .orange
+        case 2: .yellow
+        case 3: .blue
+        case 4: .purple
+        default: .secondary
         }
     }
 
     static func shouldDisplay(_ priority: Int) -> Bool {
-        (0...4).contains(priority)
+        (0 ... 4).contains(priority)
     }
 }
 
@@ -100,7 +100,7 @@ extension Color {
         self.init(
             red: Double((rgb >> 16) & 0xFF) / 255.0,
             green: Double((rgb >> 8) & 0xFF) / 255.0,
-            blue: Double(rgb & 0xFF) / 255.0
+            blue: Double(rgb & 0xFF) / 255.0,
         )
     }
 }
@@ -110,11 +110,11 @@ extension Color {
 extension TaskStatus {
     var accentColor: Color {
         switch self {
-        case .backlog: return .gray
-        case .next: return .blue
-        case .doing: return .orange
-        case .waiting: return .purple
-        case .done: return .green
+        case .backlog: .gray
+        case .next: .blue
+        case .doing: .orange
+        case .waiting: .purple
+        case .done: .green
         }
     }
 }

@@ -1,26 +1,24 @@
-import XCTest
 import Foundation
-@testable import NotesUI
+import XCTest
 @testable import NotesFeatures
-@testable import NotesDomain
 @testable import NotesSync
+@testable import NotesUI
 
 // MARK: - Shared Test Helpers
 
 /// Shared factory for creating test AppViewModels with consistent initialization.
 @MainActor
 func makeTestAppViewModel(service: WorkspaceServicing? = nil, calendarID: String = "dev-calendar") throws -> AppViewModel {
-    let actualService: WorkspaceServicing
-    if let service {
-        actualService = service
+    let actualService: WorkspaceServicing = if let service {
+        service
     } else {
-        actualService = try MockWorkspaceService()
+        try MockWorkspaceService()
     }
     let provider = InMemoryCalendarProvider()
     return AppViewModel(
         service: actualService,
         calendarProviderFactory: { provider },
-        syncCalendarID: calendarID
+        syncCalendarID: calendarID,
     )
 }
 
@@ -31,7 +29,7 @@ func waitUntil(
     deadline: TimeInterval = 2.0,
     file: StaticString = #file,
     line: UInt = #line,
-    condition: () -> Bool
+    condition: () -> Bool,
 ) async {
     let start = Date()
     while !condition() {

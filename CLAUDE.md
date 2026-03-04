@@ -40,6 +40,25 @@ swift build --product notes-perf-harness -c release
 ./Scripts/run-perf-gates.sh
 ```
 
+### Linting & Formatting
+
+```bash
+# Run all lint checks (SwiftLint + SwiftFormat + Periphery)
+./Scripts/run-lint.sh
+
+# Apply SwiftFormat to all source and test files
+./Scripts/run-format.sh
+
+# Install pre-commit hooks (one-time per clone)
+./Scripts/install-git-hooks.sh
+
+# Build with clean output
+swift build 2>&1 | xcbeautify
+
+# Test with clean output
+swift test 2>&1 | xcbeautify
+```
+
 **Coverage minimums:**
 - Functional: ≥ 90%
 - Integration: ≥ 99%
@@ -206,26 +225,29 @@ Test suites are parallelized where possible. Use `swift test --filter <test-name
 Before declaring ANY step complete or committing ANY code, follow this checklist:
 
 1. **Build check**: Verify the project builds without errors
-   - Swift: `swift build --product notes-app` should succeed
+   - Swift: `swift build` should succeed
 
-2. **Test suite**: Run the full test suite — all tests must pass
+2. **Lint check**: Run all static analysis tools
+   - `./Scripts/run-lint.sh` must pass (SwiftLint + SwiftFormat + Periphery)
+
+3. **Test suite**: Run the full test suite — all tests must pass
    - `swift test` (full suite)
    - `swift test <target>` (specific target during development)
 
-3. **Coverage gates**: Verify minimum coverage thresholds are met
+4. **Coverage gates**: Verify minimum coverage thresholds are met
    - `./Scripts/run-coverage-gates.sh` must pass
 
-4. **Performance gates**: Check performance budgets (if making performance-sensitive changes)
+5. **Performance gates**: Check performance budgets (if making performance-sensitive changes)
    - `./Scripts/run-perf-gates.sh` must pass
 
-5. **Diff review**: Read your own `git diff --staged` before committing and check for:
+6. **Diff review**: Read your own `git diff --staged` before committing and check for:
    - Incomplete refactors or half-finished code
    - Removed code that shouldn't be removed
    - Hardcoded paths or debug prints
    - Missing test coverage for new logic
    - Code organization and readability
 
-6. **Commit**: Only after steps 1-5 pass, commit with clear conventional commit format
+7. **Commit**: Only after steps 1-6 pass, commit with clear conventional commit format
 
 ### Anti-patterns to avoid:
 - NEVER say "All done" or summarize completion mid-plan. Complete ALL steps first.
@@ -353,12 +375,33 @@ For ALL PR reviews, use GitHub API directly instead of relying on `gh pr view` s
 
 2. **Address each comment individually** with a corresponding reply:
    ```bash
-   gh api repos/OWNER/REPO/pulls/PR_NUM/comments/COMMENT_ID/replies -X POST -f "body=@fix-message"
+   gh api repos/OWNER/REPO/pulls/PR_NUM/comments/COMMENT_ID/replies -X POST -f "body=..."
    ```
 
-3. **Track resolution**: Make code fix → Reply to comment → Mark PR ready for merge
+3. **Resolve threads via GraphQL** (replies alone do NOT resolve threads):
+   ```bash
+   # Get unresolved thread IDs
+   gh api graphql -f query='{
+     repository(owner: "OWNER", name: "REPO") {
+       pullRequest(number: PR_NUM) {
+         reviewThreads(first: 50) {
+           nodes { id isResolved comments(first: 1) { nodes { body } } }
+         }
+       }
+     }
+   }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id'
 
-**Why**: Prevents skipped comments, ensures comprehensive feedback addressed, creates audit trail.
+   # Resolve each thread
+   gh api graphql -f query='mutation {
+     resolveReviewThread(input: {threadId: "THREAD_ID"}) {
+       thread { isResolved }
+     }
+   }'
+   ```
+
+4. **Track resolution**: Make code fix → Reply to comment → Resolve thread → Push
+
+**Why**: Prevents skipped comments, ensures comprehensive feedback addressed, creates audit trail. Thread resolution is required — GitHub does not auto-resolve threads from replies.
 
 **This autonomy applies to all Phase-level delivery work. For work outside the current phase, defer to user instructions.**
 

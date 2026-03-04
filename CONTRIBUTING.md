@@ -31,21 +31,37 @@ swift test NotesUITests
 
 # Run performance gates
 ./Scripts/run-perf-gates.sh
+
+# Install pre-commit hooks (one-time per clone)
+./Scripts/install-git-hooks.sh
 ```
 
 ## Code Standards
 
 ### Style & Quality
 
-- **SwiftLint**: Enforces style consistency
-  ```bash
-  swiftlint lint --fix
-  ```
-- **Indentation**: 4 spaces (configured in `.swiftlint.yml`)
-- **Line length**: 140 characters max
-- **Access control**: Explicit `public`, `internal`, `private` declarations
+The project uses **SwiftLint**, **SwiftFormat**, and **Periphery** for code quality:
 
-See [`.swiftlint.yml`](.swiftlint.yml) for all rules.
+```bash
+# Run all lint checks
+./Scripts/run-lint.sh
+
+# Apply code formatting
+./Scripts/run-format.sh
+
+# Check formatting without applying
+swiftformat Sources/ Tests/ --lint --config .swiftformat
+```
+
+**Key standards:**
+- **Indentation**: 4 spaces (configured in `.swiftlint.yml`)
+- **Line length**: 140 warning / 160 error (SwiftFormat wraps at 160; prefer ≤140 for new code)
+- **Cyclomatic complexity**: 15 warning / 25 error
+- **Access control**: Explicit `public`, `internal`, `private` declarations
+- **Imports**: Alphabetically sorted (test imports at bottom)
+- **Dead code**: Identified by Periphery, removed or suppressed with `// periphery:ignore`
+
+See [Docs/LINTING.md](Docs/LINTING.md) for comprehensive linting guide.
 
 ### Code Organization
 
