@@ -19,18 +19,26 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             // Request Copilot as a reviewer using the official bot identifier
-            await github.rest.pulls.requestReviewers({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-              reviewers: ['copilot-pull-request-reviewer[bot]']
-            }).catch(err => {
-              console.log('Failed to add Copilot reviewer:', err.message);
-              // Post comment mentioning github-copilot for manual review
-              return github.rest.issues.createComment({
+            try {
+              const result = await github.rest.pulls.requestReviewers({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: '@github-copilot review'
+                pull_number: context.issue.number,
+                reviewers: ['copilot-pull-request-reviewer[bot]']
               });
-            });
+              console.log('Successfully requested Copilot review:', result.status);
+            } catch (err) {
+              console.log('Failed to add Copilot reviewer:', err.message);
+              // Post comment mentioning github-copilot for manual review
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: '@github-copilot review'
+                });
+                console.log('Posted @github-copilot review comment as fallback');
+              } catch (commentErr) {
+                console.log('Failed to post comment:', commentErr.message);
+              }
+            }
