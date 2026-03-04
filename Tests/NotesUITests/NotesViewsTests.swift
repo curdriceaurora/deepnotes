@@ -149,7 +149,9 @@ final class NotesViewsTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil {
+            !viewModel.notes.isEmpty
+        }
 
         guard let first = viewModel.notes.first else {
             return XCTFail("Expected searched note")

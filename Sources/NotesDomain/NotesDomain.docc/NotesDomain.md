@@ -36,9 +36,7 @@ Core domain models and protocols for a local-first notes and task management app
 ### Task Management
 
 - ``TaskStatus``
-- ``TaskPriority``
 - ``TaskSortOrder``
-- ``TaskFilter``
 - ``TaskLabel``
 - ``KanbanColumn``
 

@@ -40,9 +40,11 @@ do {
 **Usage:**
 ```swift
 do {
-    try workspace.setTaskPriority(taskID, to: .high)
-} catch TaskError.invalidPriority {
-    print("Invalid priority value")
+    var task = try await workspace.task(withID: taskID)
+    task.priority = 1 // 0-5, where 0 is highest
+    try await workspace.updateTask(task)
+} catch TaskError.invalidPriority(let value) {
+    print("Invalid priority value: \(value)")
 }
 ```
 
