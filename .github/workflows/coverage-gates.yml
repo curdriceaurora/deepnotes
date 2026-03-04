@@ -8,11 +8,14 @@ on:
 
 jobs:
   lint:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Install lint tools
-        run: brew install swiftlint swiftformat periphery xcbeautify
+        run: brew install swiftlint swiftformat xcbeautify
+      - name: Install Periphery
+        continue-on-error: true
+        run: brew install periphery
       - name: SwiftLint
         run: swiftlint lint --strict --config .swiftlint.yml
       - name: SwiftFormat (check)
@@ -23,7 +26,7 @@ jobs:
         continue-on-error: true
         run: periphery scan
   coverage:
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +49,7 @@ jobs:
           path: coverage-artifacts
 
   performance:
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
