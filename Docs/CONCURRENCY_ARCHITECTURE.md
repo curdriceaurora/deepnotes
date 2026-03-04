@@ -91,18 +91,27 @@ public actor SQLiteStore: NoteStore, TaskStore, NoteTemplateStore {
 **TwoWaySyncEngine** conforms to `Sendable`:
 
 ```swift
-public struct TwoWaySyncEngine: Sendable {
-    // Immutable configuration
-    private let conflictPolicy: ConflictPolicy
-    private let store: SQLiteStore  // Actor, Sendable
-    private let provider: CalendarProvider  // Protocol-based
+public final class TwoWaySyncEngine: Sendable {
+    // Immutable stores and providers
+    private let taskStore: TaskStore
+    private let noteStore: NoteStore?
+    private let bindingStore: CalendarBindingStore
+    private let checkpointStore: SyncCheckpointStore
+    private let calendarProvider: CalendarProvider  // Protocol-based
+    private let taskMapper: TaskCalendarMapper
+    private let noteMapper: NoteCalendarMapper
+    private let clock: Clock
 }
 ```
 
 **Key Characteristics**:
-- ✅ Struct (value type) — immutable by default
-- ✅ Only holds Sendable references (SQLiteStore is an actor, therefore Sendable)
-- ✅ No captured variables or closures with non-Sendable types
+- ✅ Final class with Sendable conformance — immutable property initialization
+- ✅ Only holds Sendable references:
+  - Store protocols (TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore) are value/actor types
+  - CalendarProvider is a protocol-based dependency
+  - Mappers (TaskCalendarMapper, NoteCalendarMapper) are value types
+  - Clock is a protocol-based value type
+- ✅ No mutable shared state (all properties assigned once at init)
 - ✅ Deterministic conflict resolution (timestamp-based, no randomness)
 
 **Concurrency Guarantee**: Can be safely shared across task boundaries; all operations are pure or operate on the actor.
