@@ -1,0 +1,18 @@
+project_root: .
+targets:
+  - NotesDomain
+  - NotesStorage
+  - NotesSync
+  - NotesFeatures
+  - NotesUI
+  - NotesApp
+  - NotesCLI
+  - NotesPerfHarness
+exclude:
+  - "**/*Tests*"
+  - "**/*Mock*"
+  - "**/*Spy*"
+  - "**/*Stub*"
+retain_public: true
+disable_redundant_public_analysis: false
+index_store_path: .build/debug/index/store
