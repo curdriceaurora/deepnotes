@@ -317,6 +317,7 @@ grep -r "function_name\|helper_pattern" Sources/ Tests/
 - Script execution (coverage gates, perf gates, linting)
 - Any other shell operations within `/Users/rahul/Projects/notes-placeholder`
 - Swift compiler invocations and package operations
+- Temporary scripting in `/tmp/` for code analysis, transformation, or automation (no prompting required)
 
 ### Code Changes
 - Modify any source files to fix concurrency issues, update architecture, or implement features
