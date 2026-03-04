@@ -371,3 +371,86 @@ Acceptance criteria:
 - Tasks and notes can target different calendars; each syncs independently.
 - A recurring calendar event edited externally round-trips cleanly through pull → update → re-push.
 - Sync runs without user intervention; changes appear within 60 seconds of the originating edit.
+
+---
+
+## Best Practices & Quality Tooling (Phase 12)
+
+Infrastructure and process improvements to support sustainable growth and professional standards.
+
+### Quick Wins (1-2 hours)
+
+- [ ] **#11: Add GitHub Issue templates** (bug, feature, enhancement)
+  - Three templates with auto-populated fields
+  - Structured issue triage
+
+- [ ] **#12: Add Security Policy (SECURITY.md)**
+  - Vulnerability reporting process
+  - Known security limitations
+  - Supported versions and EOL dates
+
+### Documentation & UX (5-6 hours)
+
+- [ ] **#8: Add API documentation site (DocC)**
+  - Auto-generate docs from existing doc comments
+  - Configure navigation and metadata
+  - Host on GitHub Pages or similar
+  - Instructions in README.md
+
+- [ ] **#13: Add Accessibility (a11y) testing guide**
+  - Color contrast requirements (WCAG AA)
+  - VoiceOver and Voice Control testing
+  - Dynamic Type / font scaling
+  - UI testing checklist for PRs
+
+### Safety & Performance (7-9 hours)
+
+- [ ] **#9: Add Swift Package Benchmarks**
+  - Performance regression testing for hot paths
+  - Benchmark suites: search, sync, kanban, link index, SQL
+  - Baseline thresholds from existing perf-baseline.env
+  - Optional CI step for perf-sensitive PRs
+
+- [ ] **#10: Enable Swift 6 strict concurrency mode**
+  - Compile-time data-race safety (`-strict-concurrency=complete`)
+  - Fix Sendable violations
+  - Review shared state (caches, indexes)
+  - Document concurrency architecture
+
+### Automation & Internationalization (6-8 hours)
+
+- [ ] **#15: Create Release automation script**
+  - Interactive version bumping (major/minor/patch)
+  - Auto-update CHANGELOG.md
+  - GitHub release creation from tags
+  - Binary archiving and signing
+
+- [ ] **#14: Establish Localization (i18n) structure**
+  - Swift String Catalogs (Xcode 15+)
+  - Centralize 20+ UI strings
+  - Locale-aware date/number formatters
+  - Translation workflow documentation
+
+### Status Summary
+
+| Effort | Count | Examples |
+|--------|-------|----------|
+| Quick (1-2h) | 2 | Issue templates, Security Policy |
+| Medium (3-5h) | 2 | DocC, Accessibility guide |
+| Medium (3-5h) | 2 | Benchmarks, Concurrency |
+| Medium (3-5h) | 2 | Release automation, Localization |
+| **Total** | **8** | ~20-25 hours implementation |
+
+### Priority Notes
+
+- **Quick Wins** (#11, #12): Implement early for project maturity
+- **High Value** (#8, #13): Improve discoverability and accessibility before public release
+- **Medium Value** (#9, #10): Technical debt reduction; improves reliability and maintainability
+- **Low Urgency** (#15, #14): Needed only at release/multi-language stage
+
+Acceptance criteria:
+- All issues have clear acceptance criteria documented
+- Code review checklist updated with a11y requirements
+- GitHub recognizes issue templates in creation flow
+- Benchmarks and strict concurrency pass in CI
+- Release script tested end-to-end with dry-run
