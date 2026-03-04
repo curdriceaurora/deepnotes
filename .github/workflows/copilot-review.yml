@@ -6,7 +6,7 @@ on:
 
 # pull_request_target runs in the base repo context (write permissions).
 # Guard against fork PRs to avoid granting untrusted code write access.
-# Only same-repo PRs (head.repo == base.repo) proceed past the first step.
+# Only same-repo PRs (head.repo == base.repo) run this job.
 
 permissions:
   pull-requests: write
