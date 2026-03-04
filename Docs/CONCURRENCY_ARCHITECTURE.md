@@ -291,7 +291,7 @@ The project uses `swift-tools-version: 6.0` in `Package.swift`, which enables Sw
 **Rationale for Swift 6 language mode over explicit flags**:
 - Strict concurrency is the default in Swift 6 — no opt-in required
 - Eliminates `.unsafeFlags()` which blocked SwiftPM package consumers
-- Highest level of concurrency checking (errors on all potential data races)
+- Highest level of concurrency checking (treats many isolation and Sendable violations as errors)
 - Catches errors at compile time, not runtime
 - Makes unsafe code explicit (forces `@unchecked Sendable` annotation)
 
