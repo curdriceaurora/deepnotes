@@ -83,6 +83,17 @@ Acceptance criteria:
 
 ---
 
+## Code Quality Tooling
+
+- [x] SwiftLint configuration for style enforcement (2026-03-04)
+  - `.swiftlint.yml` with project-specific rules (4-space indent, 140-char lines, complexity limits)
+  - `Docs/LINTING.md` with installation, usage, and CI integration guidance
+  - `.pre-commit-config.yaml` for optional pre-commit hook integration
+  - Updated README with SwiftLint setup instructions
+  - GitHub issue #7 — CLOSED
+
+---
+
 ## Product Gap Closure
 
 The sections below are organized MECE against the four pillars of the original brief.
