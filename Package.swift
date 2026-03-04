@@ -19,7 +19,7 @@ let package = Package(
         .executable(name: "notes-perf-harness", targets: ["NotesPerfHarness"])
     ],
     dependencies: [
-        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.9.14"),
+        .package(url: "https://github.com/nalexn/ViewInspector.git", from: "0.10.0"),
         .package(url: "https://github.com/apple/swift-markdown.git", from: "0.5.0")
     ],
     targets: [
