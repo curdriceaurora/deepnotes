@@ -3,6 +3,7 @@ import NotesDomain
 import NotesFeatures
 import NotesSync
 
+@MainActor
 public struct NotesRootView: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.scenePhase) private var scenePhase
@@ -120,6 +121,7 @@ public struct NotesRootView: View {
     }
 }
 
+@MainActor
 public struct NotesEditorView: View {
     @Bindable var viewModel: AppViewModel
 
@@ -576,6 +578,7 @@ public struct NotesEditorView: View {
     }
 }
 
+@MainActor
 struct QuickOpenSheetView: View {
     @Bindable var viewModel: AppViewModel
 
@@ -625,6 +628,7 @@ struct QuickOpenSheetView: View {
     }
 }
 
+@MainActor
 public struct TasksListView: View {
     @Bindable var viewModel: AppViewModel
 
@@ -796,6 +800,7 @@ public struct TasksListView: View {
     }
 }
 
+@MainActor
 public struct KanbanBoardView: View {
     @Bindable var viewModel: AppViewModel
 
@@ -1110,6 +1115,7 @@ public struct KanbanBoardView: View {
     }
 }
 
+@MainActor
 private struct KanbanColumnEditorSheet: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
@@ -1155,6 +1161,7 @@ private struct KanbanColumnEditorSheet: View {
     }
 }
 
+@MainActor
 private struct KanbanCardDetailSheet: View {
     private static let labelPalette = ["#FF0000", "#FF8800", "#FFCC00", "#00CC00", "#0088FF", "#8800FF", "#FF00AA", "#888888"]
 
@@ -1375,6 +1382,7 @@ private struct KanbanCardDetailSheet: View {
     }
 }
 
+@MainActor
 public struct SyncDashboardView: View {
     @Bindable var viewModel: AppViewModel
 
@@ -1557,6 +1565,7 @@ private extension SyncDiagnosticSeverity {
     }
 }
 
+@MainActor
 struct TemplatePickerSheetView: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.dismiss) var dismiss
@@ -1641,6 +1650,7 @@ struct TemplatePickerSheetView: View {
     }
 }
 
+@MainActor
 struct TemplateManagerView: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.dismiss) var dismiss
@@ -1713,6 +1723,7 @@ struct TemplateManagerView: View {
     }
 }
 
+@MainActor
 public struct GraphView: View {
     @Bindable var viewModel: AppViewModel
     @State private var positions: [UUID: CGPoint] = [:]
