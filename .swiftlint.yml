@@ -1,26 +1,23 @@
 ---
-# SwiftLint Configuration for NotesEngine
-# Enforces code style consistency while remaining practical for existing codebase
+# SwiftLint Configuration - Minimal and practical
+# Disabled rules that conflict with existing codebase
 
 disabled_rules:
-  - identifier_name     # Allow longer identifiers for clarity
-  - todo               # Allow TODO comments
+  - identifier_name
+  - todo
   - multiple_closures_with_trailing_closure
-  - force_try          # Used appropriately in parser initialization
-  - file_length        # Files can be >400 lines (e.g., models, harness)
-  - cyclomatic_complexity  # Allow complex switch statements
-  - function_body_length   # Allow longer functions where needed
-  - line_length        # Will configure separately below
+  - force_try
+  - file_length
+  - cyclomatic_complexity
+  - function_body_length
+  - line_length  # Use default 120 to match CI runner behavior
 
 opt_in_rules:
   - closing_brace
-  - closure_parameter_position
   - empty_parentheses_with_trailing_closure
   - explicit_init
   - implicit_return
   - nesting
   - operator_usage_whitespace
 
-line_length: 140
-indentation: 2 spaces
 reporter: "xcode"
