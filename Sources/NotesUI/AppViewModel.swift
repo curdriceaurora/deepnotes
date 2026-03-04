@@ -67,6 +67,10 @@ public final class AppViewModel {
     public var quickTaskTitle: String = ""
     public var quickTaskPriority: Int = 3
     public var selectedTaskForEditing: Task?
+
+    // Multi-select state
+    public var isMultiSelectMode: Bool = false
+    public private(set) var selectedTaskIDs: Set<UUID> = []
     public private(set) var kanbanColumns: [KanbanColumn] = []
     public var kanbanGrouping: KanbanGrouping = .none
     public var isColumnEditorPresented: Bool = false
@@ -371,6 +375,46 @@ public final class AppViewModel {
 
     public func deleteTask(taskID: UUID) async {
         await requestTaskDeletion(taskID: taskID)
+    }
+
+    public func toggleMultiSelectMode() {
+        isMultiSelectMode.toggle()
+        if !isMultiSelectMode {
+            exitMultiSelectMode()
+        }
+    }
+
+    private func exitMultiSelectMode() {
+        selectedTaskIDs.removeAll()
+        isMultiSelectMode = false
+    }
+
+    public func toggleTaskSelection(taskID: UUID) {
+        if selectedTaskIDs.contains(taskID) {
+            selectedTaskIDs.remove(taskID)
+        } else {
+            selectedTaskIDs.insert(taskID)
+        }
+    }
+
+    public func isTaskSelected(_ taskID: UUID) -> Bool {
+        selectedTaskIDs.contains(taskID)
+    }
+
+    public func bulkMoveTasksToStatus(_ status: TaskStatus) async {
+        guard !selectedTaskIDs.isEmpty else { return }
+        await runTask {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for taskID in selectedTaskIDs {
+                    group.addTask {
+                        _ = try await self.service.moveTask(taskID: taskID, to: status, beforeTaskID: nil)
+                    }
+                }
+                try await group.waitForAll()
+            }
+            try await reloadTasksWithoutWrapper()
+            self.exitMultiSelectMode()
+        }
     }
 
     public func resolveRecurrenceEditPrompt(scope: RecurrenceEditScope) async {

@@ -1608,6 +1608,103 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(moved?.status, .next)
     }
 
+    func testToggleMultiSelectMode_entersAndExits() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+
+        viewModel.toggleMultiSelectMode()
+        XCTAssertTrue(viewModel.isMultiSelectMode)
+
+        guard let task = viewModel.tasks.first else {
+            return XCTFail("Expected at least one task")
+        }
+        viewModel.toggleTaskSelection(taskID: task.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+
+        viewModel.toggleMultiSelectMode()
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+    }
+
+    func testToggleTaskSelection_addsAndRemoves() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard let task1 = viewModel.tasks.first else {
+            return XCTFail("Expected at least one task")
+        }
+        guard let task2 = viewModel.tasks.dropFirst().first else {
+            return XCTFail("Expected at least two tasks")
+        }
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task1.id))
+
+        viewModel.toggleTaskSelection(taskID: task2.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 2)
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task1.id))
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task2.id))
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 1)
+        XCTAssertFalse(viewModel.selectedTaskIDs.contains(task1.id))
+        XCTAssertTrue(viewModel.selectedTaskIDs.contains(task2.id))
+    }
+
+    func testBulkMoveTasksToStatus_callsServiceForEachID() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard viewModel.tasks.count >= 3 else {
+            return XCTFail("Expected at least 3 tasks")
+        }
+
+        let task1 = viewModel.tasks[0]
+        let task2 = viewModel.tasks[1]
+        let task3 = viewModel.tasks[2]
+
+        viewModel.toggleTaskSelection(taskID: task1.id)
+        viewModel.toggleTaskSelection(taskID: task2.id)
+        viewModel.toggleTaskSelection(taskID: task3.id)
+
+        await viewModel.bulkMoveTasksToStatus(.done)
+
+        let moveCount = await service.moveTaskCallCount
+        XCTAssertEqual(moveCount, 3)
+    }
+
+    func testBulkMoveTasksToStatus_clearsSelectionAndExitsMulitSelectMode() async {
+        let service = WorkspaceServiceSpy()
+        let viewModel = makeViewModel(service: service)
+        await viewModel.load()
+        await viewModel.setTaskFilter(.all)
+
+        guard viewModel.tasks.count >= 2 else {
+            return XCTFail("Expected at least 2 tasks")
+        }
+
+        viewModel.isMultiSelectMode = true
+        viewModel.toggleTaskSelection(taskID: viewModel.tasks[0].id)
+        viewModel.toggleTaskSelection(taskID: viewModel.tasks[1].id)
+
+        XCTAssertTrue(viewModel.isMultiSelectMode)
+        XCTAssertEqual(viewModel.selectedTaskIDs.count, 2)
+
+        await viewModel.bulkMoveTasksToStatus(.next)
+
+        XCTAssertFalse(viewModel.isMultiSelectMode)
+        XCTAssertTrue(viewModel.selectedTaskIDs.isEmpty)
+    }
+
     private func makeViewModel(service: WorkspaceServiceSpy) -> AppViewModel {
         let provider = InMemoryCalendarProvider()
         return AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -1628,6 +1725,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     private(set) var updateTaskCallCount: Int = 0
     private(set) var deleteTaskCallCount: Int = 0
     private(set) var createTaskCallCount: Int = 0
+    private(set) var moveTaskCallCount: Int = 0
     private(set) var lastCreatedTaskPriority: Int = 3
 
     private var notes: [Note]
@@ -1855,6 +1953,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     }
 
     func moveTask(taskID: UUID, to status: TaskStatus, beforeTaskID: UUID?) async throws -> Task {
+        moveTaskCallCount += 1
         guard let idx = tasks.firstIndex(where: { $0.id == taskID }) else {
             throw NSError(domain: "workspace-spy", code: 404)
         }

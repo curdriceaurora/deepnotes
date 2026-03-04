@@ -655,20 +655,54 @@ public struct TasksListView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .accessibilityIdentifier("tasksList")
+
+            if viewModel.isMultiSelectMode {
+                Divider()
+                HStack(spacing: 12) {
+                    Text("\(viewModel.selectedTaskIDs.count) selected")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Menu {
+                        ForEach(TaskStatus.allCases, id: \.self) { status in
+                            Button(status.uiTitle) {
+                                _Concurrency.Task {
+                                    await viewModel.bulkMoveTasksToStatus(status)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Move to")
+                            Image(systemName: "chevron.down")
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                    .accessibilityIdentifier("bulkMoveMenu")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(.quaternary)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup {
+                Button {
+                    viewModel.toggleMultiSelectMode()
+                } label: {
+                    Text(viewModel.isMultiSelectMode ? "Cancel" : "Select")
+                }
+                .accessibilityIdentifier("multiSelectToggleButton")
+            }
         }
     }
 
     private func taskRow(_ task: Task) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Button {
-                _Concurrency.Task { await viewModel.toggleTaskCompletion(taskID: task.id, isCompleted: task.status != .done) }
-            } label: {
-                Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(task.status == .done ? Color.green : Color.secondary)
-                    .contentTransition(.symbolEffect(.replace))
+            if viewModel.isMultiSelectMode {
+                selectionButton(for: task)
+            } else {
+                completionButton(for: task)
             }
-            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(task.title)
@@ -693,19 +727,46 @@ public struct TasksListView: View {
 
             Spacer(minLength: 0)
 
-            Button(role: .destructive) {
-                _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
-            } label: {
-                Image(systemName: "trash")
-                    .font(.subheadline)
-                    .foregroundStyle(.tertiary)
+            if !viewModel.isMultiSelectMode {
+                Button(role: .destructive) {
+                    _Concurrency.Task { await viewModel.deleteTask(taskID: task.id) }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("deleteTask_\(task.id.uuidString)")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("deleteTask_\(task.id.uuidString)")
         }
         .padding(12)
         .dnCard()
         .accessibilityIdentifier("taskRow_\(task.id.uuidString)")
+    }
+
+    private func selectionButton(for task: Task) -> some View {
+        let isSelected = viewModel.isTaskSelected(task.id)
+        return Button {
+            viewModel.toggleTaskSelection(taskID: task.id)
+        } label: {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isSelected ? Color.blue : Color.secondary)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func completionButton(for task: Task) -> some View {
+        Button {
+            _Concurrency.Task { await viewModel.toggleTaskCompletion(taskID: task.id, isCompleted: task.status != .done) }
+        } label: {
+            Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(task.status == .done ? Color.green : Color.secondary)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
     }
 }
 
