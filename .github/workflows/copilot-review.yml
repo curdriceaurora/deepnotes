@@ -1,11 +1,12 @@
 name: Request Copilot PR Review
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
 
 permissions:
   pull-requests: write
+  issues: write
   contents: read
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
               });
               console.log('Successfully requested Copilot review:', result.status);
             } catch (err) {
-              console.log('Failed to add Copilot reviewer:', err.message);
+              console.log('Failed to add Copilot reviewer:', err);
               // Post comment mentioning github-copilot for manual review
               try {
                 await github.rest.issues.createComment({
@@ -39,6 +40,6 @@ jobs:
                 });
                 console.log('Posted @github-copilot review comment as fallback');
               } catch (commentErr) {
-                console.log('Failed to post comment:', commentErr.message);
+                console.log('Failed to post comment:', commentErr);
               }
             }
