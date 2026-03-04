@@ -1,8 +1,8 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
-// Swift 6 strict concurrency checking: enabled on all targets for compile-time data-race safety
-let strictConcurrencySettings: [SwiftSetting] = [.unsafeFlags(["-strict-concurrency=complete"])]
+// Swift 6 language mode enables strict concurrency by default — no additional flags needed
+let strictConcurrencySettings: [SwiftSetting] = []
 
 let package = Package(
     name: "NotesEngine",
