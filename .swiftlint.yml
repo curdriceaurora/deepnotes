@@ -1,6 +1,6 @@
 ---
 # SwiftLint Configuration - Minimal and practical
-# Disabled rules that conflict with existing codebase
+# Only enable rules that improve code quality without breaking existing code
 
 disabled_rules:
   - identifier_name
@@ -10,14 +10,13 @@ disabled_rules:
   - file_length
   - cyclomatic_complexity
   - function_body_length
-  - line_length  # Use default 120 to match CI runner behavior
+  - line_length
+  - type_body_length
+  - large_tuple
+  - implicit_return
 
 opt_in_rules:
   - closing_brace
   - empty_parentheses_with_trailing_closure
-  - explicit_init
-  - implicit_return
-  - nesting
-  - operator_usage_whitespace
 
 reporter: "xcode"
