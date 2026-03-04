@@ -8,8 +8,14 @@ import Foundation
 // MARK: - Shared Test Helpers
 
 /// Shared factory for creating test AppViewModels with consistent initialization.
+@MainActor
 func makeTestAppViewModel(service: WorkspaceServicing? = nil, calendarID: String = "dev-calendar") throws -> AppViewModel {
-    let actualService = service ?? try MockWorkspaceService()
+    let actualService: WorkspaceServicing
+    if let service {
+        actualService = service
+    } else {
+        actualService = try MockWorkspaceService()
+    }
     let provider = InMemoryCalendarProvider()
     return AppViewModel(
         service: actualService,
@@ -20,11 +26,12 @@ func makeTestAppViewModel(service: WorkspaceServicing? = nil, calendarID: String
 
 /// Polls `condition` every 20 ms until it becomes true or the deadline (default 2 s) passes.
 /// Use this instead of fixed-duration sleeps so CI machines with variable scheduler latency don't cause flaky timeouts.
+@MainActor
 func waitUntil(
     deadline: TimeInterval = 2.0,
     file: StaticString = #file,
     line: UInt = #line,
-    condition: @MainActor () -> Bool
+    condition: () -> Bool
 ) async {
     let start = Date()
     while !condition() {
