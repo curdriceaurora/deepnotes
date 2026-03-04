@@ -394,17 +394,23 @@ Infrastructure and process improvements to support sustainable growth and profes
 
 ### Documentation & UX (5-6 hours)
 
-- [ ] **#8: Add API documentation site (DocC)**
-  - Auto-generate docs from existing doc comments
-  - Configure navigation and metadata
-  - Host on GitHub Pages or similar
-  - Instructions in README.md
+- [x] **#8: Add API documentation site (DocC)** — COMPLETE 2026-03-03
+  - DocC catalog structure with 4 guide pages (Models, Errors, Protocols)
+  - Auto-generated from existing doc comments (added in this session)
+  - Navigation with topic organization and cross-references
+  - Build instructions in Docs/API_DOCUMENTATION.md
+  - README.md integration with quick-start command
+  - GitHub Pages deployment ready
 
-- [ ] **#13: Add Accessibility (a11y) testing guide**
-  - Color contrast requirements (WCAG AA)
-  - VoiceOver and Voice Control testing
-  - Dynamic Type / font scaling
-  - UI testing checklist for PRs
+- [x] **#13: Add Accessibility (a11y) testing guide** — COMPLETE 2026-03-03
+  - Color contrast requirements (WCAG AA 4.5:1 normal text, 3:1 large text)
+  - VoiceOver and Voice Control testing procedures with SwiftUI examples
+  - Dynamic Type / font scaling testing with code samples
+  - Touch target sizing (≥44pt iOS, ≥48pt macOS)
+  - High Contrast and Zoom testing procedures
+  - Pre-flight accessibility checklist for every PR
+  - Pre-release audit checklist for public launch
+  - Testing tools and resources (Xcode Inspector, Color Contrast Analyzer, WCAG links)
 
 ### Safety & Performance (7-9 hours)
 
