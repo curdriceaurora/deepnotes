@@ -375,12 +375,33 @@ For ALL PR reviews, use GitHub API directly instead of relying on `gh pr view` s
 
 2. **Address each comment individually** with a corresponding reply:
    ```bash
-   gh api repos/OWNER/REPO/pulls/PR_NUM/comments/COMMENT_ID/replies -X POST -f "body=@fix-message"
+   gh api repos/OWNER/REPO/pulls/PR_NUM/comments/COMMENT_ID/replies -X POST -f "body=..."
    ```
 
-3. **Track resolution**: Make code fix → Reply to comment → Mark PR ready for merge
+3. **Resolve threads via GraphQL** (replies alone do NOT resolve threads):
+   ```bash
+   # Get unresolved thread IDs
+   gh api graphql -f query='{
+     repository(owner: "OWNER", name: "REPO") {
+       pullRequest(number: PR_NUM) {
+         reviewThreads(first: 50) {
+           nodes { id isResolved comments(first: 1) { nodes { body } } }
+         }
+       }
+     }
+   }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false) | .id'
 
-**Why**: Prevents skipped comments, ensures comprehensive feedback addressed, creates audit trail.
+   # Resolve each thread
+   gh api graphql -f query='mutation {
+     resolveReviewThread(input: {threadId: "THREAD_ID"}) {
+       thread { isResolved }
+     }
+   }'
+   ```
+
+4. **Track resolution**: Make code fix → Reply to comment → Resolve thread → Push
+
+**Why**: Prevents skipped comments, ensures comprehensive feedback addressed, creates audit trail. Thread resolution is required — GitHub does not auto-resolve threads from replies.
 
 **This autonomy applies to all Phase-level delivery work. For work outside the current phase, defer to user instructions.**
 
