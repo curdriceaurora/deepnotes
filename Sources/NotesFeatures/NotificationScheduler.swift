@@ -1,7 +1,7 @@
 import NotesDomain
 
 #if os(iOS) || os(macOS)
-    import UserNotifications
+    @preconcurrency import UserNotifications
 
     public actor UserNotificationScheduler: NotificationScheduling {
         private let center: UNUserNotificationCenter

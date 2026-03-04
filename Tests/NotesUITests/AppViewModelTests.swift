@@ -1217,9 +1217,14 @@ final class AppViewModelTests: XCTestCase {
 
         XCTAssertNotNil(viewModel.notesNextOffset)
 
-        // Trigger search (which resets pagination)
+        // Trigger search (which resets pagination via 300ms debounce)
         await viewModel.setNoteSearchQuery("Alpha")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+
+        // Wait for debounce + execution (CI can be slow)
+        for _ in 0 ..< 20 {
+            try? await _Concurrency.Task.sleep(for: .milliseconds(100))
+            if viewModel.notesNextOffset == nil { break }
+        }
 
         // Search path does not use pagination
         XCTAssertNil(viewModel.notesNextOffset)

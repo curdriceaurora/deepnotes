@@ -1,7 +1,7 @@
 import Foundation
 import Markdown
 
-public struct MarkdownRenderer: Sendable {
+public struct MarkdownRenderer: @unchecked Sendable {
     public init() {}
 
     public func render(_ markdown: String, noteTitles: [String]) -> AttributedString {
