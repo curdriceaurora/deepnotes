@@ -125,6 +125,24 @@ swift run notes-cli list-calendars
 swift run notes-cli sync-eventkit --db ./data/notes.sqlite --calendar <calendar-id>
 ```
 
+## API Documentation
+
+Comprehensive API documentation is available via **DocC** (Swift Documentation Compiler):
+
+```bash
+# Generate and view documentation locally
+swift package generate-documentation --target NotesDomain --derive-swift-ui-symbols
+```
+
+Open `.build/documentation/index.html` in your browser to explore:
+- **Models**: Core entities (Note, Task, Subtask, CalendarEvent, etc.)
+- **Errors**: Typed error types and handling strategies
+- **Protocols**: Store and provider interfaces
+
+Documentation is automatically deployed to GitHub Pages on release.
+
+See [Docs/API_DOCUMENTATION.md](Docs/API_DOCUMENTATION.md) for detailed build and deployment instructions.
+
 ## Test suite
 
 - Storage tests: [Tests/NotesStorageTests/SQLiteStoreTests.swift](/Users/rahul/Projects/notes-placeholder/Tests/NotesStorageTests/SQLiteStoreTests.swift)
