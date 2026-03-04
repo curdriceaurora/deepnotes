@@ -599,13 +599,14 @@ final class NotesViewsTests: XCTestCase {
     }
 
     // MARK: - §20 UI Accessibility Identifiers
-    // Note: These tests verify that core UI elements render without crashing.
-    // Semantic accessibility labels and hints are added in Views.swift and
-    // validated at compilation time. ViewInspector limitations prevent testing
-    // complex view hierarchies (SyncDashboardView, TasksListView) in unit tests.
+    // Note: These tests verify that core UI elements render and can be inspected
+    // without crashing. Semantic accessibility labels and hints are defined in
+    // Views.swift and are reviewed/validated via manual audit and higher-level
+    // UI tests. ViewInspector limitations prevent fully testing complex view
+    // hierarchies (SyncDashboardView, TasksListView) in these unit tests.
 
     func testIdentifiersNotesEditorControls() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = NotesEditorView(viewModel: viewModel)
@@ -615,7 +616,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanColumns() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = KanbanBoardView(viewModel: viewModel)
@@ -625,7 +626,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersSyncTabControls() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = SyncDashboardView(viewModel: viewModel)
@@ -635,7 +636,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersNotesEditorFields() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = NotesEditorView(viewModel: viewModel)
@@ -645,7 +646,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersMarkdownToolbar() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = NotesEditorView(viewModel: viewModel)
@@ -655,7 +656,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersQuickOpenSheet() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
         viewModel.openQuickSwitcher()
 
@@ -666,7 +667,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersTasksTab() async throws {
-        let viewModel = try makeViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = TasksListView(viewModel: viewModel)
@@ -676,7 +677,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanEmptyColumns() async throws {
-        let viewModel = makeViewModel(notes: [], tasks: [])
+        let viewModel = try makeTestAppViewModel(service: MockWorkspaceService(notes: [], tasks: []))
         await viewModel.load()
 
         let view = KanbanBoardView(viewModel: viewModel)
@@ -686,7 +687,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersSyncDiagnosticsEmptyState() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
         await viewModel.runSync()
 
@@ -697,7 +698,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanColumnHeaders() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = KanbanBoardView(viewModel: viewModel)
@@ -707,7 +708,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersKanbanCard() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = KanbanBoardView(viewModel: viewModel)
@@ -717,7 +718,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersSyncExportButton() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
         await viewModel.runSync()
 
@@ -728,7 +729,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersSyncCalendarAndRunButton() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = SyncDashboardView(viewModel: viewModel)
@@ -738,7 +739,7 @@ final class NotesViewsTests: XCTestCase {
     }
 
     func testIdentifiersSyncStatusText() async throws {
-        let viewModel = try makePopulatedViewModel()
+        let viewModel = try makeTestAppViewModel()
         await viewModel.load()
 
         let view = SyncDashboardView(viewModel: viewModel)
@@ -747,27 +748,6 @@ final class NotesViewsTests: XCTestCase {
         XCTAssert(true)
     }
 
-    // MARK: - Helpers for §20 tests
-
-    private func makeViewModel(notes: [Note] = [], tasks: [Task] = []) -> AppViewModel {
-        let service = MockWorkspaceService(notes: notes, tasks: tasks)
-        let provider = InMemoryCalendarProvider()
-        return AppViewModel(
-            service: service,
-            calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
-        )
-    }
-
-    private func makePopulatedViewModel() throws -> AppViewModel {
-        let service = try MockWorkspaceService()
-        let provider = InMemoryCalendarProvider()
-        return AppViewModel(
-            service: service,
-            calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
-        )
-    }
 }
 
 actor MockWorkspaceService: WorkspaceServicing {
