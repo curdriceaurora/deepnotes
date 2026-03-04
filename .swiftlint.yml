@@ -1,0 +1,110 @@
+# SwiftLint Configuration
+# Enforces code style consistency and best practices
+# This configuration aligns with the project's existing code conventions
+
+# Rules to disable (not applicable to this project)
+disabled_rules:
+  # Allow longer identifiers for clarity in model names
+  - identifier_name
+  # Allow TODO comments (intentional in progress markers)
+  - todo
+  # Allow multiple statements on single line in appropriate contexts
+  - multiple_closures_with_trailing_closure
+
+# Rules to enable with custom configuration
+opt_in_rules:
+  # Strictness and best practices
+  - closing_brace
+  - closure_parameter_position
+  - empty_parentheses_with_trailing_closure
+  - explicit_init
+  - force_unwrapping
+  - implicit_return
+  - redundant_nil_coalescing
+  - strict_fileprivate
+  - yoda_condition
+
+  # Consistency
+  - attributes
+  - closure_spacing
+  - collection_alignment
+  - explicit_acl
+  - multiline_arguments
+  - nesting
+  - operator_usage_whitespace
+
+# Configuration for specific rules
+rules:
+  # Indentation: 4 spaces (matches project convention)
+  indentation:
+    kind: spaces
+    indentation_width: 4
+
+  # Line length: 140 characters (reasonable for multi-monitor setups, documentation)
+  line_length: 140
+
+  # Cyclomatic complexity: 15 (reasonable for Swift with switch statements)
+  cyclomatic_complexity:
+    warning: 15
+    error: 20
+
+  # Nesting: Allow 6 levels (switch statements in enums can be deeply nested)
+  nesting:
+    type_level: 6
+    statement_level: 6
+
+  # Function parameter count: 8 parameters max
+  function_parameter_count:
+    warning: 6
+    error: 8
+
+  # File length: 500 lines warning, 750 lines error
+  file_length:
+    warning: 500
+    error: 750
+
+  # Type body length: allow larger enums and models
+  type_body_length:
+    warning: 300
+    error: 500
+
+  # Trailing comma: allow in multiline collections
+  trailing_comma:
+    mandatory_comma: false
+
+  # Access control: Explicit public/private declarations required
+  explicit_acl:
+    include_extensions: false
+
+  # Force unwrapping: warn when used
+  force_unwrapping:
+    severity: warning
+
+  # Closure spacing: consistent spacing around closures
+  closure_spacing:
+    severity: warning
+
+  # Attributes: swift should be spaced appropriately
+  attributes:
+    always_on_same_line: ["@IBAction", "@NSManaged"]
+
+# Paths to include
+included:
+  - Sources/
+  - Tests/
+
+# Paths to exclude
+excluded:
+  - .build/
+  - .swiftpm/
+  - Pods/
+  - .carthage/
+
+# Custom reporter: human readable format
+reporter: "xcode"
+
+# Cache settings
+cache_path: .swiftlint_cache
+
+# Configuration to run in parallel (faster linting)
+executable_path: /usr/local/bin/swiftlint

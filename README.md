@@ -59,6 +59,33 @@ This command runs test coverage and enforces these minimums:
 - UI interaction coverage: `>= 95%` (interaction orchestration in `Sources/NotesUI/AppViewModel.swift`)
 - UI view-layer coverage: `>= 85%` (`Sources/NotesUI/Views.swift`)
 
+### Run code style checks (SwiftLint)
+
+```bash
+# Install SwiftLint (if not already installed)
+brew install swiftlint
+
+# Run SwiftLint checks
+swiftlint lint
+
+# Auto-fix style violations where possible
+swiftlint lint --fix
+```
+
+Configuration: See [`.swiftlint.yml`](.swiftlint.yml) for rules and thresholds.
+
+Pre-commit setup (optional):
+```bash
+# Install pre-commit framework
+brew install pre-commit
+
+# Install git hooks
+pre-commit install
+
+# Run manually
+pre-commit run swiftlint --all-files
+```
+
 ### Run performance gates (release, with ProMotion rendering gate)
 
 ```bash
