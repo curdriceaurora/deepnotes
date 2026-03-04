@@ -10,6 +10,8 @@ disabled_rules:
   - todo
   # Allow multiple statements on single line in appropriate contexts
   - multiple_closures_with_trailing_closure
+  # Allow force try where needed (used in parser initialization)
+  - force_try
 
 # Rules to enable with custom configuration
 opt_in_rules:
@@ -69,14 +71,6 @@ rules:
   # Trailing comma: allow in multiline collections
   trailing_comma:
     mandatory_comma: false
-
-  # Access control: Explicit public/private declarations required
-  explicit_acl:
-    include_extensions: false
-
-  # Force unwrapping: warn when used
-  force_unwrapping:
-    severity: warning
 
   # Closure spacing: consistent spacing around closures
   closure_spacing:
