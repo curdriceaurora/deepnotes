@@ -1423,10 +1423,7 @@ public struct SyncDashboardView: View {
                     .accessibilityIdentifier("runSyncButton")
 
                     HStack(spacing: 6) {
-                        Image(systemName: viewModel.isSyncing ? "arrow.triangle.2.circlepath" : "checkmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(viewModel.isSyncing ? .orange : .green)
-                            .symbolEffect(.rotate, isActive: viewModel.isSyncing)
+                        syncStatusIcon(isSyncing: viewModel.isSyncing)
                         Text(viewModel.syncStatusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1544,6 +1541,29 @@ public struct SyncDashboardView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func syncStatusIcon(isSyncing: Bool) -> some View {
+        Image(systemName: isSyncing ? "arrow.triangle.2.circlepath" : "checkmark.circle")
+            .font(.caption)
+            .foregroundStyle(isSyncing ? .orange : .green)
+            .applyRotateEffectIfAvailable(isActive: isSyncing)
+    }
+}
+
+private extension View {
+    @available(macOS 15.0, iOS 17.2, *)
+    func applyRotateEffect(isActive: Bool) -> some View {
+        self.symbolEffect(.rotate, isActive: isActive)
+    }
+
+    func applyRotateEffectIfAvailable(isActive: Bool) -> some View {
+        if #available(macOS 15.0, iOS 17.2, *) {
+            return AnyView(self.applyRotateEffect(isActive: isActive))
+        } else {
+            return AnyView(self)
+        }
     }
 }
 
