@@ -447,12 +447,12 @@ Infrastructure and process improvements to support sustainable growth and profes
     - **Tier B: Create semantic accessibility tests (comprehensive a11y coverage)**
       - [ ] Create NotesAccessibilityTests.swift with 8-12 new tests covering:
         - `.accessibilityLabel` and `.accessibilityHint` correctness (all interactive elements)
-        - `.accessibilityElement(isEnabled:)` trait presence (button, label, searchField, toggle, etc.)
+        - Accessibility traits and roles correctness (button, label, searchField, toggle, etc.) verified via VoiceOver/accessibility inspection APIs
         - VoiceOver navigation order and skip-hints
         - Dynamic Type scaling: layout stability, text sizing
         - WCAG AA color contrast: ≥4.5:1 normal, ≥3:1 large
     - **Tier C: Verification and cleanup**
-      - [ ] Run full test suite: `swift test --filter NotesUITests` (target: 450+, 0 failures)
+      - [ ] Run full test suite: `swift test NotesUITests` (target: 450+, 0 failures)
       - [ ] Run coverage gates: `./Scripts/run-coverage-gates.sh` (all thresholds pass)
       - [ ] Verify NotesViewsTests §20 contains only identifier checks (no semantic assertions)
       - [ ] Verify NotesAccessibilityTests contains only semantic tests (no functional behavior)
