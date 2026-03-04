@@ -122,10 +122,10 @@ public actor WorkspaceService: WorkspaceServicing {
 
     /// Search result cache (LRU, max 8)
     private struct SearchCacheKey: Hashable {
-        let query: String
-        let mode: NoteSearchMode
-        let offset: Int
-        let limit: Int
+        let query: String // periphery:ignore
+        let mode: NoteSearchMode // periphery:ignore
+        let offset: Int // periphery:ignore
+        let limit: Int // periphery:ignore
     }
 
     private var searchCache: [SearchCacheKey: NoteSearchPage] = [:]

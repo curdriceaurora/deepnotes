@@ -1,6 +1,5 @@
 import Foundation
 import XCTest
-@testable import NotesUI
 
 @MainActor
 final class NotesAccessibilityTests: XCTestCase {

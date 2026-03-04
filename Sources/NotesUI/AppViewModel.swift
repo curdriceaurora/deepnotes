@@ -1229,12 +1229,12 @@ private struct PendingTaskMutation {
     let taskID: UUID
     let targetStatus: TaskStatus
     let beforeTaskID: UUID?
-    let occurrenceDate: Date?
+    let occurrenceDate: Date? // periphery:ignore
 }
 
 private struct PendingTaskDeletion {
     let taskID: UUID
-    let occurrenceDate: Date?
+    let occurrenceDate: Date? // periphery:ignore
 }
 
 private struct TaskDropInput {

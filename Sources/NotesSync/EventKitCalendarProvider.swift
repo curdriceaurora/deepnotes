@@ -34,12 +34,12 @@
 
     public actor EventKitCalendarProvider: CalendarProvider {
         private struct EventFingerprint: Equatable {
-            var title: String
-            var startDate: Date?
-            var endDate: Date?
-            var notes: String?
-            var isCompleted: Bool
-            var updatedAt: Date
+            var title: String // periphery:ignore
+            var startDate: Date? // periphery:ignore
+            var endDate: Date? // periphery:ignore
+            var notes: String? // periphery:ignore
+            var isCompleted: Bool // periphery:ignore
+            var updatedAt: Date // periphery:ignore
             var externalIdentifier: String?
             var recurrenceExceptionDate: Date?
         }

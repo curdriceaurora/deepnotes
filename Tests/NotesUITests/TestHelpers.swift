@@ -1,6 +1,5 @@
 import Foundation
 import XCTest
-@testable import NotesDomain
 @testable import NotesFeatures
 @testable import NotesSync
 @testable import NotesUI

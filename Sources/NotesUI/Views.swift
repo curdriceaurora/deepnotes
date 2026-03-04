@@ -2011,7 +2011,7 @@ private extension TaskStatus {
         }
     }
 
-    var previous: TaskStatus? {
+    var previous: TaskStatus? { // periphery:ignore
         switch self {
         case .backlog: nil
         case .next: .backlog
@@ -2021,7 +2021,7 @@ private extension TaskStatus {
         }
     }
 
-    var next: TaskStatus? {
+    var next: TaskStatus? { // periphery:ignore
         switch self {
         case .backlog: .next
         case .next: .doing

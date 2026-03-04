@@ -448,7 +448,7 @@ struct NotesPerfHarness {
         private final class KanbanRenderer {
             private let window: NSWindow
             private let hostingView: InstrumentedHostingView<KanbanBoardView>
-            private let viewModel: AppViewModel
+            private let viewModel: AppViewModel // periphery:ignore
             private var latestDrawTimestampNS: UInt64?
 
             init(viewModel: AppViewModel) {

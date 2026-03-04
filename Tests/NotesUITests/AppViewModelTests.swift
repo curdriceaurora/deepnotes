@@ -2378,7 +2378,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
     // MARK: - Subtask methods
 
     private(set) var addSubtaskCallCount: Int = 0
-    private(set) var lastSubtaskParentID: UUID?
+    private(set) var lastSubtaskParentID: UUID? // periphery:ignore
 
     func addSubtask(to parentTaskID: UUID, title: String) async throws -> Task {
         addSubtaskCallCount += 1
