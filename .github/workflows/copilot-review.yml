@@ -4,6 +4,10 @@ on:
   pull_request_target:
     types: [opened, synchronize]
 
+# pull_request_target runs in the base repo context (write permissions).
+# Guard against fork PRs to avoid granting untrusted code write access.
+# Only same-repo PRs (head.repo == base.repo) run this job.
+
 permissions:
   pull-requests: write
   issues: write
@@ -13,6 +17,9 @@ jobs:
   copilot-review:
     runs-on: ubuntu-latest
     name: Copilot Code Review
+    # Only run for same-repo PRs to prevent untrusted fork code from
+    # executing in a privileged context with write permissions.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Request Copilot Code Review
         uses: actions/github-script@v7
@@ -29,7 +36,9 @@ jobs:
               });
               console.log('Successfully requested Copilot review:', result.status);
             } catch (err) {
-              console.log('Failed to add Copilot reviewer:', err);
+              const errMsg = err instanceof Error ? err.message : String(err);
+              const errStatus = typeof err === 'object' && err !== null && 'status' in err ? err.status : 'unknown';
+              console.log(`Failed to add Copilot reviewer: status=${errStatus}, message=${errMsg}`);
               // Post comment mentioning github-copilot for manual review
               try {
                 await github.rest.issues.createComment({
@@ -40,6 +49,9 @@ jobs:
                 });
                 console.log('Posted @github-copilot review comment as fallback');
               } catch (commentErr) {
-                console.log('Failed to post comment:', commentErr);
+                const commentErrMsg = commentErr instanceof Error ? commentErr.message : String(commentErr);
+                const commentErrStatus = typeof commentErr === 'object' && commentErr !== null && 'status' in commentErr ? commentErr.status : 'unknown';
+                console.log(`Failed to post comment: status=${commentErrStatus}, message=${commentErrMsg}`);
+                throw commentErr;
               }
             }
