@@ -241,6 +241,70 @@ When given a numbered plan, you must:
 3. After each step, state: "✓ Step N complete. Remaining: [list]"
 4. Only after ALL steps are done, say the plan is complete
 
+## Mandatory Code Review Protocol
+
+**CRITICAL: Complete BEFORE every commit. Do NOT skip.**
+
+This prevents issues from reaching Copilot review (external iteration cost).
+
+### Step 1: Run `/simplify` code review
+When you've finished editing code:
+```bash
+/simplify
+```
+Address ALL findings:
+- Code reuse violations (duplicate helpers, redundant logic)
+- Quality issues (leaky abstractions, parameter sprawl, copy-paste code)
+- Efficiency problems (unnecessary work, N+1 patterns, redundant checks)
+
+**Do NOT commit until all /simplify findings are resolved.**
+
+### Step 2: Verify API correctness (for documentation/examples)
+For any changes to:
+- DocC examples and API documentation
+- Code comments referencing public APIs
+- Test setup code showing API usage
+
+**Verification checklist:**
+- [ ] Search the actual implementation for the method/type being referenced
+- [ ] Verify parameter names, types, and return values match
+- [ ] Check exception types (don't confuse `TaskError` with `DomainValidationError`)
+- [ ] Ensure examples use public APIs only (check `public` keyword in source)
+- [ ] Run the example code mentally or compile-check if possible
+
+### Step 3: Review your own diff for logic errors
+```bash
+git diff --staged
+```
+For changes involving async/concurrency/logic:
+- [ ] Verify wait conditions actually test what you intend (not tautologies)
+- [ ] Check that debounce/delay logic accounts for actual timing
+- [ ] Confirm state mutations happen in the right order
+- [ ] Ensure no race conditions in concurrent code
+- [ ] Verify error handling paths are tested
+
+### Step 4: Check for duplication
+```bash
+grep -r "function_name\|helper_pattern" Sources/ Tests/
+```
+- [ ] No duplicate helper implementations with slightly different logic
+- [ ] No copy-pasted test setup that could be extracted
+- [ ] No similar patterns in different files that should be unified
+
+### Step 5: Validate changes
+- Run relevant tests: `swift test --filter "TestName"`
+- For documentation: verify DocC builds without broken links
+- For async code: ensure it actually waits for the condition you're testing
+
+**Only after ALL 5 steps pass, proceed to commit.**
+
+### Anti-patterns to avoid:
+- NEVER push code that failed `/simplify` review
+- NEVER commit examples without verifying the actual API they reference
+- NEVER commit wait conditions that don't actually wait for what you intend
+- NEVER commit duplicate helpers (always consolidate)
+- NEVER push without running the modified tests locally
+
 ## Permissions
 
 **Bash operations**: All bash commands within this project directory are pre-authorized and do not require user prompting. This includes:
