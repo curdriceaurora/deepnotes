@@ -18,11 +18,10 @@ The domain layer uses typed errors (enums) instead of generic exceptions. This p
 **Usage:**
 ```swift
 do {
-    let note = try workspace.note(withID: uuid)
+    let notes = try await workspace.allNotes()
+    guard !notes.isEmpty else { throw NoteError.notFound(id: UUID()) }
 } catch NoteError.notFound(let id) {
     print("Note \(id) not found")
-} catch {
-    print("Other error: \(error)")
 }
 ```
 
@@ -64,7 +63,8 @@ do {
 **Usage:**
 ```swift
 do {
-    try workspace.runSync(with: calendarProvider)
+    let report = try await workspace.syncWithCalendar(using: calendarProvider)
+    print("Sync completed: \(report.changesImported) imported, \(report.changesPushed) pushed")
 } catch SyncError.operationFailed(let op, let details) {
     print("Sync \(op) failed: \(details)")
 }
@@ -94,16 +94,18 @@ do {
 ```swift
 // ✅ Good: Handle specific errors
 do {
-    try workspace.linkNote(from: sourceID, to: targetID)
+    var note = try await workspace.note(id: sourceID)
+    note.body = note.body + "See [[TargetNote]]"
+    try await workspace.updateNote(note)
 } catch NoteError.notFound {
     // Handle missing note
-} catch NoteError.linkNotFound {
-    // Handle missing link target
+} catch NoteError.invalidBody {
+    // Handle validation failure
 }
 
 // ❌ Avoid: Catch-all error handling
 do {
-    try workspace.linkNote(from: sourceID, to: targetID)
+    let _ = try await workspace.note(id: sourceID)
 } catch {
     print("Error: \(error)")
 }
@@ -126,12 +128,12 @@ do {
 ### Recover Gracefully
 ```swift
 // ✅ Good: Provide fallback behavior
-let notes: [Note]
 do {
-    notes = try workspace.allNotes()
+    try await workspace.load()
 } catch StorageError.connectionFailed {
-    notes = [] // Empty cache, user sees empty list
-    scheduleRetry()
+    // Database unavailable; show cached data to user
+    logger.warn("Storage connection failed, using cached data")
+    // AppViewModel maintains a local copy of notes for offline access
 }
 ```
 

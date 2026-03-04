@@ -210,11 +210,7 @@ final class UICoverageGapTests: XCTestCase {
         let viewModel = try makePopulatedViewModel()
         await viewModel.load()
 
-        var totalKanban = 0
-        for status in TaskStatus.allCases {
-            let count = viewModel.tasks(for: status).count
-            totalKanban += count
-        }
+        let totalKanban = TaskStatus.allCases.reduce(0) { $0 + viewModel.tasks(for: $1).count }
         XCTAssertGreaterThan(totalKanban, 0, "At least one column must have cards")
     }
 

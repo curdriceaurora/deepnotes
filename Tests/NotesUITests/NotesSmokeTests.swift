@@ -20,30 +20,7 @@ final class NotesSmokeTests: XCTestCase {
     // MARK: - Helpers
 
     private func makeViewModel() throws -> AppViewModel {
-        let service = try MockWorkspaceService()
-        let provider = InMemoryCalendarProvider()
-        return AppViewModel(
-            service: service,
-            calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
-        )
-    }
-
-    /// Polls `condition` every 20 ms until it becomes true or the deadline (default 2 s) passes.
-    private func waitUntil(
-        deadline: TimeInterval = 2.0,
-        file: StaticString = #file,
-        line: UInt = #line,
-        condition: @MainActor () -> Bool
-    ) async {
-        let start = Date()
-        while !condition() {
-            if Date().timeIntervalSince(start) >= deadline {
-                XCTFail("Condition not met within \(deadline) s", file: file, line: line)
-                return
-            }
-            try? await _Concurrency.Task.sleep(nanoseconds: 20_000_000) // 20 ms
-        }
+        try makeTestAppViewModel()
     }
 
     private func flushAsyncActions() async throws {
