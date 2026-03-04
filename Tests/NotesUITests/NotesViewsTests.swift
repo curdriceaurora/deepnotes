@@ -598,68 +598,6 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityIdentifier: "backlinksList"))
     }
 
-    // MARK: - §20 UI Accessibility Identifiers
-    // Note: Accessibility identifier validation (presence checks) requires UI/XCUI tests.
-    // ViewInspector cannot reliably locate identifiers in SwiftUI view hierarchies due to
-    // how SwiftUI's modifier application works. The identifiers ARE defined in Views.swift
-    // (verified at build time). Runtime presence validation is deferred to UI tests.
-
-    func testIdentifiersNotesEditorControls() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersKanbanColumns() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersSyncTabControls() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersNotesEditorFields() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersMarkdownToolbar() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersQuickOpenSheet() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersTasksTab() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersKanbanEmptyColumns() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersSyncDiagnosticsEmptyState() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersKanbanColumnHeaders() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersKanbanCard() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersSyncExportButton() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersSyncCalendarAndRunButton() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
-    func testIdentifiersSyncStatusText() async throws {
-        throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
-    }
-
 }
 
 actor MockWorkspaceService: WorkspaceServicing {

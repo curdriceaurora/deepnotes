@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-04 — Phase 12 #10 merged (Swift 6 strict concurrency enabled, zero violations); Phase 12 Quality Infrastructure merged (SwiftLint, API docs, Accessibility, Security policy); Phase 12 #17 merged (Accessibility Test Refactoring, GH #21); Section 10 Foundation #1-3 complete
+Last updated: 2026-03-04 — Phase 12 #10 merged (Swift 6 strict concurrency enabled, zero violations); Phase 12 Quality Infrastructure merged (SwiftLint, API docs, Accessibility, Security policy); Phase 12 #17 in progress (Accessibility Test Refactoring, GH #21); Section 10 Foundation #1-3 complete
 
 ## Decision: migration stress tests now?
 
@@ -440,36 +440,35 @@ Infrastructure and process improvements to support sustainable growth and profes
     2. **Semantic accessibility tests** (new NotesAccessibilityTests.swift): Identifier presence, labels, hints, traits, VoiceOver order, dynamic type, contrast
   - **Acceptance Criteria** (MECE: each action is independent and collectively exhaustive):
     - **Tier A: Consolidate identifier validation (one source of truth)** ✅ COMPLETE
-      - [x] Create NotesViewsTests §20 subsection: "UI Accessibility Identifiers"
-      - [x] Move identifier presence checks from UICoverageGapTests.swift into NotesViewsTests §20
-      - [x] Move identifier presence checks from NotesSmokeTests.swift into NotesViewsTests §20
-      - [x] Result: All accessibility identifier assertions in one file (NotesViewsTests), organized under §20 section mark
+      - [x] Removed §20 XCTSkip-only stubs from NotesViewsTests (added no value as all-skip placeholders)
+      - [x] Moved identifier presence checks from UICoverageGapTests.swift and NotesSmokeTests.swift
+      - [x] Identifier + label + hint coverage now validated in NotesAccessibilityTests.swift (source-level checks)
+      - [x] Result: Semantic accessibility coverage consolidated in NotesAccessibilityTests
     - **Tier B: Create semantic accessibility tests (comprehensive a11y coverage)** ✅ COMPLETE
       - [x] Create NotesAccessibilityTests.swift with 10 tests covering:
-        - `.accessibilityLabel` and `.accessibilityHint` correctness (10 interactive elements in Views.swift)
-        - Accessibility traits and roles correctness (button, label, searchField, toggle, etc.)
-        - VoiceOver compatibility and screen reader support
+        - `.accessibilityIdentifier`, `.accessibilityLabel`, and `.accessibilityHint` for all interactive elements
+        - Full triples for: quickOpenButton, newNoteButton, insertHeadingButton, insertBulletButton, insertCheckboxButton, saveNoteButton, quickTaskButton, taskFilterPicker, syncCalendarField, runSyncButton, noteSearchField
         - Dynamic Type scaling: marked as XCTSkip (out-of-scope for unit tests)
         - WCAG AA color contrast: marked as XCTSkip (requires Simulator rendering)
     - **Tier C: Verification and cleanup** ✅ COMPLETE
-      - [x] Run full test suite: `swift test NotesUITests` — §20 tests: 14 skipped (identifier presence requires UI tests); NotesAccessibilityTests: 8 PASSING + 2 skipped
-      - [x] Run coverage gates: All gates pass (real semantic tests now provide actual coverage)
-      - [x] Verify NotesViewsTests §20 uses clean XCTSkip without wasted setup code (efficient, honest about tool limitations)
-      - [x] Verify NotesAccessibilityTests validates that semantic attributes ARE defined in Views.swift (8 passing tests)
-      - [x] UICoverageGapTests fixed: 5 tests now skip instead of fail (removed false-positive identifier lookups)
+      - [x] Run full test suite: `swift test NotesUITests` — NotesAccessibilityTests: 8 passing + 2 skipped
+      - [x] Run coverage gates: all gates pass
+      - [x] Path resolution in NotesAccessibilityTests uses `#filePath` (robust, not working-directory-dependent)
+      - [x] All assertions check specific identifier/label/hint strings (not broad `|| contains` patterns)
+      - [x] UICoverageGapTests fixed: 5 tests skip instead of fail (removed false-positive identifier lookups)
   - **Effort**: 4-5 hours (consolidation + semantic tests + remediation + verification) ✅ COMPLETED
-  - **Status**: COMPLETE 2026-03-04 — PR #25 (FINAL: Real accessibility tests validating semantic attributes; §20 cleanly deferred to XCUI tests)
+  - **Status**: IN REVIEW 2026-03-04 — PR #25 (Real accessibility tests validating semantic attributes via source-level checks; §20 XCTSkip stubs removed)
   - **Deliverable**: GH #21 resolved via Phase 12 #17 completion — "Enable Accessibility, ensure conformance, through tests" ✅ FULFILLED
   - **Tests Validating Conformance** (8 passing):
-    - [x] Quick Open, New Note buttons have labels
-    - [x] Markdown toolbar buttons defined
-    - [x] Editor action buttons (Save) have hints
-    - [x] Sync and task buttons (Add Task) have hints
-    - [x] Task controls (filter, task button) labeled
-    - [x] Sync controls defined
-    - [x] Search field has label and hint
+    - [x] Quick Open, New Note buttons: identifier + label + hint
+    - [x] Markdown toolbar buttons (heading, bullet, checkbox): identifier + label + hint
+    - [x] Editor action buttons (Save): identifier + hint
+    - [x] Quick task button: identifier + label + hint
+    - [x] Task filter picker: identifier + label + hint
+    - [x] Sync controls (calendar field, run button): identifier + label + hint
+    - [x] Search field: identifier + label + hint
     - [x] Dynamic Type and WCAG contrast deferred to XCUI/manual QA (correctly skipped)
-  - **Follow-up (non-blocking)**: Create XCUI test suite for identifier validation, Dynamic Type, WCAG contrast
+  - **Follow-up (non-blocking)**: Create XCUI test suite for runtime identifier validation, Dynamic Type, WCAG contrast
 
 ### Automation & Internationalization (6-8 hours)
 
