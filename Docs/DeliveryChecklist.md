@@ -380,14 +380,17 @@ Infrastructure and process improvements to support sustainable growth and profes
 
 ### Quick Wins (1-2 hours)
 
-- [ ] **#11: Add GitHub Issue templates** (bug, feature, enhancement)
-  - Three templates with auto-populated fields
-  - Structured issue triage
+- [x] **#11: Add GitHub Issue templates** (bug, feature, enhancement) — COMPLETE 2026-03-03
+  - Three templates with auto-populated fields (bug_report.md, feature_request.md, enhancement.md)
+  - Structured issue triage with config.yml
+  - GitHub integration with auto-populated fields and labels
 
-- [ ] **#12: Add Security Policy (SECURITY.md)**
-  - Vulnerability reporting process
-  - Known security limitations
-  - Supported versions and EOL dates
+- [x] **#12: Add Security Policy (SECURITY.md)** — COMPLETE 2026-03-03
+  - Vulnerability reporting process via GitHub Security Advisories
+  - Known security limitations (unencrypted storage, EventKit integration, sync conflicts)
+  - Supported versions table with EOL dates
+  - Third-party dependencies and compliance information
+  - Security testing strategy and best practices for users and contributors
 
 ### Documentation & UX (5-6 hours)
 
