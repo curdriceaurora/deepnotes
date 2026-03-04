@@ -1,0 +1,35 @@
+name: Request Copilot PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  copilot-review:
+    runs-on: ubuntu-latest
+    name: Copilot Code Review
+    steps:
+      - name: Request Copilot Code Review
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Request Copilot as a reviewer
+            await github.rest.pulls.requestReviewers({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              reviewers: ['copilot']
+            }).catch(err => {
+              // Copilot may not be available; post a comment instead
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '@github-copilot review'
+              });
+            });
