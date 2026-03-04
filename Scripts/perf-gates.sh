@@ -94,6 +94,15 @@ kanban_slo="$(metric kanban_render_frame_p95_slo_ms)"
 kanban_fps_p95="$(metric kanban_render_fps_p95)"
 kanban_target_fps="$(metric kanban_target_fps)"
 
+sync_push_p95="$(metric sync_push_p95_ms)"
+sync_push_slo="$(metric sync_push_p95_slo_ms)"
+sync_pull_p95="$(metric sync_pull_p95_ms)"
+sync_pull_slo="$(metric sync_pull_p95_slo_ms)"
+sync_roundtrip_p95="$(metric sync_roundtrip_p95_ms)"
+sync_roundtrip_slo="$(metric sync_roundtrip_p95_slo_ms)"
+sync_conflict_p95="$(metric sync_conflict_p95_ms)"
+sync_conflict_slo="$(metric sync_conflict_p95_slo_ms)"
+
 baseline_create_note_p95="$(baseline_metric create_note_p95_ms)"
 baseline_launch_p95="$(baseline_metric launch_to_interactive_p95_ms)"
 baseline_open_note_p95="$(baseline_metric open_note_p95_ms)"
@@ -111,6 +120,16 @@ allowed_wikilink_backlinks_regression="$(awk -v b="$baseline_wikilink_backlinks_
 allowed_search_50k_regression="$(awk -v b="$baseline_search_50k_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
 allowed_kanban_drag_commit_regression="$(awk -v b="$baseline_kanban_drag_commit_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
 allowed_kanban_regression="$(awk -v b="$baseline_kanban_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
+
+baseline_sync_push_p95="$(baseline_metric sync_push_p95_ms)"
+baseline_sync_pull_p95="$(baseline_metric sync_pull_p95_ms)"
+baseline_sync_roundtrip_p95="$(baseline_metric sync_roundtrip_p95_ms)"
+baseline_sync_conflict_p95="$(baseline_metric sync_conflict_p95_ms)"
+
+allowed_sync_push_regression="$(awk -v b="$baseline_sync_push_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
+allowed_sync_pull_regression="$(awk -v b="$baseline_sync_pull_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
+allowed_sync_roundtrip_regression="$(awk -v b="$baseline_sync_roundtrip_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
+allowed_sync_conflict_regression="$(awk -v b="$baseline_sync_conflict_p95" 'BEGIN { printf "%.6f", b * 1.10 }')"
 
 GATE_FAILED=0
 
@@ -132,6 +151,14 @@ assert_le "Create note p95 regression" "$create_note_p95" "$allowed_create_note_
 assert_le "Search@50k p95 regression" "$search_50k_p95" "$allowed_search_50k_regression"
 assert_le "Kanban drag p95 regression" "$kanban_drag_commit_p95" "$allowed_kanban_drag_commit_regression"
 assert_le "Kanban render p95 regression" "$kanban_p95" "$allowed_kanban_regression"
+assert_le "Sync push p95 SLO" "$sync_push_p95" "$sync_push_slo"
+assert_le "Sync pull p95 SLO" "$sync_pull_p95" "$sync_pull_slo"
+assert_le "Sync round-trip p95 SLO" "$sync_roundtrip_p95" "$sync_roundtrip_slo"
+assert_le "Sync conflict p95 SLO" "$sync_conflict_p95" "$sync_conflict_slo"
+assert_le "Sync push p95 regression" "$sync_push_p95" "$allowed_sync_push_regression"
+assert_le "Sync pull p95 regression" "$sync_pull_p95" "$allowed_sync_pull_regression"
+assert_le "Sync round-trip p95 regression" "$sync_roundtrip_p95" "$allowed_sync_roundtrip_regression"
+assert_le "Sync conflict p95 regression" "$sync_conflict_p95" "$allowed_sync_conflict_regression"
 
 if [[ "$GATE_FAILED" -ne 0 ]]; then
   echo "Performance gates failed." >&2

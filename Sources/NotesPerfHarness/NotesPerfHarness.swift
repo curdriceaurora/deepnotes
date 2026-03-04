@@ -1,4 +1,4 @@
-// swiftlint:disable type_body_length function_body_length cyclomatic_complexity
+// swiftlint:disable type_body_length function_body_length cyclomatic_complexity file_length
 import Foundation
 import NotesDomain
 import NotesFeatures
@@ -54,6 +54,30 @@ struct NotesPerfHarness {
             runs: options.searchRuns,
         )
         let search50kSummary = summarize(samples: search50kSamples)
+
+        let syncPushSamples = try await runSyncPushBenchmark(
+            runs: options.runs,
+            taskCount: options.syncBenchTaskCount,
+        )
+        let syncPushSummary = summarize(samples: syncPushSamples)
+
+        let syncPullSamples = try await runSyncPullBenchmark(
+            runs: options.runs,
+            eventCount: options.syncBenchTaskCount,
+        )
+        let syncPullSummary = summarize(samples: syncPullSamples)
+
+        let syncRoundTripSamples = try await runSyncRoundTripBenchmark(
+            runs: options.runs,
+            taskCount: options.syncBenchTaskCount,
+        )
+        let syncRoundTripSummary = summarize(samples: syncRoundTripSamples)
+
+        let syncConflictSamples = try await runSyncConflictResolutionBenchmark(
+            runs: options.runs,
+            taskCount: options.syncBenchTaskCount,
+        )
+        let syncConflictSummary = summarize(samples: syncConflictSamples)
 
         var kanbanSummary: LatencySummary?
         var kanbanFPSP95: Double?
@@ -169,6 +193,43 @@ struct NotesPerfHarness {
             )
         }
 
+        if syncPushSummary.p95 > options.maxSyncPushP95MS {
+            failures.append(
+                String(
+                    format: "sync_push_p95_ms %.3f exceeds max %.3f",
+                    syncPushSummary.p95,
+                    options.maxSyncPushP95MS,
+                ),
+            )
+        }
+        if syncPullSummary.p95 > options.maxSyncPullP95MS {
+            failures.append(
+                String(
+                    format: "sync_pull_p95_ms %.3f exceeds max %.3f",
+                    syncPullSummary.p95,
+                    options.maxSyncPullP95MS,
+                ),
+            )
+        }
+        if syncRoundTripSummary.p95 > options.maxSyncRoundTripP95MS {
+            failures.append(
+                String(
+                    format: "sync_roundtrip_p95_ms %.3f exceeds max %.3f",
+                    syncRoundTripSummary.p95,
+                    options.maxSyncRoundTripP95MS,
+                ),
+            )
+        }
+        if syncConflictSummary.p95 > options.maxSyncConflictP95MS {
+            failures.append(
+                String(
+                    format: "sync_conflict_p95_ms %.3f exceeds max %.3f",
+                    syncConflictSummary.p95,
+                    options.maxSyncConflictP95MS,
+                ),
+            )
+        }
+
         return PerfReport(
             options: options,
             launchToInteractive: launchSummary,
@@ -180,32 +241,33 @@ struct NotesPerfHarness {
             kanbanDragCommit: kanbanDragSummary,
             kanbanRender: kanbanSummary,
             kanbanFPSP95: kanbanFPSP95,
+            syncPush: syncPushSummary,
+            syncPull: syncPullSummary,
+            syncRoundTrip: syncRoundTripSummary,
+            syncConflict: syncConflictSummary,
             failures: failures,
         )
     }
 
     private static func runLaunchToInteractiveBenchmark(runs: Int, noteCount: Int, taskCount: Int) async throws -> [Double] {
-        let folder = try makeTempFolder(component: "launch")
-        let dbURL = folder.appendingPathComponent("launch.sqlite")
-        try await seedWorkspaceDatabase(
-            databaseURL: dbURL,
-            noteCount: noteCount,
-            taskCount: taskCount,
-            targetTitle: "Launch Target",
-        )
-
         var samples: [Double] = []
         samples.reserveCapacity(runs)
         let clock = ContinuousClock()
 
         for _ in 0 ..< runs {
+            let folder = try makeTempFolder(component: "launch")
+            let dbURL = folder.appendingPathComponent("launch.sqlite")
+            let store = try await seedWorkspaceDatabase(
+                databaseURL: dbURL,
+                noteCount: noteCount,
+                taskCount: taskCount,
+                targetTitle: "Launch Target",
+            )
+
             let start = clock.now
-            do {
-                let store = try SQLiteStore(databaseURL: dbURL)
-                let workspace = WorkspaceService(store: store)
-                _ = try await workspace.listNoteListItems(limit: 50, offset: 0)
-                _ = try await workspace.listTasks(filter: .all)
-            }
+            let workspace = WorkspaceService(store: store)
+            _ = try await workspace.listNoteListItems(limit: 50, offset: 0)
+            _ = try await workspace.listTasks(filter: .all)
             let elapsed = start.duration(to: clock.now)
             samples.append(milliseconds(from: elapsed))
         }
@@ -216,14 +278,13 @@ struct NotesPerfHarness {
     private static func runEditorLatencyBenchmarks(noteCount: Int, runs: Int) async throws -> EditorLatencySamples {
         let folder = try makeTempFolder(component: "editor")
         let dbURL = folder.appendingPathComponent("editor.sqlite")
-        try await seedWorkspaceDatabase(
+        let store = try await seedWorkspaceDatabase(
             databaseURL: dbURL,
             noteCount: noteCount,
             taskCount: 200,
             targetTitle: "Target",
         )
 
-        let store = try SQLiteStore(databaseURL: dbURL)
         let workspace = WorkspaceService(store: store)
         let notes = try await workspace.listNotes()
         guard let editable = notes.first, let target = notes.first(where: { $0.title == "Target" }) else {
@@ -331,6 +392,203 @@ struct NotesPerfHarness {
         return samples
     }
 
+    private static let syncBenchNoteCount = 64
+    private static let benchBaseDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+    private static func benchSyncConfig(checkpointID: String, batchSize: Int) -> SyncEngineConfiguration {
+        SyncEngineConfiguration(
+            checkpointID: checkpointID,
+            calendarID: "bench-cal",
+            taskBatchSize: batchSize,
+            policy: .lastWriteWins,
+            providerMaxRetryAttempts: 0,
+        )
+    }
+
+    private static func runSyncPushBenchmark(runs: Int, taskCount: Int) async throws -> [Double] {
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        samples.reserveCapacity(runs)
+
+        for _ in 0 ..< runs {
+            let folder = try makeTempFolder(component: "sync-push")
+            let dbURL = folder.appendingPathComponent("sync-push.sqlite")
+            let store = try await seedWorkspaceDatabase(
+                databaseURL: dbURL,
+                noteCount: syncBenchNoteCount,
+                taskCount: taskCount,
+                targetTitle: "Sync Push Target",
+            )
+
+            let provider = InMemoryCalendarProvider()
+            let engine = TwoWaySyncEngine(
+                taskStore: store,
+                bindingStore: store,
+                checkpointStore: store,
+                calendarProvider: provider,
+            )
+            let config = benchSyncConfig(checkpointID: "push-bench", batchSize: taskCount)
+
+            let start = clock.now
+            _ = try await engine.runOnce(configuration: config)
+            samples.append(milliseconds(from: start.duration(to: clock.now)))
+        }
+        return samples
+    }
+
+    private static func runSyncPullBenchmark(runs: Int, eventCount: Int) async throws -> [Double] {
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        samples.reserveCapacity(runs)
+
+        for _ in 0 ..< runs {
+            let folder = try makeTempFolder(component: "sync-pull")
+            let dbURL = folder.appendingPathComponent("sync-pull.sqlite")
+            let store = try SQLiteStore(databaseURL: dbURL)
+            let provider = InMemoryCalendarProvider()
+
+            for index in 0 ..< eventCount {
+                let stableID = "pull-task-\(index)"
+                let event = try CalendarEvent(
+                    calendarID: "bench-cal",
+                    title: "Pull Event \(index)",
+                    notes: "task-stable-id:\(stableID)\n\nBenchmark event \(index)",
+                    startDate: benchBaseDate.addingTimeInterval(Double(index) * 900),
+                    endDate: benchBaseDate.addingTimeInterval(Double(index) * 900 + 600),
+                    updatedAt: benchBaseDate.addingTimeInterval(Double(index)),
+                    sourceStableID: stableID,
+                )
+                await provider.seed(event: event)
+            }
+
+            let engine = TwoWaySyncEngine(
+                taskStore: store,
+                bindingStore: store,
+                checkpointStore: store,
+                calendarProvider: provider,
+            )
+            let config = benchSyncConfig(checkpointID: "pull-bench", batchSize: eventCount)
+
+            let start = clock.now
+            _ = try await engine.runOnce(configuration: config)
+            samples.append(milliseconds(from: start.duration(to: clock.now)))
+        }
+        return samples
+    }
+
+    private static func runSyncRoundTripBenchmark(runs: Int, taskCount: Int) async throws -> [Double] {
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        samples.reserveCapacity(runs)
+
+        for _ in 0 ..< runs {
+            let folder = try makeTempFolder(component: "sync-roundtrip")
+            let dbURL = folder.appendingPathComponent("sync-roundtrip.sqlite")
+            let store = try await seedWorkspaceDatabase(
+                databaseURL: dbURL,
+                noteCount: syncBenchNoteCount,
+                taskCount: taskCount,
+                targetTitle: "Sync RT Target",
+            )
+
+            let provider = InMemoryCalendarProvider()
+            let engine = TwoWaySyncEngine(
+                taskStore: store,
+                bindingStore: store,
+                checkpointStore: store,
+                calendarProvider: provider,
+            )
+            let config = benchSyncConfig(checkpointID: "rt-bench", batchSize: taskCount)
+
+            // First sync: push all tasks to calendar (establishes bindings)
+            _ = try await engine.runOnce(configuration: config)
+
+            // Seed new calendar events (20% of taskCount) to simulate pull
+            let newEventCount = max(1, taskCount / 5)
+            for index in 0 ..< newEventCount {
+                let stableID = "rt-new-\(index)"
+                let event = try CalendarEvent(
+                    calendarID: "bench-cal",
+                    title: "New Calendar Event \(index)",
+                    notes: "task-stable-id:\(stableID)\n\nNew event from calendar",
+                    startDate: benchBaseDate.addingTimeInterval(Double(index) * 900 + 500_000),
+                    endDate: benchBaseDate.addingTimeInterval(Double(index) * 900 + 500_600),
+                    updatedAt: benchBaseDate.addingTimeInterval(Double(taskCount + index)),
+                    sourceStableID: stableID,
+                )
+                await provider.seed(event: event)
+            }
+
+            // Tombstone 20% of local tasks to simulate deletes
+            let allTasks = try await store.fetchTasks(includeDeleted: false)
+            let deleteCount = max(1, allTasks.count / 5)
+            for task in allTasks.prefix(deleteCount) {
+                try await store.tombstoneTask(id: task.id, at: benchBaseDate.addingTimeInterval(Double(taskCount + newEventCount)))
+            }
+
+            // Measure the mixed-operation sync cycle
+            let start = clock.now
+            _ = try await engine.runOnce(configuration: config)
+            samples.append(milliseconds(from: start.duration(to: clock.now)))
+        }
+        return samples
+    }
+
+    private static func runSyncConflictResolutionBenchmark(runs: Int, taskCount: Int) async throws -> [Double] {
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        samples.reserveCapacity(runs)
+
+        for _ in 0 ..< runs {
+            let folder = try makeTempFolder(component: "sync-conflict")
+            let dbURL = folder.appendingPathComponent("sync-conflict.sqlite")
+            let store = try await seedWorkspaceDatabase(
+                databaseURL: dbURL,
+                noteCount: syncBenchNoteCount,
+                taskCount: taskCount,
+                targetTitle: "Sync Conflict Target",
+            )
+
+            let provider = InMemoryCalendarProvider()
+            let engine = TwoWaySyncEngine(
+                taskStore: store,
+                bindingStore: store,
+                checkpointStore: store,
+                calendarProvider: provider,
+            )
+            let config = benchSyncConfig(checkpointID: "conflict-bench", batchSize: taskCount)
+
+            // First sync: push all tasks to establish bindings
+            _ = try await engine.runOnce(configuration: config)
+
+            // Modify all tasks locally with a newer timestamp to force conflicts
+            let allTasks = try await store.fetchTasks(includeDeleted: false)
+            let conflictTime = benchBaseDate.addingTimeInterval(Double(taskCount + 1000))
+            for task in allTasks {
+                var updated = task
+                updated.title = "Conflict \(task.title)"
+                updated.updatedAt = conflictTime
+                _ = try await store.upsertTask(updated)
+            }
+
+            // Also update calendar events with a different timestamp
+            let calendarEvents = await provider.allEvents(calendarID: "bench-cal")
+            let calendarConflictTime = conflictTime.addingTimeInterval(1)
+            for event in calendarEvents {
+                var modified = event
+                modified.title = "Cal \(event.title)"
+                modified.updatedAt = calendarConflictTime
+                _ = try await provider.upsertEvent(modified)
+            }
+
+            // Measure conflict resolution sync
+            let start = clock.now
+            _ = try await engine.runOnce(configuration: config)
+            samples.append(milliseconds(from: start.duration(to: clock.now)))
+        }
+        return samples
+    }
+
     #if os(macOS)
         @MainActor
         private static func runKanbanRenderBenchmark(
@@ -405,14 +663,13 @@ struct NotesPerfHarness {
         ) async throws -> [Double] {
             let folder = try makeTempFolder(component: "kanban-drag")
             let dbURL = folder.appendingPathComponent("kanban-drag.sqlite")
-            try await seedWorkspaceDatabase(
+            let store = try await seedWorkspaceDatabase(
                 databaseURL: dbURL,
                 noteCount: 64,
                 taskCount: max(3, taskCount),
                 targetTitle: "Drag Target",
             )
 
-            let store = try SQLiteStore(databaseURL: dbURL)
             let workspace = WorkspaceService(store: store)
             let clock = ContinuousClock()
             var samples: [Double] = []
@@ -548,12 +805,13 @@ struct NotesPerfHarness {
         return folder
     }
 
+    @discardableResult
     private static func seedWorkspaceDatabase(
         databaseURL: URL,
         noteCount: Int,
         taskCount: Int,
         targetTitle: String,
-    ) async throws {
+    ) async throws -> SQLiteStore {
         let store = try SQLiteStore(databaseURL: databaseURL)
         let workspace = WorkspaceService(store: store)
         let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -599,6 +857,7 @@ struct NotesPerfHarness {
                 ),
             )
         }
+        return store
     }
 
     private static func framesPerSecond(fromMilliseconds milliseconds: Double) -> Double {
@@ -639,6 +898,10 @@ private struct PerfReport: Codable {
     let kanbanDragCommit: LatencySummary?
     let kanbanRender: LatencySummary?
     let kanbanFPSP95: Double?
+    let syncPush: LatencySummary
+    let syncPull: LatencySummary
+    let syncRoundTrip: LatencySummary
+    let syncConflict: LatencySummary
     let failures: [String]
 
     var status: HarnessStatus {
@@ -719,6 +982,36 @@ private struct PerfReport: Codable {
             }
         }
 
+        print(String(format: "sync_push_min_ms=%.3f", syncPush.min))
+        print(String(format: "sync_push_p50_ms=%.3f", syncPush.p50))
+        print(String(format: "sync_push_p95_ms=%.3f", syncPush.p95))
+        print(String(format: "sync_push_avg_ms=%.3f", syncPush.avg))
+        print(String(format: "sync_push_max_ms=%.3f", syncPush.max))
+        print(String(format: "sync_push_p95_slo_ms=%.3f", options.maxSyncPushP95MS))
+
+        print(String(format: "sync_pull_min_ms=%.3f", syncPull.min))
+        print(String(format: "sync_pull_p50_ms=%.3f", syncPull.p50))
+        print(String(format: "sync_pull_p95_ms=%.3f", syncPull.p95))
+        print(String(format: "sync_pull_avg_ms=%.3f", syncPull.avg))
+        print(String(format: "sync_pull_max_ms=%.3f", syncPull.max))
+        print(String(format: "sync_pull_p95_slo_ms=%.3f", options.maxSyncPullP95MS))
+
+        print(String(format: "sync_roundtrip_min_ms=%.3f", syncRoundTrip.min))
+        print(String(format: "sync_roundtrip_p50_ms=%.3f", syncRoundTrip.p50))
+        print(String(format: "sync_roundtrip_p95_ms=%.3f", syncRoundTrip.p95))
+        print(String(format: "sync_roundtrip_avg_ms=%.3f", syncRoundTrip.avg))
+        print(String(format: "sync_roundtrip_max_ms=%.3f", syncRoundTrip.max))
+        print(String(format: "sync_roundtrip_p95_slo_ms=%.3f", options.maxSyncRoundTripP95MS))
+
+        print(String(format: "sync_conflict_min_ms=%.3f", syncConflict.min))
+        print(String(format: "sync_conflict_p50_ms=%.3f", syncConflict.p50))
+        print(String(format: "sync_conflict_p95_ms=%.3f", syncConflict.p95))
+        print(String(format: "sync_conflict_avg_ms=%.3f", syncConflict.avg))
+        print(String(format: "sync_conflict_max_ms=%.3f", syncConflict.max))
+        print(String(format: "sync_conflict_p95_slo_ms=%.3f", options.maxSyncConflictP95MS))
+
+        print("sync_bench_task_count=\(options.syncBenchTaskCount)")
+
         if failures.isEmpty {
             print("status=ok")
         } else {
@@ -758,6 +1051,11 @@ private struct Options: Codable {
     var maxKanbanDragCommitP95MS: Double = 50
     var maxKanbanFrameP95MS: Double
     var skipKanbanRender: Bool = false
+    var syncBenchTaskCount: Int = 500
+    var maxSyncPushP95MS: Double = 200
+    var maxSyncPullP95MS: Double = 200
+    var maxSyncRoundTripP95MS: Double = 300
+    var maxSyncConflictP95MS: Double = 250
     var reportPath: String?
 
     init() {
@@ -821,6 +1119,21 @@ private struct Options: Codable {
             case "--max-kanban-frame-p95-ms":
                 let val = try value(after: argument, index: &index, from: arguments)
                 options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: val)
+            case "--sync-bench-tasks":
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.syncBenchTaskCount = try parsePositiveInt(flag: argument, value: val)
+            case "--max-sync-push-p95-ms":
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSyncPushP95MS = try parsePositiveDouble(flag: argument, value: val)
+            case "--max-sync-pull-p95-ms":
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSyncPullP95MS = try parsePositiveDouble(flag: argument, value: val)
+            case "--max-sync-roundtrip-p95-ms":
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSyncRoundTripP95MS = try parsePositiveDouble(flag: argument, value: val)
+            case "--max-sync-conflict-p95-ms":
+                let val = try value(after: argument, index: &index, from: arguments)
+                options.maxSyncConflictP95MS = try parsePositiveDouble(flag: argument, value: val)
             case "--skip-kanban-render":
                 options.skipKanbanRender = true
             case "--report-json":
@@ -905,6 +1218,11 @@ private enum PerfHarnessError: LocalizedError {
       --max-kanban-drag-commit-p95-ms    Kanban drag reorder commit p95 gate (default: 50)
       --max-create-note-p95-ms <ms>      Note creation p95 gate (default: 30)
       --max-search-50k-p95-ms <ms>       Search-at-50k p95 gate (default: 80)
+      --sync-bench-tasks <n>             Number of tasks used for sync benchmarks (default: 500)
+      --max-sync-push-p95-ms <ms>        Sync push p95 gate (default: 200)
+      --max-sync-pull-p95-ms <ms>        Sync pull p95 gate (default: 200)
+      --max-sync-roundtrip-p95-ms <ms>   Sync round-trip p95 gate (default: 300)
+      --max-sync-conflict-p95-ms <ms>    Sync conflict resolution p95 gate (default: 250)
       --skip-kanban-render               Skip the kanban rendering benchmark
       --report-json <path>               Optional JSON report output path
     """
