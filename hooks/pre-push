@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+echo "==> Coverage gates (pre-push)"
+./Scripts/run-coverage-gates.sh

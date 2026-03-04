@@ -17,18 +17,18 @@ jobs:
         run: swiftlint lint --strict --config .swiftlint.yml
       - name: SwiftFormat (check)
         run: swiftformat Sources/ Tests/ --lint --config .swiftformat
+      - name: Build (xcbeautify)
+        run: swift build 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
       - name: Periphery (dead code)
         continue-on-error: true
         run: periphery scan
-      - name: Build (xcbeautify)
-        run: swift build 2>&1 | xcbeautify && exit ${PIPESTATUS[0]}
   coverage:
     runs-on: macos-14
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Run test suite with coverage
-        run: swift test --enable-code-coverage 2>&1 | xcbeautify
+        run: swift test --enable-code-coverage 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
       - name: Validate coverage minimums
         continue-on-error: true
         run: ./Scripts/coverage-gates.sh
