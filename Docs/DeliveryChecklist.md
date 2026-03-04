@@ -1,6 +1,6 @@
 # Delivery Checklist
 
-Last updated: 2026-03-03 — Section 9 Polish (Kanban) completed; Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed; ViewModel integration tests + regex cleanup done
+Last updated: 2026-03-03 — Section 10 Foundation #3 (Bulk status change) completed + code review applied; Section 9 Polish (Kanban) completed; Section 7 Polish (Speed) completed; Section 8 Polish (Obsidian) completed
 
 ## Decision: migration stress tests now?
 
@@ -295,9 +295,24 @@ Acceptance criteria:
 ### 10. Task management of TickTick
 
 Foundation:
+- [x] **Bulk status change** ✅ COMPLETE (2026-03-03)
+  - Multi-select mode with checkbox UI in task list
+  - Concurrent bulk move to chosen status via `bulkMoveTasksToStatus()`
+  - Selection state management and cleanup
+  - 4 new tests (toggle mode, toggle selection, bulk move, cleanup)
+  - **Code Review Notes**: Applied 5 improvements post-review:
+    - ✅ Removed redundant `.onTapGesture` (duplicate button action)
+    - ✅ Added guard check for empty selection before operations
+    - ✅ Extracted `isTaskSelected()` helper to eliminate repeated Set.contains() calls in hot render path
+    - ✅ Extracted `exitMultiSelectMode()` for consistent state cleanup
+    - ✅ Extracted `selectionButton()`/`completionButton()` helpers to eliminate icon logic duplication
+  - **Deferred optimizations** (low priority, monitor):
+    - Generic `Set.toggle()` extension (single-use pattern, not worth extraction yet)
+    - Menu reconstruction memoization (architectural pattern, acceptable for <100 tasks)
+    - See IMPROVEMENT_RECOMMENDATIONS.md for details
+
 - [ ] Add a subtask model: tasks can have ordered child tasks with independent completion state.
 - [ ] Add local notifications/reminders tied to task due dates (UserNotifications framework).
-- [ ] Add bulk status change: multi-select tasks in the list view and move to a chosen status.
 - [ ] Add sort options in the task list: by due date, priority, title, or creation date.
 
 Polish:
