@@ -1547,7 +1547,6 @@ public struct SyncDashboardView: View {
     }
 }
 
-
 private extension SyncDiagnosticSeverity {
     var uiIcon: String {
         switch self {
