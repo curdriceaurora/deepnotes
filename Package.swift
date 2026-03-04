@@ -5,8 +5,8 @@ let package = Package(
     name: "NotesEngine",
     defaultLocalization: "en",
     platforms: [
-        .macOS("13.0"),
-        .iOS("16.0")
+        .macOS("14.0"),
+        .iOS("17.0")
     ],
     products: [
         .library(name: "NotesDomain", targets: ["NotesDomain"]),
