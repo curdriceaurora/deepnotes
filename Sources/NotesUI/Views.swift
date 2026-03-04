@@ -1426,7 +1426,7 @@ public struct SyncDashboardView: View {
                         Image(systemName: viewModel.isSyncing ? "arrow.triangle.2.circlepath" : "checkmark.circle")
                             .font(.caption)
                             .foregroundStyle(viewModel.isSyncing ? .orange : .green)
-                            .symbolEffect(.rotate, isActive: viewModel.isSyncing)
+                            .syncStatusIconEffect(isActive: viewModel.isSyncing)
                         Text(viewModel.syncStatusText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -1544,6 +1544,24 @@ public struct SyncDashboardView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+private extension View {
+    func syncStatusIconEffect(isActive: Bool) -> some View {
+        #if os(macOS)
+        if #available(macOS 15.0, *) {
+            return AnyView(self.symbolEffect(.rotate, isActive: isActive))
+        } else {
+            return AnyView(self)
+        }
+        #else
+        if #available(iOS 17.2, *) {
+            return AnyView(self.symbolEffect(.rotate, isActive: isActive))
+        } else {
+            return AnyView(self)
+        }
+        #endif
     }
 }
 
