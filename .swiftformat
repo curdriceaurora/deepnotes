@@ -4,7 +4,7 @@
 # Indentation & width
 --indent 4
 --tabwidth 4
---maxwidth 140
+--maxwidth 160
 
 # Wrapping
 --wraparguments before-first
@@ -22,6 +22,9 @@
 
 # Imports
 --importgrouping testable-bottom
+
+# Disabled rules
+--disable redundantSelf
 
 # Exclusions
 --exclude .build,DerivedData

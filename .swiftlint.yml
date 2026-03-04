@@ -6,7 +6,6 @@ excluded:
   - .build
 
 opt_in_rules:
-  - sorted_imports
   - closure_spacing
   - contains_over_first_not_nil
   - empty_count

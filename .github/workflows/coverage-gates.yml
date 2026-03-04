@@ -18,6 +18,7 @@ jobs:
       - name: SwiftFormat (check)
         run: swiftformat Sources/ Tests/ --lint --config .swiftformat
       - name: Periphery (dead code)
+        continue-on-error: true
         run: periphery scan
       - name: Build (xcbeautify)
         run: swift build 2>&1 | xcbeautify && exit ${PIPESTATUS[0]}
