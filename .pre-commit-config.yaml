@@ -12,3 +12,12 @@ repos:
         types: [swift]
         stages: [commit]
         require_serial: true
+
+      # Coverage gates: Run before push to catch coverage regressions locally
+      - id: swift-test-coverage
+        name: Swift Test Coverage Gates
+        entry: bash -c './Scripts/run-coverage-gates.sh'
+        language: system
+        pass_filenames: false
+        stages: [push]
+        require_serial: true
