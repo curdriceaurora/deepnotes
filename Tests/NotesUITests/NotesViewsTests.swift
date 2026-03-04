@@ -516,10 +516,6 @@ final class NotesViewsTests: XCTestCase {
         try makeTestAppViewModel()
     }
 
-    private func flushAsyncActions() async throws {
-        try await _Concurrency.Task.sleep(nanoseconds: 160_000_000)
-    }
-
     func testTogglePreviewButtonRenders() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()

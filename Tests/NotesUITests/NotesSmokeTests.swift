@@ -23,10 +23,6 @@ final class NotesSmokeTests: XCTestCase {
         try makeTestAppViewModel()
     }
 
-    private func flushAsyncActions() async throws {
-        try await _Concurrency.Task.sleep(nanoseconds: 160_000_000)
-    }
-
     // MARK: - §1 App Launch and DB Initialization
 
     // smoke-test: §1 — Fresh launch: notes list is initially populated from service.
@@ -241,8 +237,9 @@ final class NotesSmokeTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setNoteSearchQuery("launch")
+        // Wait for search to complete: verify that at least one note has a snippet generated
         await waitUntil {
-            !viewModel.notes.isEmpty
+            viewModel.notes.contains { viewModel.noteSearchSnippet(for: $0.id) != nil }
         }
 
         guard let first = viewModel.notes.first else {
