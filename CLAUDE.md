@@ -201,6 +201,46 @@ Test suites are parallelized where possible. Use `swift test --filter <test-name
 - Release runbook: `Docs/ReleaseRunbook.md`
 - Smoke checklist: `Docs/SmokeChecklist.md`
 
+## Mandatory Validation Protocol
+
+Before declaring ANY step complete or committing ANY code, follow this checklist:
+
+1. **Build check**: Verify the project builds without errors
+   - Swift: `swift build --product notes-app` should succeed
+
+2. **Test suite**: Run the full test suite — all tests must pass
+   - `swift test` (full suite)
+   - `swift test <target>` (specific target during development)
+
+3. **Coverage gates**: Verify minimum coverage thresholds are met
+   - `./Scripts/run-coverage-gates.sh` must pass
+
+4. **Performance gates**: Check performance budgets (if making performance-sensitive changes)
+   - `./Scripts/run-perf-gates.sh` must pass
+
+5. **Diff review**: Read your own `git diff --staged` before committing and check for:
+   - Incomplete refactors or half-finished code
+   - Removed code that shouldn't be removed
+   - Hardcoded paths or debug prints
+   - Missing test coverage for new logic
+   - Code organization and readability
+
+6. **Commit**: Only after steps 1-5 pass, commit with clear conventional commit format
+
+### Anti-patterns to avoid:
+- NEVER say "All done" or summarize completion mid-plan. Complete ALL steps first.
+- NEVER skip the validation protocol and push untested code.
+- NEVER start fixing stylistic or cosmetic feedback in a feature PR — file them as separate issues.
+- NEVER include already-completed tasks in a new plan.
+- If given a multi-step plan with N steps, complete and confirm ALL N steps before reporting completion.
+
+### Multi-step plan discipline:
+When given a numbered plan, you must:
+1. Enumerate the steps before starting
+2. Complete each step fully
+3. After each step, state: "✓ Step N complete. Remaining: [list]"
+4. Only after ALL steps are done, say the plan is complete
+
 ## Permissions
 
 **Bash operations**: All bash commands within this project directory are pre-authorized and do not require user prompting. This includes:
