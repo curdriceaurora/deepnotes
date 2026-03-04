@@ -3,7 +3,7 @@ import NotesDomain
 import NotesStorage
 import NotesSync
 #if canImport(EventKit)
-import EventKit
+    import EventKit
 #endif
 
 @main
@@ -37,20 +37,20 @@ struct NotesCLI {
 
         case "list-calendars":
             #if canImport(EventKit)
-            try await listCalendars()
+                try await listCalendars()
             #else
-            throw SyncError.unsupportedCalendarChange(reason: "EventKit is unavailable on this platform")
+                throw SyncError.unsupportedCalendarChange(reason: "EventKit is unavailable on this platform")
             #endif
 
         case "sync-eventkit":
             #if canImport(EventKit)
-            let dbPath = value(for: "--db", in: Array(args.dropFirst())) ?? "./notes.db"
-            guard let calendarID = value(for: "--calendar", in: Array(args.dropFirst())) else {
-                throw SyncError.unsupportedCalendarChange(reason: "--calendar <id> is required for sync-eventkit")
-            }
-            try await syncWithEventKit(databasePath: dbPath, calendarID: calendarID)
+                let dbPath = value(for: "--db", in: Array(args.dropFirst())) ?? "./notes.db"
+                guard let calendarID = value(for: "--calendar", in: Array(args.dropFirst())) else {
+                    throw SyncError.unsupportedCalendarChange(reason: "--calendar <id> is required for sync-eventkit")
+                }
+                try await syncWithEventKit(databasePath: dbPath, calendarID: calendarID)
             #else
-            throw SyncError.unsupportedCalendarChange(reason: "EventKit is unavailable on this platform")
+                throw SyncError.unsupportedCalendarChange(reason: "EventKit is unavailable on this platform")
             #endif
 
         default:
@@ -62,8 +62,8 @@ struct NotesCLI {
         let store = try await makeStore(databasePath: databasePath)
         let now = Date()
 
-        let tasks: [Task] = [
-            try Task(
+        let tasks: [Task] = try [
+            Task(
                 stableID: "task-call-supplier",
                 title: "Call supplier",
                 details: "Confirm MOQ and lead times.",
@@ -72,9 +72,9 @@ struct NotesCLI {
                 status: .next,
                 priority: 4,
                 recurrenceRule: nil,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 stableID: "task-draft-launch-email",
                 title: "Draft launch email",
                 details: "Link to [[Q2 Launch Plan]].",
@@ -83,9 +83,9 @@ struct NotesCLI {
                 status: .doing,
                 priority: 3,
                 recurrenceRule: nil,
-                updatedAt: now
+                updatedAt: now,
             ),
-            try Task(
+            Task(
                 stableID: "task-weekly-budget-review",
                 title: "Review budget",
                 details: "Recurring Monday review.",
@@ -94,8 +94,8 @@ struct NotesCLI {
                 status: .waiting,
                 priority: 2,
                 recurrenceRule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
-                updatedAt: now
-            )
+                updatedAt: now,
+            ),
         ]
 
         for task in tasks {
@@ -118,7 +118,7 @@ struct NotesCLI {
             recurrenceRule: nil,
             isCompleted: false,
             updatedAt: Date(),
-            sourceStableID: "task-imported-from-calendar"
+            sourceStableID: "task-imported-from-calendar",
         )
         await provider.seed(event: seededEvent)
 
@@ -127,7 +127,7 @@ struct NotesCLI {
             noteStore: store,
             bindingStore: store,
             checkpointStore: store,
-            calendarProvider: provider
+            calendarProvider: provider,
         )
 
         let report = try await engine.runOnce(
@@ -135,8 +135,8 @@ struct NotesCLI {
                 checkpointID: "default",
                 calendarID: calendarID,
                 taskBatchSize: 500,
-                policy: .lastWriteWins
-            )
+                policy: .lastWriteWins,
+            ),
         )
 
         print("Sync completed")
@@ -144,41 +144,43 @@ struct NotesCLI {
     }
 
     #if canImport(EventKit)
-    private static func listCalendars() async throws {
-        let store = EKEventStore()
-        let granted = try await store.requestFullAccessToEvents()
-        guard granted else {
-            throw SyncError.unsupportedCalendarChange(reason: "Calendar permission denied")
+        private static func listCalendars() async throws {
+            let store = EKEventStore()
+            let granted = try await store.requestFullAccessToEvents()
+            guard granted else {
+                throw SyncError.unsupportedCalendarChange(reason: "Calendar permission denied")
+            }
+
+            for calendar in store.calendars(for: .event) {
+                print("\(calendar.title)\t\(calendar.calendarIdentifier)")
+            }
         }
 
-        for calendar in store.calendars(for: .event) {
-            print("\(calendar.title)\t\(calendar.calendarIdentifier)")
-        }
-    }
-
-    private static func syncWithEventKit(databasePath: String, calendarID: String) async throws {
-        let store = try await makeStore(databasePath: databasePath)
-        let provider = EventKitCalendarProvider()
-        let engine = TwoWaySyncEngine(
-            taskStore: store,
-            noteStore: store,
-            bindingStore: store,
-            checkpointStore: store,
-            calendarProvider: provider
-        )
-
-        let report = try await engine.runOnce(
-            configuration: SyncEngineConfiguration(
-                checkpointID: "default",
-                calendarID: calendarID,
-                taskBatchSize: 500,
-                policy: .lastWriteWins
+        private static func syncWithEventKit(databasePath: String, calendarID: String) async throws {
+            let store = try await makeStore(databasePath: databasePath)
+            let provider = EventKitCalendarProvider()
+            let engine = TwoWaySyncEngine(
+                taskStore: store,
+                noteStore: store,
+                bindingStore: store,
+                checkpointStore: store,
+                calendarProvider: provider,
             )
-        )
 
-        print("Sync completed")
-        print("tasksPushed=\(report.tasksPushed) eventsPulled=\(report.eventsPulled) tasksImported=\(report.tasksImported) updatesFromCalendar=\(report.tasksUpdatedFromCalendar)")
-    }
+            let report = try await engine.runOnce(
+                configuration: SyncEngineConfiguration(
+                    checkpointID: "default",
+                    calendarID: calendarID,
+                    taskBatchSize: 500,
+                    policy: .lastWriteWins,
+                ),
+            )
+
+            print("Sync completed")
+            print(
+                "tasksPushed=\(report.tasksPushed) eventsPulled=\(report.eventsPulled) tasksImported=\(report.tasksImported) updatesFromCalendar=\(report.tasksUpdatedFromCalendar)",
+            )
+        }
     #endif
 
     private static func makeStore(databasePath: String) async throws -> SQLiteStore {

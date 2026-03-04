@@ -1,17 +1,16 @@
-import XCTest
 import SwiftUI
 import ViewInspector
+import XCTest
 @testable import NotesDomain
 @testable import NotesFeatures
-@testable import NotesUI
 @testable import NotesSync
+@testable import NotesUI
 
 /// Tests targeting coverage gaps identified in the UI audit.
 /// Covers: empty states, filter edge cases, status badges, count badges,
 /// sync metric cards, recurrence dialogs, and new Theme polish elements.
 @MainActor
 final class UICoverageGapTests: XCTestCase {
-
     // MARK: - Helpers
 
     private func makeViewModel(notes: [Note] = [], tasks: [Task] = []) -> AppViewModel {
@@ -20,7 +19,7 @@ final class UICoverageGapTests: XCTestCase {
         return AppViewModel(
             service: service,
             calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
+            syncCalendarID: "dev-calendar",
         )
     }
 
@@ -30,7 +29,7 @@ final class UICoverageGapTests: XCTestCase {
         return AppViewModel(
             service: service,
             calendarProviderFactory: { provider },
-            syncCalendarID: "dev-calendar"
+            syncCalendarID: "dev-calendar",
         )
     }
 
@@ -50,27 +49,29 @@ final class UICoverageGapTests: XCTestCase {
         XCTAssertTrue(viewModel.tasks.isEmpty, "Fresh install must have no tasks")
     }
 
-    func testFreshInstallKanbanColumnsRenderNoCardsPlaceholder() async throws {
+    func testFreshInstallKanbanColumnsRenderNoCardsPlaceholder() async {
         let viewModel = makeViewModel()
         await viewModel.load()
 
         for status in TaskStatus.allCases {
-            XCTAssertTrue(viewModel.tasks(for: status).isEmpty,
-                          "Column \(status.rawValue) must be empty on fresh install")
+            XCTAssertTrue(
+                viewModel.tasks(for: status).isEmpty,
+                "Column \(status.rawValue) must be empty on fresh install",
+            )
         }
     }
 
     // MARK: - §8 Filter Edge Cases
 
     func testFilterUpcomingReturnsFutureDatedTasks() async throws {
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
         let task = try Task(
             stableID: "upcoming-task",
             title: "Future task",
             dueStart: tomorrow,
             status: .next,
             kanbanOrder: 1,
-            updatedAt: Date()
+            updatedAt: Date(),
         )
 
         let viewModel = makeViewModel(tasks: [task])
@@ -82,14 +83,14 @@ final class UICoverageGapTests: XCTestCase {
     }
 
     func testFilterOverdueReturnsPastDueTasks() async throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let task = try Task(
             stableID: "overdue-task",
             title: "Late task",
             dueStart: yesterday,
             status: .next,
             kanbanOrder: 1,
-            updatedAt: Date()
+            updatedAt: Date(),
         )
 
         let viewModel = makeViewModel(tasks: [task])
@@ -101,7 +102,7 @@ final class UICoverageGapTests: XCTestCase {
     }
 
     func testFilterUpcomingExcludesCompletedTasks() async throws {
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
         let task = try Task(
             stableID: "done-future",
             title: "Done future task",
@@ -109,7 +110,7 @@ final class UICoverageGapTests: XCTestCase {
             status: .done,
             kanbanOrder: 1,
             completedAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
         )
 
         let viewModel = makeViewModel(tasks: [task])
@@ -120,7 +121,7 @@ final class UICoverageGapTests: XCTestCase {
     }
 
     func testFilterOverdueExcludesCompletedTasks() async throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let task = try Task(
             stableID: "done-overdue",
             title: "Done late task",
@@ -128,7 +129,7 @@ final class UICoverageGapTests: XCTestCase {
             status: .done,
             kanbanOrder: 1,
             completedAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
         )
 
         let viewModel = makeViewModel(tasks: [task])
@@ -140,11 +141,11 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §9 Task Row Status Badges (ViewInspector)
 
-    func testTaskRowRendersStatusBadgeText() async throws {
+    func testTaskRowRendersStatusBadgeText() throws {
         throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
-    func testTaskRowRendersDeleteButton() async throws {
+    func testTaskRowRendersDeleteButton() throws {
         throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
@@ -175,7 +176,7 @@ final class UICoverageGapTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(report.tasksDeletedFromCalendar, 0)
     }
 
-    func testSyncDashboardReportSectionRenderedAfterSync() async throws {
+    func testSyncDashboardReportSectionRenderedAfterSync() throws {
         throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
@@ -189,8 +190,10 @@ final class UICoverageGapTests: XCTestCase {
 
         await viewModel.runSync()
 
-        XCTAssertTrue(viewModel.syncStatusText.contains("Sync complete"),
-                      "Status text must update after sync")
+        XCTAssertTrue(
+            viewModel.syncStatusText.contains("Sync complete"),
+            "Status text must update after sync",
+        )
     }
 
     func testSyncSetsIsSyncingDuringRun() async throws {
@@ -205,7 +208,7 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §17 Diagnostics Entries
 
-    func testSyncDiagnosticRowsRendered() async throws {
+    func testSyncDiagnosticRowsRendered() throws {
         throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
@@ -231,8 +234,10 @@ final class UICoverageGapTests: XCTestCase {
 
         // Dismissing when already nil should not crash
         viewModel.dismissRecurrenceEditPrompt()
-        XCTAssertNil(viewModel.recurrenceEditPrompt,
-                     "Dismissing an already-nil edit prompt must not crash")
+        XCTAssertNil(
+            viewModel.recurrenceEditPrompt,
+            "Dismissing an already-nil edit prompt must not crash",
+        )
     }
 
     func testDismissRecurrenceDeletePromptIsIdempotent() async throws {
@@ -241,8 +246,10 @@ final class UICoverageGapTests: XCTestCase {
 
         // Dismissing when already nil should not crash
         viewModel.dismissRecurrenceDeletePrompt()
-        XCTAssertNil(viewModel.recurrenceDeletePrompt,
-                     "Dismissing an already-nil delete prompt must not crash")
+        XCTAssertNil(
+            viewModel.recurrenceDeletePrompt,
+            "Dismissing an already-nil delete prompt must not crash",
+        )
     }
 
     func testResolveRecurrenceEditPromptWithoutPendingIsNoOp() async throws {
@@ -284,10 +291,9 @@ final class UICoverageGapTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage, "Error must clear after successful operation")
     }
 
-    func testGlobalErrorBannerRendersInRootView() async throws {
+    func testGlobalErrorBannerRendersInRootView() throws {
         throw XCTSkip("Accessibility identifier validation requires UI tests (ViewInspector limitation)")
     }
 
     // MARK: - §14 Sync Tab Controls
-
 }

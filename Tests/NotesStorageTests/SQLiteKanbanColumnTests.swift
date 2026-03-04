@@ -1,6 +1,6 @@
-import XCTest
 import NotesDomain
 import NotesStorage
+import XCTest
 
 final class SQLiteKanbanColumnTests: XCTestCase {
     var tempDir: URL!
@@ -62,7 +62,7 @@ final class SQLiteKanbanColumnTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let columns = try await store.fetchColumns()
-        let backlogColumn = columns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogColumn = try XCTUnwrap(columns.first(where: { $0.builtInStatus == .backlog }))
 
         // Should no-op (built-in columns are protected)
         try await store.deleteColumn(id: backlogColumn.id)

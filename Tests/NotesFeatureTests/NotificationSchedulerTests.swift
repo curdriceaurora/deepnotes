@@ -1,6 +1,6 @@
+import NotesDomain
 import XCTest
 @testable import NotesFeatures
-import NotesDomain
 
 actor MockNotificationScheduler: NotificationScheduling {
     private(set) var scheduledTaskIDs: [UUID] = []
@@ -41,15 +41,15 @@ final class NotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(authed)
     }
 
-    func testScheduleReminderAppendsTaskID() async {
-        let task = try! Task(
+    func testScheduleReminderAppendsTaskID() async throws {
+        let task = try Task(
             noteID: nil,
             stableID: "test",
             title: "Test Task",
             details: "",
             dueStart: Date().addingTimeInterval(3600),
             dueEnd: nil,
-            status: .next
+            status: .next,
         )
         await scheduler.scheduleReminder(for: task)
         let scheduled = await scheduler.scheduledTaskIDs

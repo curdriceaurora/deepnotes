@@ -1,9 +1,9 @@
 import Foundation
-import Observation
-import os
 import NotesDomain
 import NotesFeatures
 import NotesSync
+import Observation
+import os
 
 public enum NoteEditMode: String, Sendable {
     case edit
@@ -61,7 +61,7 @@ public final class AppViewModel {
     public private(set) var allTagsList: [String] = []
     public private(set) var selectedTagFilter: String?
     public var noteEditMode: NoteEditMode = .edit
-    public private(set) var renderedMarkdown: AttributedString = AttributedString()
+    public private(set) var renderedMarkdown: AttributedString = .init()
 
     public private(set) var tasks: [Task] = []
     public var taskFilter: TaskListFilter = .all
@@ -70,6 +70,7 @@ public final class AppViewModel {
               let order = TaskSortOrder(rawValue: raw) else { return .dueDate }
         return order
     }()
+
     public var quickTaskTitle: String = ""
     public var quickTaskPriority: Int = 3
     public var selectedTaskForEditing: Task?
@@ -113,7 +114,7 @@ public final class AppViewModel {
     public init(
         service: WorkspaceServicing,
         calendarProviderFactory: @escaping CalendarProviderFactory,
-        syncCalendarID: String
+        syncCalendarID: String,
     ) {
         self.service = service
         self.calendarProviderFactory = calendarProviderFactory
@@ -132,7 +133,12 @@ public final class AppViewModel {
             async let r4: () = reloadTemplates()
             async let r5: () = reloadTasksWithoutWrapper()
             async let r6: Bool = service.requestNotificationPermission()
-            try await r1; try await r2; try await r3; try await r4; try await r5; _ = await r6
+            try await r1
+            try await r2
+            try await r3
+            try await r4
+            try await r5
+            _ = await r6
         }
         Self.signposter.endInterval("load", state)
         // Start periodic auto-sync (every 5 minutes when app is active)
@@ -199,8 +205,8 @@ public final class AppViewModel {
                     dueStart: Calendar.current.date(byAdding: .hour, value: 2, to: Date()),
                     dueEnd: Calendar.current.date(byAdding: .hour, value: 3, to: Date()),
                     status: .next,
-                    priority: priority
-                )
+                    priority: priority,
+                ),
             )
             quickTaskTitle = ""
             quickTaskPriority = 3
@@ -317,7 +323,7 @@ public final class AppViewModel {
             isWikiLinkSuggestionVisible = false
             return
         }
-        let range = NSRange(selectedNoteBody.startIndex..<selectedNoteBody.endIndex, in: selectedNoteBody)
+        let range = NSRange(selectedNoteBody.startIndex ..< selectedNoteBody.endIndex, in: selectedNoteBody)
         guard let match = regex.firstMatch(in: selectedNoteBody, options: [], range: range),
               match.numberOfRanges >= 2,
               let queryRange = Range(match.range(at: 1), in: selectedNoteBody)
@@ -346,7 +352,7 @@ public final class AppViewModel {
             return
         }
 
-        let range = NSRange(selectedNoteBody.startIndex..<selectedNoteBody.endIndex, in: selectedNoteBody)
+        let range = NSRange(selectedNoteBody.startIndex ..< selectedNoteBody.endIndex, in: selectedNoteBody)
         guard let match = regex.firstMatch(in: selectedNoteBody, options: [], range: range),
               let fullRange = Range(match.range(at: 0), in: selectedNoteBody)
         else {
@@ -467,7 +473,7 @@ public final class AppViewModel {
             taskID: pendingTaskMutation.taskID,
             to: pendingTaskMutation.targetStatus,
             beforeTaskID: pendingTaskMutation.beforeTaskID,
-            scope: scope
+            scope: scope,
         )
     }
 
@@ -502,13 +508,13 @@ public final class AppViewModel {
                 taskID: taskID,
                 targetStatus: status,
                 beforeTaskID: beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             recurrenceEditPrompt = RecurrenceEditPrompt(
                 taskID: taskID,
                 targetStatus: status,
                 beforeTaskID: beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             return
         }
@@ -581,7 +587,8 @@ public final class AppViewModel {
             let allTasks = try await service.listAllTasks()
             if scope == .entireSeries,
                let existing = allTasks.first(where: { $0.id == taskID }),
-               TaskCalendarMapper.recurrenceExceptionDate(in: existing.details) != nil {
+               TaskCalendarMapper.recurrenceExceptionDate(in: existing.details) != nil
+            {
                 let seriesTasks = allTasks.filter { $0.stableID == existing.stableID }
                 let hasSeriesAnchor = seriesTasks.contains {
                     TaskCalendarMapper.recurrenceExceptionDate(in: $0.details) == nil && ($0.recurrenceRule?.isEmpty == false)
@@ -647,13 +654,13 @@ public final class AppViewModel {
                 taskID: drop.taskID,
                 targetStatus: drop.status,
                 beforeTaskID: drop.beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             recurrenceEditPrompt = RecurrenceEditPrompt(
                 taskID: drop.taskID,
                 targetStatus: drop.status,
                 beforeTaskID: drop.beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             return false
         }
@@ -679,13 +686,13 @@ public final class AppViewModel {
                 taskID: drop.taskID,
                 targetStatus: drop.status,
                 beforeTaskID: drop.beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             recurrenceEditPrompt = RecurrenceEditPrompt(
                 taskID: drop.taskID,
                 targetStatus: drop.status,
                 beforeTaskID: drop.beforeTaskID,
-                occurrenceDate: occurrenceDate
+                occurrenceDate: occurrenceDate,
             )
             return false
         }
@@ -714,10 +721,10 @@ public final class AppViewModel {
                 status: status,
                 beforeTaskID: beforeTaskID,
                 occurrenceDate: nil,
-                isNoOp: true
+                isNoOp: true,
             )
         }
-        if current.status == status && beforeTaskID == nil {
+        if current.status == status, beforeTaskID == nil {
             let ordered = tasks(for: status)
             if ordered.last?.id == taskID {
                 return TaskDropInput(
@@ -725,7 +732,7 @@ public final class AppViewModel {
                     status: status,
                     beforeTaskID: beforeTaskID,
                     occurrenceDate: nil,
-                    isNoOp: true
+                    isNoOp: true,
                 )
             }
         }
@@ -735,7 +742,7 @@ public final class AppViewModel {
             status: status,
             beforeTaskID: beforeTaskID,
             occurrenceDate: TaskCalendarMapper.recurrenceExceptionDate(in: current.details),
-            isNoOp: false
+            isNoOp: false,
         )
     }
 
@@ -763,11 +770,10 @@ public final class AppViewModel {
         case .note:
             var groups: [String: [Task]] = [:]
             for task in columnTasks {
-                let noteTitle: String
-                if let noteID = task.noteID, let note = notes.first(where: { $0.id == noteID }) {
-                    noteTitle = note.title
+                let noteTitle: String = if let noteID = task.noteID, let note = notes.first(where: { $0.id == noteID }) {
+                    note.title
                 } else {
-                    noteTitle = "No Note"
+                    "No Note"
                 }
                 groups[noteTitle, default: []].append(task)
             }
@@ -802,9 +808,9 @@ public final class AppViewModel {
                     checkpointID: "default",
                     calendarID: calendarID,
                     taskBatchSize: 500,
-                    policy: .lastWriteWins
+                    policy: .lastWriteWins,
                 ),
-                calendarProvider: calendarProviderFactory()
+                calendarProvider: calendarProviderFactory(),
             )
             lastSyncReport = report
             recurrenceConflictMessage = Self.extractRecurrenceConflictMessage(from: report)
@@ -822,9 +828,9 @@ public final class AppViewModel {
                 checkpointID: "default",
                 calendarID: calendarID,
                 taskBatchSize: 500,
-                policy: .lastWriteWins
+                policy: .lastWriteWins,
             ),
-            calendarProvider: calendarProviderFactory()
+            calendarProvider: calendarProviderFactory(),
         )
         try? await reloadTasksWithoutWrapper()
     }
@@ -869,9 +875,9 @@ public final class AppViewModel {
                 query: noteSearchQuery,
                 mode: .smart,
                 limit: 100,
-                offset: 0
+                offset: 0,
             )
-            notes = page.hits.map { $0.note.listItem }
+            notes = page.hits.map(\.note.listItem)
             notesTotalCount = page.totalCount
             notesNextOffset = nil
             noteSearchSnippetsByID = Dictionary(uniqueKeysWithValues: page.hits.compactMap { hit in
@@ -1050,10 +1056,10 @@ public final class AppViewModel {
             let attempt = entry.attempt.map(String.init) ?? "-"
             lines.append(
                 "\(timestamp) [\(entry.severity.rawValue.uppercased())] " +
-                "op=\(entry.operation.rawValue) " +
-                "entityType=\(entityType) entityID=\(entityID) " +
-                "taskID=\(taskID) eventID=\(eventID) externalID=\(externalID) " +
-                "attempt=\(attempt) providerError=\(providerError) message=\(entry.message)"
+                    "op=\(entry.operation.rawValue) " +
+                    "entityType=\(entityType) entityID=\(entityID) " +
+                    "taskID=\(taskID) eventID=\(eventID) externalID=\(externalID) " +
+                    "attempt=\(attempt) providerError=\(providerError) message=\(entry.message)",
             )
         }
 
@@ -1244,7 +1250,7 @@ private enum RecurrenceSeriesResolutionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .parentSeriesNotFound:
-            return "Could not resolve a parent recurring series for this occurrence."
+            "Could not resolve a parent recurring series for this occurrence."
         }
     }
 }
@@ -1272,9 +1278,9 @@ private enum SyncDiagnosticsExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingReport:
-            return "Run sync before exporting diagnostics."
+            "Run sync before exporting diagnostics."
         case .noDiagnostics:
-            return "No diagnostics available to export."
+            "No diagnostics available to export."
         }
     }
 }

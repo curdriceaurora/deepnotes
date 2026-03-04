@@ -36,7 +36,7 @@ public actor InMemoryCalendarProvider: CalendarProvider {
             eventIdentifier: eventIdentifier,
             externalIdentifier: existing.externalIdentifier,
             calendarID: calendarID,
-            deletedAt: Date()
+            deletedAt: Date(),
         )
 
         changeLogByCalendar[calendarID, default: []].append(.delete(deletion))
@@ -44,12 +44,10 @@ public actor InMemoryCalendarProvider: CalendarProvider {
 
     public func fetchChanges(since token: String?, calendarID: String) async throws -> CalendarChangeBatch {
         let allChanges = changeLogByCalendar[calendarID, default: []]
-        let startIndex: Int
-
-        if let token, let parsed = Int(token) {
-            startIndex = max(0, min(parsed, allChanges.count))
+        let startIndex: Int = if let token, let parsed = Int(token) {
+            max(0, min(parsed, allChanges.count))
         } else {
-            startIndex = 0
+            0
         }
 
         let delta = Array(allChanges[startIndex...])

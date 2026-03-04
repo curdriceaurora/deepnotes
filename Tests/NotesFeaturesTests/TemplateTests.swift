@@ -1,7 +1,7 @@
-import XCTest
 import NotesDomain
 import NotesFeatures
 import NotesStorage
+import XCTest
 
 final class TemplateTests: XCTestCase {
     var tempDir: URL!

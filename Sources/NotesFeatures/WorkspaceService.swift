@@ -12,11 +12,11 @@ public enum TaskListFilter: String, CaseIterable, Codable, Sendable {
 
     public var title: String {
         switch self {
-        case .all: return "All"
-        case .today: return "Today"
-        case .upcoming: return "Upcoming"
-        case .overdue: return "Overdue"
-        case .completed: return "Completed"
+        case .all: "All"
+        case .today: "Today"
+        case .upcoming: "Upcoming"
+        case .overdue: "Overdue"
+        case .completed: "Completed"
         }
     }
 }
@@ -49,7 +49,7 @@ public struct NewTaskInput: Sendable {
         dueEnd: Date? = nil,
         status: TaskStatus = .backlog,
         priority: Int = 3,
-        recurrenceRule: String? = nil
+        recurrenceRule: String? = nil,
     ) {
         self.noteID = noteID
         self.title = title
@@ -119,19 +119,24 @@ public actor WorkspaceService: WorkspaceServicing {
     private let tagParser: TagParser
     private var notificationScheduler: NotificationScheduling?
 
-    // Search result cache (LRU, max 8)
+    /// Search result cache (LRU, max 8)
     private struct SearchCacheKey: Hashable {
-        let query: String; let mode: NoteSearchMode; let offset: Int; let limit: Int
+        let query: String
+        let mode: NoteSearchMode
+        let offset: Int
+        let limit: Int
     }
+
     private var searchCache: [SearchCacheKey: NoteSearchPage] = [:]
     private var searchCacheOrder: [SearchCacheKey] = []
 
-    // Backlinks link index — precomputed from all notes
+    /// Backlinks link index — precomputed from all notes
     private struct LinkIndex {
         let titleToID: [String: UUID]
         let noteLinks: [UUID: Set<String>]
         let noteTitles: [UUID: String]
     }
+
     private var linkIndex: LinkIndex?
 
     public init(
@@ -145,7 +150,7 @@ public actor WorkspaceService: WorkspaceServicing {
         clock: Clock = SystemClock(),
         linkParser: WikiLinkParser = WikiLinkParser(),
         tagParser: TagParser = TagParser(),
-        notificationScheduler: NotificationScheduling? = nil
+        notificationScheduler: NotificationScheduling? = nil,
     ) {
         self.taskStore = taskStore
         self.noteStore = noteStore
@@ -178,7 +183,7 @@ public actor WorkspaceService: WorkspaceServicing {
             bindingStore: store,
             checkpointStore: store,
             templateStore: store,
-            kanbanColumnStore: store
+            kanbanColumnStore: store,
         )
     }
 
@@ -195,7 +200,7 @@ public actor WorkspaceService: WorkspaceServicing {
             query: query,
             mode: .smart,
             limit: limit,
-            offset: 0
+            offset: 0,
         )
         return page.hits.map(\.note)
     }
@@ -204,7 +209,7 @@ public actor WorkspaceService: WorkspaceServicing {
         query: String,
         mode: NoteSearchMode = .smart,
         limit: Int = 50,
-        offset: Int = 0
+        offset: Int = 0,
     ) async throws -> NoteSearchPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedLimit = max(1, limit)
@@ -213,14 +218,14 @@ public actor WorkspaceService: WorkspaceServicing {
             let notes = try await listNotes()
             let start = min(normalizedOffset, notes.count)
             let end = min(notes.count, start + normalizedLimit)
-            let pageNotes = Array(notes[start..<end])
+            let pageNotes = Array(notes[start ..< end])
             return NoteSearchPage(
                 query: trimmed,
                 mode: mode,
                 offset: normalizedOffset,
                 limit: normalizedLimit,
                 totalCount: notes.count,
-                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) },
             )
         }
 
@@ -237,7 +242,7 @@ public actor WorkspaceService: WorkspaceServicing {
             query: trimmed,
             mode: mode,
             limit: normalizedLimit,
-            offset: normalizedOffset
+            offset: normalizedOffset,
         )
 
         searchCache[cacheKey] = result
@@ -259,7 +264,7 @@ public actor WorkspaceService: WorkspaceServicing {
             title: trimmedTitle.isEmpty ? fallbackTitle : trimmedTitle,
             body: body,
             tags: tags,
-            updatedAt: clock.now()
+            updatedAt: clock.now(),
         )
         let created = try await noteStore.upsertNote(note)
         invalidateCaches()
@@ -304,8 +309,8 @@ public actor WorkspaceService: WorkspaceServicing {
 
         let notes = try await noteStore.fetchNotes(includeDeleted: false)
         let conflictingOldTitleCount = notes
-            .filter { $0.id != id && normalizedWikiLinkTitle($0.title) == normalizedPreviousTitle }
-            .count
+            .count(where: { $0.id != id && normalizedWikiLinkTitle($0.title) == normalizedPreviousTitle })
+
         guard conflictingOldTitleCount == 0 else {
             return updatedNote
         }
@@ -314,7 +319,7 @@ public actor WorkspaceService: WorkspaceServicing {
             let rewrittenBody = rewriteWikiLinks(
                 in: note.body,
                 fromNormalizedTitle: normalizedPreviousTitle,
-                toTitle: title
+                toTitle: title,
             )
             guard rewrittenBody != note.body else {
                 continue
@@ -443,24 +448,24 @@ public actor WorkspaceService: WorkspaceServicing {
     private func sortComparator(_ order: TaskSortOrder) -> (Task, Task) -> Bool {
         switch order {
         case .dueDate:
-            return { lhs, rhs in
+            { lhs, rhs in
                 switch (lhs.dueStart, rhs.dueStart) {
-                case let (l?, r?): return l < r
-                case (_?, nil): return true
-                case (nil, _?): return false
-                case (nil, nil): return lhs.updatedAt > rhs.updatedAt
+                case let (l?, r?): l < r
+                case (_?, nil): true
+                case (nil, _?): false
+                case (nil, nil): lhs.updatedAt > rhs.updatedAt
                 }
             }
         case .priority:
-            return { lhs, rhs in
+            { lhs, rhs in
                 lhs.priority != rhs.priority
                     ? lhs.priority < rhs.priority
                     : lhs.updatedAt > rhs.updatedAt
             }
         case .title:
-            return { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .creationDate:
-            return { $0.updatedAt > $1.updatedAt }
+            { $0.updatedAt > $1.updatedAt }
         }
     }
 
@@ -477,7 +482,7 @@ public actor WorkspaceService: WorkspaceServicing {
             priority: input.priority,
             recurrenceRule: input.recurrenceRule,
             kanbanOrder: nextKanbanOrderForAppend(status: input.status, tasks: allTasks),
-            updatedAt: clock.now()
+            updatedAt: clock.now(),
         )
         let saved = try await taskStore.upsertTask(task)
         _Concurrency.Task { await self.getNotificationScheduler().scheduleReminder(for: saved) }
@@ -514,7 +519,7 @@ public actor WorkspaceService: WorkspaceServicing {
             forMovingTaskID: taskID,
             targetStatus: status,
             beforeTaskID: beforeTaskID,
-            tasks: tasks
+            tasks: tasks,
         )
 
         if desiredOrder.isNaN {
@@ -524,11 +529,11 @@ public actor WorkspaceService: WorkspaceServicing {
                 forMovingTaskID: taskID,
                 targetStatus: status,
                 beforeTaskID: beforeTaskID,
-                tasks: tasks
+                tasks: tasks,
             )
         }
 
-        if task.status == status && abs(task.kanbanOrder - desiredOrder) <= Self.kanbanOrderEpsilon {
+        if task.status == status, abs(task.kanbanOrder - desiredOrder) <= Self.kanbanOrderEpsilon {
             return task
         }
 
@@ -567,7 +572,7 @@ public actor WorkspaceService: WorkspaceServicing {
             checkpointStore: checkpointStore,
             calendarProvider: calendarProvider,
             mapper: mapper,
-            clock: clock
+            clock: clock,
         )
 
         return try await engine.runOnce(configuration: configuration)
@@ -578,23 +583,23 @@ public actor WorkspaceService: WorkspaceServicing {
         if notes.isEmpty {
             let planning = try await createNote(
                 title: "Q2 Launch Plan",
-                body: "# Goals\n- Ship planning app\n\n## Linked\n- [[Vendor Call Notes]]"
+                body: "# Goals\n- Ship planning app\n\n## Linked\n- [[Vendor Call Notes]]",
             )
 
             _ = try await createNote(
                 title: "Vendor Call Notes",
-                body: "Prepare talking points from [[Q2 Launch Plan]]."
+                body: "Prepare talking points from [[Q2 Launch Plan]].",
             )
 
             var datedNote = Note(
                 title: "Launch review card",
                 body: "Calendar-linked note card for launch review.",
-                dateStart: clock.now().addingTimeInterval(7_200),
-                dateEnd: clock.now().addingTimeInterval(10_800),
+                dateStart: clock.now().addingTimeInterval(7200),
+                dateEnd: clock.now().addingTimeInterval(10800),
                 isAllDay: false,
                 recurrenceRule: nil,
                 calendarSyncEnabled: true,
-                updatedAt: clock.now()
+                updatedAt: clock.now(),
             )
             datedNote = try await noteStore.upsertNote(datedNote)
 
@@ -605,7 +610,7 @@ public actor WorkspaceService: WorkspaceServicing {
                 dueStart: clock.now().addingTimeInterval(3600),
                 dueEnd: clock.now().addingTimeInterval(5400),
                 status: .next,
-                priority: 4
+                priority: 4,
             ))
 
             _ = try await createTask(NewTaskInput(
@@ -615,18 +620,18 @@ public actor WorkspaceService: WorkspaceServicing {
                 dueStart: clock.now().addingTimeInterval(7200),
                 dueEnd: clock.now().addingTimeInterval(9000),
                 status: .doing,
-                priority: 3
+                priority: 3,
             ))
 
             _ = try await createTask(NewTaskInput(
                 noteID: planning.id,
                 title: "Review budget",
                 details: "Weekly review",
-                dueStart: clock.now().addingTimeInterval(86_400),
-                dueEnd: clock.now().addingTimeInterval(90_000),
+                dueStart: clock.now().addingTimeInterval(86400),
+                dueEnd: clock.now().addingTimeInterval(90000),
                 status: .waiting,
                 priority: 2,
-                recurrenceRule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0"
+                recurrenceRule: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
             ))
         }
     }
@@ -692,7 +697,7 @@ public actor WorkspaceService: WorkspaceServicing {
 
         // Auto-complete parent task when all subtasks are completed.
         // Note: Parent can still be manually marked as done even with incomplete subtasks.
-        if isCompleted && task.subtasks.allSatisfy(\.isCompleted) && task.status != .done {
+        if isCompleted, task.subtasks.allSatisfy(\.isCompleted), task.status != .done {
             task.status = .done
             task.completedAt = clock.now()
         }
@@ -731,7 +736,7 @@ public actor WorkspaceService: WorkspaceServicing {
         forMovingTaskID taskID: UUID,
         targetStatus: TaskStatus,
         beforeTaskID: UUID?,
-        tasks: [Task]
+        tasks: [Task],
     ) throws -> Double {
         let targetTasks = tasks
             .filter { $0.id != taskID && $0.status == targetStatus }
@@ -800,7 +805,7 @@ public actor WorkspaceService: WorkspaceServicing {
     private func rewriteWikiLinks(
         in body: String,
         fromNormalizedTitle: String,
-        toTitle: String
+        toTitle: String,
     ) -> String {
         guard !fromNormalizedTitle.isEmpty else {
             return body
@@ -809,7 +814,7 @@ public actor WorkspaceService: WorkspaceServicing {
             return body
         }
 
-        let nsRange = NSRange(body.startIndex..<body.endIndex, in: body)
+        let nsRange = NSRange(body.startIndex ..< body.endIndex, in: body)
         let matches = regex.matches(in: body, range: nsRange)
         guard !matches.isEmpty else {
             return body
@@ -832,11 +837,10 @@ public actor WorkspaceService: WorkspaceServicing {
                 continue
             }
 
-            let alias: String
-            if let aliasRange = Range(match.range(at: 2), in: rewritten) {
-                alias = String(rewritten[aliasRange])
+            let alias = if let aliasRange = Range(match.range(at: 2), in: rewritten) {
+                String(rewritten[aliasRange])
             } else {
-                alias = ""
+                ""
             }
 
             rewritten.replaceSubrange(fullRange, with: "[[\(toTitle)\(alias)]]")
@@ -855,7 +859,7 @@ public actor WorkspaceService: WorkspaceServicing {
         let escapedTitle = NSRegularExpression.escapedPattern(for: targetNote.title)
         guard let regex = try? NSRegularExpression(
             pattern: #"(?<!\[)\b\#(escapedTitle)\b(?!\])"#,
-            options: [.caseInsensitive]
+            options: [.caseInsensitive],
         ) else {
             return []
         }
@@ -864,7 +868,7 @@ public actor WorkspaceService: WorkspaceServicing {
         var mentions: [NoteBacklink] = []
 
         for note in allNotes where note.id != noteID {
-            let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+            let range = NSRange(note.body.startIndex ..< note.body.endIndex, in: note.body)
             if regex.firstMatch(in: note.body, options: [], range: range) != nil {
                 let normalizedTitle = note.title.lowercased()
                 if !existingBacklinkTitles.contains(normalizedTitle) {
@@ -884,15 +888,16 @@ public actor WorkspaceService: WorkspaceServicing {
         let escapedTitle = NSRegularExpression.escapedPattern(for: targetTitle)
         guard let regex = try? NSRegularExpression(
             pattern: #"(?<!\[)\b\#(escapedTitle)\b(?!\])"#,
-            options: [.caseInsensitive]
+            options: [.caseInsensitive],
         ) else {
             return note
         }
 
         var rewritten = note.body
-        let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+        let range = NSRange(note.body.startIndex ..< note.body.endIndex, in: note.body)
         if let match = regex.firstMatch(in: note.body, options: [], range: range),
-           let matchRange = Range(match.range, in: note.body) {
+           let matchRange = Range(match.range, in: note.body)
+        {
             rewritten.replaceSubrange(matchRange, with: "[[\(targetTitle)]]")
         }
 
@@ -907,7 +912,8 @@ public actor WorkspaceService: WorkspaceServicing {
             guard let fromTitle = index.noteTitles[sourceID] else { continue }
             for linkedTitle in linkedTitles {
                 if let toID = index.titleToID[linkedTitle], toID != sourceID,
-                   let toTitle = index.noteTitles[toID] {
+                   let toTitle = index.noteTitles[toID]
+                {
                     edges.append((from: sourceID, to: toID, fromTitle: fromTitle, toTitle: toTitle))
                 }
             }

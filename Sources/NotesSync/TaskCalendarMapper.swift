@@ -35,7 +35,7 @@ public struct TaskCalendarMapper: Sendable {
             isCompleted: task.completedAt != nil || task.status == .done,
             updatedAt: task.updatedAt,
             sourceEntityType: .task,
-            sourceStableID: task.stableID
+            sourceStableID: task.stableID,
         )
     }
 
@@ -65,7 +65,7 @@ public struct TaskCalendarMapper: Sendable {
             completedAt: completedAt,
             updatedAt: event.updatedAt,
             version: existingTask?.version ?? 0,
-            deletedAt: nil
+            deletedAt: nil,
         )
     }
 
@@ -75,14 +75,15 @@ public struct TaskCalendarMapper: Sendable {
         binding: CalendarBinding?,
         policy: ConflictResolutionPolicy,
         timestampNormalizationSeconds: TimeInterval = 1,
-        lastWriteWinsTieBreaker: ConflictSource = .calendar
+        lastWriteWinsTieBreaker: ConflictSource = .calendar,
     ) throws -> ResolvedPair {
         guard let binding else {
-            return .eventWins(try self.task(from: event, existingTask: task))
+            return try .eventWins(self.task(from: event, existingTask: task))
         }
 
         if let lastEventUpdatedAt = binding.lastEventUpdatedAt,
-           event.updatedAt <= lastEventUpdatedAt {
+           event.updatedAt <= lastEventUpdatedAt
+        {
             return .keepTask
         }
 
@@ -96,19 +97,19 @@ public struct TaskCalendarMapper: Sendable {
         case (true, false):
             return .taskWins(task)
         case (false, true):
-            return .eventWins(try self.task(from: event, existingTask: task))
+            return try .eventWins(self.task(from: event, existingTask: task))
         case (true, true):
             switch policy {
             case .taskPriority:
                 return .taskWins(task)
             case .calendarPriority:
-                return .eventWins(try self.task(from: event, existingTask: task))
+                return try .eventWins(self.task(from: event, existingTask: task))
             case .lastWriteWins:
                 let normalizedTaskTime = normalizedTimestamp(task.updatedAt, granularitySeconds: timestampNormalizationSeconds)
                 let normalizedEventTime = normalizedTimestamp(event.updatedAt, granularitySeconds: timestampNormalizationSeconds)
 
                 if normalizedEventTime > normalizedTaskTime {
-                    return .eventWins(try self.task(from: event, existingTask: task))
+                    return try .eventWins(self.task(from: event, existingTask: task))
                 }
                 if normalizedTaskTime > normalizedEventTime {
                     return .taskWins(task)
@@ -116,7 +117,7 @@ public struct TaskCalendarMapper: Sendable {
 
                 switch lastWriteWinsTieBreaker {
                 case .calendar:
-                    return .eventWins(try self.task(from: event, existingTask: task))
+                    return try .eventWins(self.task(from: event, existingTask: task))
                 case .task:
                     return .taskWins(task)
                 }

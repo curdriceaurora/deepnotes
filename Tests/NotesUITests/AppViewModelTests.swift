@@ -1,9 +1,9 @@
-import XCTest
 import Foundation
+import XCTest
 @testable import NotesDomain
 @testable import NotesFeatures
-@testable import NotesUI
 @testable import NotesSync
+@testable import NotesUI
 
 @MainActor
 final class AppViewModelTests: XCTestCase {
@@ -296,7 +296,7 @@ final class AppViewModelTests: XCTestCase {
         let accepted = viewModel.performTaskDrop(
             taskPayloads: [detached.id.uuidString],
             to: .doing,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertFalse(accepted)
         XCTAssertNotNil(viewModel.recurrenceEditPrompt)
@@ -319,7 +319,7 @@ final class AppViewModelTests: XCTestCase {
         let accepted = viewModel.performTaskDrop(
             taskPayloads: [backlog.id.uuidString],
             to: .waiting,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(accepted)
         XCTAssertNil(viewModel.draggingTaskID)
@@ -344,7 +344,7 @@ final class AppViewModelTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [backlogB.id.uuidString],
             to: .backlog,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(moved)
         XCTAssertNil(viewModel.errorMessage)
@@ -372,7 +372,7 @@ final class AppViewModelTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [backlogB.id.uuidString],
             to: .backlog,
-            beforeTaskID: backlogA.id
+            beforeTaskID: backlogA.id,
         )
         XCTAssertTrue(moved)
 
@@ -402,7 +402,7 @@ final class AppViewModelTests: XCTestCase {
         let topMoved = await viewModel.handleTaskDrop(
             taskPayloads: [next.id.uuidString],
             to: .backlog,
-            beforeTaskID: backlogA.id
+            beforeTaskID: backlogA.id,
         )
         XCTAssertTrue(topMoved)
         XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-next", "t-backlog-a", "t-backlog-b"])
@@ -411,7 +411,7 @@ final class AppViewModelTests: XCTestCase {
         let middleMoved = await viewModel.handleTaskDrop(
             taskPayloads: [backlogB.id.uuidString],
             to: .backlog,
-            beforeTaskID: backlogA.id
+            beforeTaskID: backlogA.id,
         )
         XCTAssertTrue(middleMoved)
         XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-next", "t-backlog-b", "t-backlog-a"])
@@ -420,7 +420,7 @@ final class AppViewModelTests: XCTestCase {
         let bottomMoved = await viewModel.handleTaskDrop(
             taskPayloads: [next.id.uuidString],
             to: .backlog,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(bottomMoved)
         XCTAssertEqual(viewModel.tasks(for: .backlog).map(\.stableID), ["t-backlog-b", "t-backlog-a", "t-next"])
@@ -443,7 +443,7 @@ final class AppViewModelTests: XCTestCase {
         let firstMove = await viewModel.handleTaskDrop(
             taskPayloads: [backlogA.id.uuidString],
             to: .waiting,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(firstMove)
         XCTAssertEqual(viewModel.tasks(for: .waiting).map(\.stableID), ["t-backlog-a"])
@@ -452,7 +452,7 @@ final class AppViewModelTests: XCTestCase {
         let secondMove = await viewModel.handleTaskDrop(
             taskPayloads: [backlogB.id.uuidString],
             to: .waiting,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertTrue(secondMove)
         XCTAssertEqual(viewModel.tasks(for: .waiting).map(\.stableID), ["t-backlog-a", "t-backlog-b"])
@@ -468,31 +468,31 @@ final class AppViewModelTests: XCTestCase {
             return XCTFail("Missing backlog fixture")
         }
 
-        for _ in 0..<20 {
+        for _ in 0 ..< 20 {
             let movedToNext = await viewModel.handleTaskDrop(
                 taskPayloads: [backlogA.id.uuidString],
                 to: .next,
-                beforeTaskID: nil
+                beforeTaskID: nil,
             )
             XCTAssertTrue(movedToNext)
 
             let movedToDoing = await viewModel.handleTaskDrop(
                 taskPayloads: [backlogA.id.uuidString],
                 to: .doing,
-                beforeTaskID: nil
+                beforeTaskID: nil,
             )
             XCTAssertTrue(movedToDoing)
 
             let movedToBacklog = await viewModel.handleTaskDrop(
                 taskPayloads: [backlogA.id.uuidString],
                 to: .backlog,
-                beforeTaskID: nil
+                beforeTaskID: nil,
             )
             XCTAssertTrue(movedToBacklog)
         }
 
         XCTAssertNil(viewModel.errorMessage)
-        XCTAssertEqual(viewModel.tasks.filter { $0.id == backlogA.id }.count, 1)
+        XCTAssertEqual(viewModel.tasks.count(where: { $0.id == backlogA.id }), 1)
         XCTAssertEqual(viewModel.tasks.first(where: { $0.id == backlogA.id })?.status, .backlog)
     }
 
@@ -606,7 +606,7 @@ final class AppViewModelTests: XCTestCase {
         let moved = await viewModel.handleTaskDrop(
             taskPayloads: [detached.id.uuidString],
             to: .doing,
-            beforeTaskID: nil
+            beforeTaskID: nil,
         )
         XCTAssertFalse(moved)
         XCTAssertNotNil(viewModel.recurrenceEditPrompt)
@@ -734,12 +734,12 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(done.allSatisfy { $0.status == .done })
     }
 
-    func testDropTargetSettersAndEndTaskDragResetState() async {
+    func testDropTargetSettersAndEndTaskDragResetState() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        viewModel.beginTaskDrag(taskID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)
+        try viewModel.beginTaskDrag(taskID: XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111")))
         viewModel.setDropTargetStatus(.waiting)
         viewModel.setDropTargetTaskID(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
 
@@ -828,7 +828,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.lastDiagnosticsExportURL)
     }
 
-    func testExportSyncDiagnosticsWritesFileAfterSync() async throws {
+    func testExportSyncDiagnosticsWritesFileAfterSync() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -1011,25 +1011,25 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Link Mentions
 
-    func testLinkMentionGuardsEmptyTitle() async {
+    func testLinkMentionGuardsEmptyTitle() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
         await viewModel.selectNote(id: nil)
 
-        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let alphaID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
         await viewModel.linkMention(sourceNoteID: alphaID)
 
         XCTAssertTrue(viewModel.selectedNoteTitle.isEmpty)
         XCTAssertNil(viewModel.errorMessage)
     }
 
-    func testLinkMentionUpdatesUnlinkedMentions() async {
+    func testLinkMentionUpdatesUnlinkedMentions() async throws {
         let service = WorkspaceServiceSpy()
-        let alphaID = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
-        let betaID = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        let alphaID = try XCTUnwrap(UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
+        let betaID = try XCTUnwrap(UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
         await service.setStubbedUnlinkedMentions([
-            NoteBacklink(sourceNoteID: betaID, sourceTitle: "Beta")
+            NoteBacklink(sourceNoteID: betaID, sourceTitle: "Beta"),
         ])
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -1111,14 +1111,14 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.templates.first?.name, "Meeting Notes")
     }
 
-    func testDeleteTemplateReloadsTemplates() async {
+    func testDeleteTemplateReloadsTemplates() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
         viewModel.newTemplateName = "Temp"
         viewModel.newTemplateBody = "body"
         await viewModel.createTemplate()
-        let templateID = viewModel.templates.first!.id
+        let templateID = try XCTUnwrap(viewModel.templates.first?.id)
 
         await viewModel.deleteTemplate(id: templateID)
 
@@ -1241,12 +1241,12 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Kanban Card Detail
 
-    func testOpenTaskDetailSetsSelectedTask() async {
+    func testOpenTaskDetailSetsSelectedTask() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let taskID = try XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
         viewModel.openTaskDetail(taskID: taskID)
 
         XCTAssertNotNil(viewModel.selectedTaskForEditing)
@@ -1263,12 +1263,12 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.selectedTaskForEditing)
     }
 
-    func testCloseTaskDetailClearsSelection() async {
+    func testCloseTaskDetailClearsSelection() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let taskID = try XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
         viewModel.openTaskDetail(taskID: taskID)
         XCTAssertNotNil(viewModel.selectedTaskForEditing)
 
@@ -1277,12 +1277,12 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.selectedTaskForEditing)
     }
 
-    func testSaveTaskDetailPersistsAndReloads() async {
+    func testSaveTaskDetailPersistsAndReloads() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let taskID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let taskID = try XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
         viewModel.openTaskDetail(taskID: taskID)
         guard var task = viewModel.selectedTaskForEditing else {
             return XCTFail("Expected task to be selected")
@@ -1325,7 +1325,7 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Kanban E2E Integration tests
 
-    func testEndToEndCustomColumnWorkflow() async {
+    func testEndToEndCustomColumnWorkflow() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -1335,13 +1335,13 @@ final class AppViewModelTests: XCTestCase {
         viewModel.newColumnTitle = "Review"
         await viewModel.createKanbanColumn()
         XCTAssertEqual(viewModel.kanbanColumns.count, 6)
-        let customCol = viewModel.kanbanColumns.last!
+        let customCol = try XCTUnwrap(viewModel.kanbanColumns.last)
         XCTAssertEqual(customCol.title, "Review")
 
         // 2. Verify grouping works with custom column (empty column = 0 groups)
         viewModel.kanbanGrouping = .priority
         let grouped = viewModel.groupedTasks(for: customCol.id)
-        XCTAssertTrue(grouped.isEmpty || grouped.allSatisfy({ $0.tasks.isEmpty }))
+        XCTAssertTrue(grouped.isEmpty || grouped.allSatisfy(\.tasks.isEmpty))
 
         // 3. Delete custom column
         await viewModel.deleteKanbanColumn(id: customCol.id)
@@ -1349,7 +1349,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customCol.id }))
     }
 
-    func testExistingTasksWorkWithColumnBasedBoard() async {
+    func testExistingTasksWorkWithColumnBasedBoard() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -1366,10 +1366,10 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(doneTasks.isEmpty, "Done column should have tasks")
 
         // Verify backward-compat: tasks(for:) matches tasksForColumn
-        let backlogCol = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogCol = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         XCTAssertEqual(
             backlogTasks.map(\.id),
-            viewModel.tasksForColumn(backlogCol.id).map(\.id)
+            viewModel.tasksForColumn(backlogCol.id).map(\.id),
         )
     }
 
@@ -1400,7 +1400,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(callCount, 1)
     }
 
-    func testDeleteCustomColumnRemovesColumn() async {
+    func testDeleteCustomColumnRemovesColumn() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -1409,31 +1409,31 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.createKanbanColumn()
         XCTAssertEqual(viewModel.kanbanColumns.count, 6)
 
-        let customID = viewModel.kanbanColumns.last!.id
+        let customID = try XCTUnwrap(viewModel.kanbanColumns.last?.id)
         await viewModel.deleteKanbanColumn(id: customID)
 
         XCTAssertEqual(viewModel.kanbanColumns.count, 5)
         XCTAssertFalse(viewModel.kanbanColumns.contains(where: { $0.id == customID }))
     }
 
-    func testDeleteBuiltInColumnSetsError() async {
+    func testDeleteBuiltInColumnSetsError() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let backlogID = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!.id
+        let backlogID = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })?.id)
         await viewModel.deleteKanbanColumn(id: backlogID)
 
         XCTAssertNotNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.kanbanColumns.count, 5)
     }
 
-    func testTasksForColumnReturnsCorrectTasks() async {
+    func testTasksForColumnReturnsCorrectTasks() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogColumn = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         let backlogTasks = viewModel.tasksForColumn(backlogColumn.id)
         XCTAssertFalse(backlogTasks.isEmpty)
         XCTAssertTrue(backlogTasks.allSatisfy { $0.status == .backlog })
@@ -1451,12 +1451,12 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - WIP Limits
 
-    func testUpdateColumnWipLimitPersists() async {
+    func testUpdateColumnWipLimitPersists() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        var col = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         col.wipLimit = 3
         await viewModel.updateKanbanColumn(col)
 
@@ -1464,18 +1464,18 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(updated?.wipLimit, 3)
     }
 
-    func testColumnOverWipLimitDetected() async {
+    func testColumnOverWipLimitDetected() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
         // Backlog has 2 tasks in the spy; set WIP limit to 2
-        var col = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        var col = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         col.wipLimit = 2
         await viewModel.updateKanbanColumn(col)
 
         let backlogTasks = viewModel.tasksForColumn(col.id)
-        XCTAssertGreaterThanOrEqual(backlogTasks.count, col.wipLimit!)
+        XCTAssertGreaterThanOrEqual(backlogTasks.count, try XCTUnwrap(col.wipLimit))
     }
 
     // MARK: - Labels
@@ -1534,26 +1534,26 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Swimlane Grouping
 
-    func testGroupedTasksByPriority() async {
+    func testGroupedTasksByPriority() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
         viewModel.kanbanGrouping = .priority
 
-        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogColumn = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         let grouped = viewModel.groupedTasks(for: backlogColumn.id)
 
         XCTAssertFalse(grouped.isEmpty)
         XCTAssertTrue(grouped.allSatisfy { !$0.key.isEmpty })
     }
 
-    func testGroupedTasksByNone() async {
+    func testGroupedTasksByNone() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
         viewModel.kanbanGrouping = .none
 
-        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogColumn = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         let grouped = viewModel.groupedTasks(for: backlogColumn.id)
 
         XCTAssertEqual(grouped.count, 1)
@@ -1576,12 +1576,12 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Drag-Drop Column
 
-    func testDropTargetColumnIDSetAndCleared() async {
+    func testDropTargetColumnIDSetAndCleared() async throws {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
 
-        let backlogColumn = viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog })!
+        let backlogColumn = try XCTUnwrap(viewModel.kanbanColumns.first(where: { $0.builtInStatus == .backlog }))
         viewModel.beginTaskDrag(taskID: UUID())
         viewModel.setDropTargetColumn(backlogColumn.id)
         XCTAssertEqual(viewModel.dropTargetColumnID, backlogColumn.id)
@@ -1745,7 +1745,8 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.addSubtask(to: parentID)
 
         guard let taskAfterAdd = viewModel.tasks.first(where: { $0.id == parentID }),
-              taskAfterAdd.subtasks.count == 2 else {
+              taskAfterAdd.subtasks.count == 2
+        else {
             return XCTFail("Expected 2 subtasks to be added")
         }
 
@@ -1807,7 +1808,8 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.addSubtask(to: parentTask.id)
 
         guard let task = viewModel.tasks.first(where: { $0.id == parentTask.id }),
-              let subtask = task.subtasks.last else {
+              let subtask = task.subtasks.last
+        else {
             return XCTFail("Expected subtask to be added")
         }
 
@@ -1876,16 +1878,75 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         notes = [
             Note(id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!, title: "Alpha", body: "[[Gamma]]", updatedAt: now, version: 1),
-            Note(id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!, title: "Beta", body: "", updatedAt: now, version: 1)
+            Note(id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!, title: "Beta", body: "", updatedAt: now, version: 1),
         ]
 
         tasks = [
-            try! Task(id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!, noteID: notes[0].id, stableID: "t-backlog-a", title: "Backlog A", status: .backlog, kanbanOrder: 1, updatedAt: now),
-            try! Task(id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!, noteID: notes[0].id, stableID: "t-backlog-b", title: "Backlog B", status: .backlog, kanbanOrder: 2, updatedAt: now),
-            try! Task(id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!, noteID: notes[0].id, stableID: "t-next", title: "Next", dueStart: now.addingTimeInterval(3600), dueEnd: now.addingTimeInterval(7200), status: .next, kanbanOrder: 1, updatedAt: now),
-            try! Task(id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!, noteID: notes[0].id, stableID: "t-series-shared", title: "Series parent", details: "", dueStart: now.addingTimeInterval(5000), dueEnd: now.addingTimeInterval(8600), status: .next, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", kanbanOrder: 2, updatedAt: now),
-            try! Task(id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!, noteID: notes[0].id, stableID: "t-series-shared", title: "Detached occurrence", details: "event-recurrence-exception:1700000123", dueStart: now.addingTimeInterval(5400), dueEnd: now.addingTimeInterval(9000), status: .next, recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", kanbanOrder: 3, updatedAt: now),
-            try! Task(id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, noteID: notes[0].id, stableID: "t-done", title: "Done", status: .done, kanbanOrder: 1, completedAt: now, updatedAt: now)
+            try! Task(
+                id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                noteID: notes[0].id,
+                stableID: "t-backlog-a",
+                title: "Backlog A",
+                status: .backlog,
+                kanbanOrder: 1,
+                updatedAt: now,
+            ),
+            try! Task(
+                id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+                noteID: notes[0].id,
+                stableID: "t-backlog-b",
+                title: "Backlog B",
+                status: .backlog,
+                kanbanOrder: 2,
+                updatedAt: now,
+            ),
+            try! Task(
+                id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+                noteID: notes[0].id,
+                stableID: "t-next",
+                title: "Next",
+                dueStart: now.addingTimeInterval(3600),
+                dueEnd: now.addingTimeInterval(7200),
+                status: .next,
+                kanbanOrder: 1,
+                updatedAt: now,
+            ),
+            try! Task(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!,
+                noteID: notes[0].id,
+                stableID: "t-series-shared",
+                title: "Series parent",
+                details: "",
+                dueStart: now.addingTimeInterval(5000),
+                dueEnd: now.addingTimeInterval(8600),
+                status: .next,
+                recurrenceRule: "FREQ=WEEKLY;BYDAY=MO",
+                kanbanOrder: 2,
+                updatedAt: now,
+            ),
+            try! Task(
+                id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
+                noteID: notes[0].id,
+                stableID: "t-series-shared",
+                title: "Detached occurrence",
+                details: "event-recurrence-exception:1700000123",
+                dueStart: now.addingTimeInterval(5400),
+                dueEnd: now.addingTimeInterval(9000),
+                status: .next,
+                recurrenceRule: "FREQ=WEEKLY;BYDAY=MO",
+                kanbanOrder: 3,
+                updatedAt: now,
+            ),
+            try! Task(
+                id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+                noteID: notes[0].id,
+                stableID: "t-done",
+                title: "Done",
+                status: .done,
+                kanbanOrder: 1,
+                completedAt: now,
+                updatedAt: now,
+            ),
         ]
     }
 
@@ -1896,7 +1957,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
     func addBulkNotes(count: Int) {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
-        for i in 0..<count {
+        for i in 0 ..< count {
             let note = Note(id: UUID(), title: "Bulk Note \(i)", body: "Body \(i)", tags: ["bulk"], updatedAt: base.addingTimeInterval(Double(i)), version: 1)
             notes.append(note)
         }
@@ -1953,7 +2014,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
                 offset: normalizedOffset,
                 limit: normalizedLimit,
                 totalCount: all.count,
-                hits: Array(all[start..<end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+                hits: Array(all[start ..< end]).map { NoteSearchHit(note: $0, snippet: nil, rank: 0) },
             )
         }
 
@@ -1963,7 +2024,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
 
         let start = min(normalizedOffset, filtered.count)
         let end = min(filtered.count, start + normalizedLimit)
-        let hits = Array(filtered[start..<end]).map { note in
+        let hits = Array(filtered[start ..< end]).map { note in
             NoteSearchHit(note: note, snippet: "<mark>\(normalized)</mark> in \(note.title)", rank: 0)
         }
         return NoteSearchPage(
@@ -1972,7 +2033,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             offset: normalizedOffset,
             limit: normalizedLimit,
             totalCount: filtered.count,
-            hits: hits
+            hits: hits,
         )
     }
 
@@ -2031,21 +2092,21 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         let allItems = notes.map(\.listItem).sorted { $0.updatedAt > $1.updatedAt }
         let start = min(max(0, offset), allItems.count)
         let end = min(allItems.count, start + max(1, limit))
-        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start..<end]))
+        return NoteListItemPage(offset: start, limit: limit, totalCount: allItems.count, items: Array(allItems[start ..< end]))
     }
 
     func listTasks(filter: TaskListFilter) async throws -> [Task] {
         switch filter {
         case .all:
-            return tasks.filter { $0.status != .done }
+            tasks.filter { $0.status != .done }
         case .today:
-            return tasks.filter { $0.status != .done && $0.dueStart != nil }
+            tasks.filter { $0.status != .done && $0.dueStart != nil }
         case .upcoming:
-            return []
+            []
         case .overdue:
-            return []
+            []
         case .completed:
-            return tasks.filter { $0.status == .done }
+            tasks.filter { $0.status == .done }
         }
     }
 
@@ -2067,7 +2128,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
             status: input.status,
             priority: input.priority,
             recurrenceRule: input.recurrenceRule,
-            updatedAt: Date()
+            updatedAt: Date(),
         )
         tasks.insert(task, at: 0)
         return task
@@ -2121,7 +2182,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         try await setTaskStatus(taskID: taskID, status: isCompleted ? .done : .next)
     }
 
-    func runSync(configuration: SyncEngineConfiguration, calendarProvider: CalendarProvider) async throws -> SyncRunReport {
+    func runSync(configuration: SyncEngineConfiguration, calendarProvider _: CalendarProvider) async throws -> SyncRunReport {
         if failure == .sync {
             throw NSError(domain: "workspace-spy", code: 500)
         }
@@ -2143,8 +2204,8 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
                     calendarID: configuration.calendarID,
                     providerError: "timeout",
                     timestamp: Date(timeIntervalSince1970: 1_700_000_123),
-                    attempt: 1
-                )
+                    attempt: 1,
+                ),
             ]
             if includeDetachedDiagnostic {
                 report.diagnostics.append(
@@ -2160,8 +2221,8 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
                         calendarID: configuration.calendarID,
                         providerError: nil,
                         timestamp: Date(timeIntervalSince1970: 1_700_000_124),
-                        attempt: 1
-                    )
+                        attempt: 1,
+                    ),
                 )
             }
         } else {
@@ -2176,11 +2237,11 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         }
     }
 
-    func unlinkedMentions(for noteID: UUID) async throws -> [NoteBacklink] {
+    func unlinkedMentions(for _: UUID) async throws -> [NoteBacklink] {
         stubbedUnlinkedMentions
     }
 
-    func linkMention(in sourceNoteID: UUID, targetTitle: String) async throws -> Note {
+    func linkMention(in sourceNoteID: UUID, targetTitle _: String) async throws -> Note {
         guard let note = notes.first(where: { $0.id == sourceNoteID }) else {
             throw NSError(domain: "workspace-spy", code: 404)
         }
@@ -2191,7 +2252,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         let pattern = try NSRegularExpression(pattern: #"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]"#)
         var edges: [(from: UUID, to: UUID, fromTitle: String, toTitle: String)] = []
         for note in notes {
-            let range = NSRange(note.body.startIndex..<note.body.endIndex, in: note.body)
+            let range = NSRange(note.body.startIndex ..< note.body.endIndex, in: note.body)
             let matches = pattern.matches(in: note.body, range: range)
             for match in matches {
                 if let targetRange = Range(match.range(at: 1), in: note.body) {
@@ -2232,7 +2293,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         templates.removeAll { $0.id == id }
     }
 
-    func createNote(title: String, body: String, templateID: UUID?) async throws -> Note {
+    func createNote(title: String, body: String, templateID _: UUID?) async throws -> Note {
         let note = Note(id: UUID(), title: title, body: body, updatedAt: Date(), version: 1)
         notes.insert(note, at: 0)
         return note
@@ -2250,7 +2311,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         KanbanColumn(id: UUID(uuidString: "C0000002-0000-0000-0000-000000000002")!, title: "Next", builtInStatus: .next, position: 1),
         KanbanColumn(id: UUID(uuidString: "C0000003-0000-0000-0000-000000000003")!, title: "Doing", builtInStatus: .doing, position: 2),
         KanbanColumn(id: UUID(uuidString: "C0000004-0000-0000-0000-000000000004")!, title: "Waiting", builtInStatus: .waiting, position: 3),
-        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4)
+        KanbanColumn(id: UUID(uuidString: "C0000005-0000-0000-0000-000000000005")!, title: "Done", builtInStatus: .done, position: 4),
     ]
 
     func listKanbanColumns() async throws -> [KanbanColumn] {
@@ -2331,7 +2392,7 @@ private actor WorkspaceServiceSpy: WorkspaceServicing {
         }
         tasks[taskIdx].subtasks[subtaskIdx].isCompleted = isCompleted
 
-        if isCompleted && tasks[taskIdx].subtasks.allSatisfy(\.isCompleted) && tasks[taskIdx].status != .done {
+        if isCompleted, tasks[taskIdx].subtasks.allSatisfy(\.isCompleted), tasks[taskIdx].status != .done {
             tasks[taskIdx].status = .done
             tasks[taskIdx].completedAt = Date()
         }

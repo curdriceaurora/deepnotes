@@ -1,6 +1,6 @@
-import XCTest
 import NotesDomain
 import NotesStorage
+import XCTest
 
 final class SQLiteTemplateStoreTests: XCTestCase {
     var tempDir: URL!

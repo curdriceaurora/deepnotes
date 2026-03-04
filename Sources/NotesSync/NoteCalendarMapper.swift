@@ -8,7 +8,7 @@ public struct NoteCalendarMapper: Sendable {
         var details = note.body
         let markers = [
             "entity-type:note",
-            "note-stable-id:\(note.stableID)"
+            "note-stable-id:\(note.stableID)",
         ]
         for marker in markers where !details.contains(marker) {
             details += details.isEmpty ? marker : "\n\n\(marker)"
@@ -28,7 +28,7 @@ public struct NoteCalendarMapper: Sendable {
             isCompleted: false,
             updatedAt: note.updatedAt,
             sourceEntityType: .note,
-            sourceStableID: note.stableID
+            sourceStableID: note.stableID,
         )
     }
 
@@ -57,7 +57,7 @@ public struct NoteCalendarMapper: Sendable {
             calendarSyncEnabled: true,
             updatedAt: event.updatedAt,
             version: existing?.version ?? 0,
-            deletedAt: nil
+            deletedAt: nil,
         )
     }
 

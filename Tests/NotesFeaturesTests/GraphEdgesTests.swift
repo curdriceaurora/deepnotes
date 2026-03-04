@@ -1,7 +1,7 @@
-import XCTest
 import NotesDomain
 import NotesFeatures
 import NotesStorage
+import XCTest
 
 final class GraphEdgesTests: XCTestCase {
     var tempDir: URL!

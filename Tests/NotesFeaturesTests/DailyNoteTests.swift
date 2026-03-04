@@ -1,7 +1,7 @@
-import XCTest
 import NotesDomain
 import NotesFeatures
 import NotesStorage
+import XCTest
 
 final class DailyNoteTests: XCTestCase {
     var tempDir: URL!
@@ -21,7 +21,7 @@ final class DailyNoteTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
-        let date = ISO8601DateFormatter().date(from: "2025-03-03T00:00:00Z")!
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2025-03-03T00:00:00Z"))
         let note = try await service.createOrOpenDailyNote(date: date)
 
         let formatter = ISO8601DateFormatter()
@@ -36,7 +36,7 @@ final class DailyNoteTests: XCTestCase {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
-        let date = ISO8601DateFormatter().date(from: "2025-03-03T00:00:00Z")!
+        let date = try XCTUnwrap(ISO8601DateFormatter().date(from: "2025-03-03T00:00:00Z"))
         let note1 = try await service.createOrOpenDailyNote(date: date)
         let note2 = try await service.createOrOpenDailyNote(date: date)
 

@@ -1,5 +1,5 @@
-import XCTest
 import Foundation
+import XCTest
 @testable import NotesDomain
 @testable import NotesSync
 
@@ -26,7 +26,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             stableID: "stable-3",
             title: "Task",
             details: "note\ntask-stable-id:stable-3",
-            updatedAt: Date()
+            updatedAt: Date(),
         )
         let event = try mapper.event(from: task, calendarID: "cal", existing: nil)
 
@@ -40,7 +40,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: "E",
             notes: "task-stable-id:other",
             updatedAt: Date(),
-            sourceStableID: "preferred"
+            sourceStableID: "preferred",
         )
         let task = try mapper.task(from: event, existingTask: nil)
 
@@ -53,7 +53,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: "E",
             notes: "hello\ntask-stable-id:from-marker",
             updatedAt: Date(),
-            sourceStableID: nil
+            sourceStableID: nil,
         )
         let task = try mapper.task(from: event, existingTask: nil)
 
@@ -67,7 +67,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: "E",
             notes: "not-a-stable-id:wrong\ntask-stable-id:from-marker",
             updatedAt: Date(),
-            sourceStableID: nil
+            sourceStableID: nil,
         )
         let task = try mapper.task(from: event, existingTask: nil)
 
@@ -95,7 +95,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: "E",
             notes: nil,
             isCompleted: true,
-            updatedAt: Date(timeIntervalSince1970: 100)
+            updatedAt: Date(timeIntervalSince1970: 100),
         )
 
         let task = try mapper.task(from: event, existingTask: nil)
@@ -109,7 +109,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             stableID: "recurring-1",
             title: "Series",
             recurrenceRule: "FREQ=WEEKLY",
-            updatedAt: Date(timeIntervalSince1970: 100)
+            updatedAt: Date(timeIntervalSince1970: 100),
         )
 
         let event = try CalendarEvent(
@@ -118,7 +118,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             recurrenceRule: nil,
             recurrenceExceptionDate: Date(timeIntervalSince1970: 120),
             updatedAt: Date(timeIntervalSince1970: 120),
-            sourceStableID: "recurring-1"
+            sourceStableID: "recurring-1",
         )
 
         let task = try mapper.task(from: event, existingTask: existing)
@@ -132,7 +132,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: "Detached occurrence",
             details: "event-recurrence-exception:\(exceptionTimestamp)",
             recurrenceRule: "FREQ=DAILY",
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
         )
 
         let event = try mapper.event(from: task, calendarID: "cal", existing: nil)
@@ -159,7 +159,7 @@ final class TaskCalendarMapperTests: XCTestCase {
 
         let result = try mapper.resolve(task: task, event: event, binding: nil, policy: .lastWriteWins)
 
-        guard case .eventWins(let merged) = result else {
+        guard case let .eventWins(merged) = result else {
             return XCTFail("Expected eventWins")
         }
         XCTAssertEqual(merged.title, "event")
@@ -173,7 +173,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 150),
-            lastSyncedAt: Date(timeIntervalSince1970: 90)
+            lastSyncedAt: Date(timeIntervalSince1970: 90),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
@@ -191,7 +191,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
@@ -209,12 +209,12 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
 
-        guard case .taskWins(let returnedTask) = result else {
+        guard case let .taskWins(returnedTask) = result else {
             return XCTFail("Expected taskWins")
         }
         XCTAssertEqual(returnedTask.id, task.id)
@@ -228,12 +228,12 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
 
-        guard case .eventWins(let merged) = result else {
+        guard case let .eventWins(merged) = result else {
             return XCTFail("Expected eventWins")
         }
         XCTAssertEqual(merged.title, "event")
@@ -247,7 +247,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .taskPriority)
@@ -265,7 +265,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .calendarPriority)
@@ -283,7 +283,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
@@ -301,7 +301,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 50),
-            lastSyncedAt: Date(timeIntervalSince1970: 200)
+            lastSyncedAt: Date(timeIntervalSince1970: 200),
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
@@ -319,7 +319,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 200),
-            lastSyncedAt: Date(timeIntervalSince1970: 250)
+            lastSyncedAt: Date(timeIntervalSince1970: 250),
         )
 
         let result = try mapper.resolve(
@@ -328,7 +328,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             binding: binding,
             policy: .lastWriteWins,
             timestampNormalizationSeconds: 1,
-            lastWriteWinsTieBreaker: .task
+            lastWriteWinsTieBreaker: .task,
         )
 
         guard case .taskWins = result else {
@@ -344,7 +344,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             calendarID: "cal",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: Date(timeIntervalSince1970: 300),
-            lastSyncedAt: Date(timeIntervalSince1970: 350)
+            lastSyncedAt: Date(timeIntervalSince1970: 350),
         )
 
         let result = try mapper.resolve(
@@ -353,7 +353,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             binding: binding,
             policy: .lastWriteWins,
             timestampNormalizationSeconds: 1,
-            lastWriteWinsTieBreaker: .calendar
+            lastWriteWinsTieBreaker: .calendar,
         )
 
         guard case .eventWins = result else {
@@ -371,7 +371,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             externalIdentifier: "x",
             lastTaskVersion: task.version,
             lastEventUpdatedAt: nil,
-            lastSyncedAt: nil
+            lastSyncedAt: nil,
         )
 
         let result = try mapper.resolve(task: task, event: event, binding: binding, policy: .lastWriteWins)
@@ -384,7 +384,7 @@ final class TaskCalendarMapperTests: XCTestCase {
         try Task(
             stableID: stableID,
             title: title,
-            updatedAt: Date(timeIntervalSince1970: updatedAt)
+            updatedAt: Date(timeIntervalSince1970: updatedAt),
         )
     }
 
@@ -394,7 +394,7 @@ final class TaskCalendarMapperTests: XCTestCase {
             title: title,
             notes: nil,
             updatedAt: Date(timeIntervalSince1970: updatedAt),
-            sourceStableID: sourceStableID
+            sourceStableID: sourceStableID,
         )
     }
 }

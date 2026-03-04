@@ -100,15 +100,15 @@ private struct AttributedStringVisitor: MarkupVisitor {
         defaultVisit(listItem)
     }
 
-    mutating func visitSoftBreak(_ softBreak: SoftBreak) -> AttributedString {
+    mutating func visitSoftBreak(_: SoftBreak) -> AttributedString {
         AttributedString("\n")
     }
 
-    mutating func visitLineBreak(_ lineBreak: LineBreak) -> AttributedString {
+    mutating func visitLineBreak(_: LineBreak) -> AttributedString {
         AttributedString("\n")
     }
 
-    mutating func visitThematicBreak(_ thematicBreak: ThematicBreak) -> AttributedString {
+    mutating func visitThematicBreak(_: ThematicBreak) -> AttributedString {
         AttributedString("\n---\n")
     }
 
@@ -126,7 +126,7 @@ private struct AttributedStringVisitor: MarkupVisitor {
             return AttributedString(text)
         }
 
-        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        let nsRange = NSRange(text.startIndex ..< text.endIndex, in: text)
         let matches = regex.matches(in: text, range: nsRange)
 
         guard !matches.isEmpty else {
@@ -144,15 +144,14 @@ private struct AttributedStringVisitor: MarkupVisitor {
             }
 
             if lastEnd < fullRange.lowerBound {
-                result.append(AttributedString(String(text[lastEnd..<fullRange.lowerBound])))
+                result.append(AttributedString(String(text[lastEnd ..< fullRange.lowerBound])))
             }
 
             let title = String(text[titleRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayText: String
-            if match.numberOfRanges > 2, let aliasRange = Range(match.range(at: 2), in: text) {
-                displayText = String(text[aliasRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let displayText: String = if match.numberOfRanges > 2, let aliasRange = Range(match.range(at: 2), in: text) {
+                String(text[aliasRange]).trimmingCharacters(in: .whitespacesAndNewlines)
             } else {
-                displayText = title
+                title
             }
 
             var linkAttr = AttributedString(displayText)
@@ -170,7 +169,7 @@ private struct AttributedStringVisitor: MarkupVisitor {
         }
 
         if lastEnd < text.endIndex {
-            result.append(AttributedString(String(text[lastEnd..<text.endIndex])))
+            result.append(AttributedString(String(text[lastEnd ..< text.endIndex])))
         }
 
         return result

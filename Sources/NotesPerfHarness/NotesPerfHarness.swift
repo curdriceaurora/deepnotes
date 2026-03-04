@@ -4,11 +4,11 @@ import NotesFeatures
 import NotesStorage
 
 #if os(macOS)
-import AppKit
-import NotesSync
-import NotesUI
-import QuartzCore
-import SwiftUI
+    import AppKit
+    import NotesSync
+    import NotesUI
+    import QuartzCore
+    import SwiftUI
 #endif
 
 @main
@@ -34,13 +34,13 @@ struct NotesPerfHarness {
         let launchSamples = try await runLaunchToInteractiveBenchmark(
             runs: options.runs,
             noteCount: options.launchDatasetNotes,
-            taskCount: options.launchDatasetTasks
+            taskCount: options.launchDatasetTasks,
         )
         let launchSummary = summarize(samples: launchSamples)
 
         let editorSamples = try await runEditorLatencyBenchmarks(
             noteCount: options.editorDatasetNotes,
-            runs: options.runs
+            runs: options.runs,
         )
         let openNoteSummary = summarize(samples: editorSamples.openNote)
         let saveNoteSummary = summarize(samples: editorSamples.saveNote)
@@ -50,7 +50,7 @@ struct NotesPerfHarness {
         let createNoteSummary = summarize(samples: createNoteSamples)
         let search50kSamples = try await runSearch50KBenchmark(
             datasetSize: options.searchDatasetNotes,
-            runs: options.searchRuns
+            runs: options.searchRuns,
         )
         let search50kSummary = summarize(samples: search50kSamples)
 
@@ -59,22 +59,22 @@ struct NotesPerfHarness {
         var kanbanDragSummary: LatencySummary?
 
         #if os(macOS)
-        let kanbanDragSamples = try await runKanbanDragCommitBenchmark(
-            runs: options.runs,
-            taskCount: options.kanbanTaskCount
-        )
-        kanbanDragSummary = summarize(samples: kanbanDragSamples)
-
-        if !options.skipKanbanRender {
-            let kanbanSamples = try await runKanbanRenderBenchmark(
+            let kanbanDragSamples = try await runKanbanDragCommitBenchmark(
                 runs: options.runs,
-                warmupRuns: options.warmupRuns,
-                taskCount: options.kanbanTaskCount
+                taskCount: options.kanbanTaskCount,
             )
-            let summary = summarize(samples: kanbanSamples)
-            kanbanSummary = summary
-            kanbanFPSP95 = framesPerSecond(fromMilliseconds: summary.p95)
-        }
+            kanbanDragSummary = summarize(samples: kanbanDragSamples)
+
+            if !options.skipKanbanRender {
+                let kanbanSamples = try await runKanbanRenderBenchmark(
+                    runs: options.runs,
+                    warmupRuns: options.warmupRuns,
+                    taskCount: options.kanbanTaskCount,
+                )
+                let summary = summarize(samples: kanbanSamples)
+                kanbanSummary = summary
+                kanbanFPSP95 = framesPerSecond(fromMilliseconds: summary.p95)
+            }
         #endif
 
         var failures: [String] = []
@@ -84,8 +84,8 @@ struct NotesPerfHarness {
                 String(
                     format: "launch_to_interactive_p95_ms %.3f exceeds max %.3f",
                     launchSummary.p95,
-                    options.maxLaunchToInteractiveP95MS
-                )
+                    options.maxLaunchToInteractiveP95MS,
+                ),
             )
         }
         if openNoteSummary.p95 > options.maxOpenNoteP95MS {
@@ -93,8 +93,8 @@ struct NotesPerfHarness {
                 String(
                     format: "open_note_p95_ms %.3f exceeds max %.3f",
                     openNoteSummary.p95,
-                    options.maxOpenNoteP95MS
-                )
+                    options.maxOpenNoteP95MS,
+                ),
             )
         }
         if saveNoteSummary.p95 > options.maxSaveNoteEditP95MS {
@@ -102,8 +102,8 @@ struct NotesPerfHarness {
                 String(
                     format: "save_note_edit_p95_ms %.3f exceeds max %.3f",
                     saveNoteSummary.p95,
-                    options.maxSaveNoteEditP95MS
-                )
+                    options.maxSaveNoteEditP95MS,
+                ),
             )
         }
         if wikilinkBacklinksSummary.p95 > options.maxWikilinkBacklinksRefreshP95MS {
@@ -111,8 +111,8 @@ struct NotesPerfHarness {
                 String(
                     format: "wikilink_backlinks_refresh_p95_ms %.3f exceeds max %.3f",
                     wikilinkBacklinksSummary.p95,
-                    options.maxWikilinkBacklinksRefreshP95MS
-                )
+                    options.maxWikilinkBacklinksRefreshP95MS,
+                ),
             )
         }
         if createNoteSummary.p95 > options.maxCreateNoteP95MS {
@@ -120,8 +120,8 @@ struct NotesPerfHarness {
                 String(
                     format: "create_note_p95_ms %.3f exceeds max %.3f",
                     createNoteSummary.p95,
-                    options.maxCreateNoteP95MS
-                )
+                    options.maxCreateNoteP95MS,
+                ),
             )
         }
         if search50kSummary.p95 > options.maxSearch50kP95MS {
@@ -129,8 +129,8 @@ struct NotesPerfHarness {
                 String(
                     format: "search_50k_p95_ms %.3f exceeds max %.3f",
                     search50kSummary.p95,
-                    options.maxSearch50kP95MS
-                )
+                    options.maxSearch50kP95MS,
+                ),
             )
         }
 
@@ -141,8 +141,8 @@ struct NotesPerfHarness {
                     String(
                         format: "kanban_render_frame_p95_ms %.3f exceeds max %.3f",
                         kanbanSummary.p95,
-                        maxKanbanFrameP95MS
-                    )
+                        maxKanbanFrameP95MS,
+                    ),
                 )
             }
 
@@ -152,8 +152,8 @@ struct NotesPerfHarness {
                         String(
                             format: "kanban_render_fps_p95 %.2f below target %.2f",
                             kanbanFPSP95,
-                            options.targetFPS
-                        )
+                            options.targetFPS,
+                        ),
                     )
                 }
             }
@@ -163,8 +163,8 @@ struct NotesPerfHarness {
                 String(
                     format: "kanban_drag_commit_p95_ms %.3f exceeds max %.3f",
                     kanbanDragSummary.p95,
-                    options.maxKanbanDragCommitP95MS
-                )
+                    options.maxKanbanDragCommitP95MS,
+                ),
             )
         }
 
@@ -179,7 +179,7 @@ struct NotesPerfHarness {
             kanbanDragCommit: kanbanDragSummary,
             kanbanRender: kanbanSummary,
             kanbanFPSP95: kanbanFPSP95,
-            failures: failures
+            failures: failures,
         )
     }
 
@@ -190,14 +190,14 @@ struct NotesPerfHarness {
             databaseURL: dbURL,
             noteCount: noteCount,
             taskCount: taskCount,
-            targetTitle: "Launch Target"
+            targetTitle: "Launch Target",
         )
 
         var samples: [Double] = []
         samples.reserveCapacity(runs)
         let clock = ContinuousClock()
 
-        for _ in 0..<runs {
+        for _ in 0 ..< runs {
             let start = clock.now
             do {
                 let store = try SQLiteStore(databaseURL: dbURL)
@@ -219,7 +219,7 @@ struct NotesPerfHarness {
             databaseURL: dbURL,
             noteCount: noteCount,
             taskCount: 200,
-            targetTitle: "Target"
+            targetTitle: "Target",
         )
 
         let store = try SQLiteStore(databaseURL: dbURL)
@@ -243,7 +243,7 @@ struct NotesPerfHarness {
         wikilinkSamples.reserveCapacity(runs)
 
         let editableTitle = editable.title
-        for run in 0..<runs {
+        for run in 0 ..< runs {
             let openStart = clock.now
             _ = try await store.fetchNote(id: noteIDs[run % noteIDs.count])
             openSamples.append(milliseconds(from: openStart.duration(to: clock.now)))
@@ -262,7 +262,7 @@ struct NotesPerfHarness {
         return EditorLatencySamples(
             openNote: openSamples,
             saveNote: saveSamples,
-            wikilinkBacklinks: wikilinkSamples
+            wikilinkBacklinks: wikilinkSamples,
         )
     }
 
@@ -279,11 +279,11 @@ struct NotesPerfHarness {
         samples.reserveCapacity(runs)
 
         let clock = ContinuousClock()
-        for index in 0..<runs {
+        for index in 0 ..< runs {
             let start = clock.now
             _ = try await workspace.createNote(
                 title: "Perf Note \(index)",
-                body: "Body for benchmark iteration \(index)."
+                body: "Body for benchmark iteration \(index).",
             )
             let elapsed = start.duration(to: clock.now)
             samples.append(milliseconds(from: elapsed))
@@ -302,7 +302,7 @@ struct NotesPerfHarness {
         let workspace = WorkspaceService(store: store)
         let base = Date(timeIntervalSince1970: 1_700_000_000)
 
-        for index in 0..<datasetSize {
+        for index in 0 ..< datasetSize {
             let isLaunchNote = (index % 9) == 0
             _ = try await store.upsertNote(
                 Note(
@@ -310,8 +310,8 @@ struct NotesPerfHarness {
                     body: isLaunchNote
                         ? "Launch roadmap milestones and checklist item \(index)."
                         : "Archived context for weekly operations \(index).",
-                    updatedAt: base.addingTimeInterval(Double(index))
-                )
+                    updatedAt: base.addingTimeInterval(Double(index)),
+                ),
             )
         }
 
@@ -321,7 +321,7 @@ struct NotesPerfHarness {
         var samples: [Double] = []
         samples.reserveCapacity(runs)
         let clock = ContinuousClock()
-        for _ in 0..<runs {
+        for _ in 0 ..< runs {
             let start = clock.now
             _ = try await workspace.searchNotesPage(query: "launch", mode: .smart, limit: 50, offset: 0)
             let elapsed = start.duration(to: clock.now)
@@ -331,183 +331,184 @@ struct NotesPerfHarness {
     }
 
     #if os(macOS)
-    @MainActor
-    private static func runKanbanRenderBenchmark(
-        runs: Int,
-        warmupRuns: Int,
-        taskCount: Int
-    ) async throws -> [Double] {
-        let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("notes-perf-harness")
-            .appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        @MainActor
+        private static func runKanbanRenderBenchmark(
+            runs: Int,
+            warmupRuns: Int,
+            taskCount: Int,
+        ) async throws -> [Double] {
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("notes-perf-harness")
+                .appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
 
-        let store = try SQLiteStore(databaseURL: folder.appendingPathComponent("kanban.sqlite"))
-        let service = WorkspaceService(store: store)
+            let store = try SQLiteStore(databaseURL: folder.appendingPathComponent("kanban.sqlite"))
+            let service = WorkspaceService(store: store)
 
-        let statuses = TaskStatus.allCases
-        for index in 0..<taskCount {
-            _ = try await service.createTask(
-                NewTaskInput(
-                    title: "Card \(index)",
-                    status: statuses[index % statuses.count],
-                    priority: 3
+            let statuses = TaskStatus.allCases
+            for index in 0 ..< taskCount {
+                _ = try await service.createTask(
+                    NewTaskInput(
+                        title: "Card \(index)",
+                        status: statuses[index % statuses.count],
+                        priority: 3,
+                    ),
                 )
+            }
+
+            let provider = InMemoryCalendarProvider()
+            let viewModel = AppViewModel(
+                service: service,
+                calendarProviderFactory: { provider },
+                syncCalendarID: "",
             )
-        }
 
-        let provider = InMemoryCalendarProvider()
-        let viewModel = AppViewModel(
-            service: service,
-            calendarProviderFactory: { provider },
-            syncCalendarID: ""
-        )
+            await viewModel.reloadTasks()
 
-        await viewModel.reloadTasks()
+            let renderer = KanbanRenderer(viewModel: viewModel)
+            defer { renderer.teardown() }
 
-        let renderer = KanbanRenderer(viewModel: viewModel)
-        defer { renderer.teardown() }
-
-        var samples: [Double] = []
-        samples.reserveCapacity(runs)
-        let availableStatuses = TaskStatus.allCases
-        let timeout: TimeInterval = 1.0
-
-        renderer.requestRender()
-        guard var previousDraw = renderer.waitForNextDraw(after: nil, timeout: timeout) else {
-            throw PerfHarnessError.kanbanFrameTimeout(iteration: 0)
-        }
-
-        for tick in 0..<(warmupRuns + runs) {
-            let status = availableStatuses[tick % availableStatuses.count]
-            viewModel.setDropTargetStatus(status)
-            viewModel.setDropTargetTaskID(nil)
+            var samples: [Double] = []
+            samples.reserveCapacity(runs)
+            let availableStatuses = TaskStatus.allCases
+            let timeout: TimeInterval = 1.0
 
             renderer.requestRender()
-            guard let currentDraw = renderer.waitForNextDraw(after: previousDraw, timeout: timeout) else {
-                throw PerfHarnessError.kanbanFrameTimeout(iteration: tick + 1)
+            guard var previousDraw = renderer.waitForNextDraw(after: nil, timeout: timeout) else {
+                throw PerfHarnessError.kanbanFrameTimeout(iteration: 0)
             }
 
-            if tick >= warmupRuns {
-                samples.append(Double(currentDraw - previousDraw) / 1_000_000)
-            }
-            previousDraw = currentDraw
-        }
+            for tick in 0 ..< (warmupRuns + runs) {
+                let status = availableStatuses[tick % availableStatuses.count]
+                viewModel.setDropTargetStatus(status)
+                viewModel.setDropTargetTaskID(nil)
 
-        viewModel.endTaskDrag()
-        return samples
-    }
-
-    private static func runKanbanDragCommitBenchmark(
-        runs: Int,
-        taskCount: Int
-    ) async throws -> [Double] {
-        let folder = try makeTempFolder(component: "kanban-drag")
-        let dbURL = folder.appendingPathComponent("kanban-drag.sqlite")
-        try await seedWorkspaceDatabase(
-            databaseURL: dbURL,
-            noteCount: 64,
-            taskCount: max(3, taskCount),
-            targetTitle: "Drag Target"
-        )
-
-        let store = try SQLiteStore(databaseURL: dbURL)
-        let workspace = WorkspaceService(store: store)
-        let clock = ContinuousClock()
-        var samples: [Double] = []
-        samples.reserveCapacity(runs)
-
-        for index in 0..<runs {
-            let backlogTasks = try await store.fetchTasks(includeDeleted: false)
-                .filter { $0.status == .backlog }
-                .sorted { $0.kanbanOrder < $1.kanbanOrder }
-            guard backlogTasks.count >= 2 else {
-                throw PerfHarnessError.invalidFixture("Kanban drag benchmark requires at least two backlog tasks.")
-            }
-
-            let moving: Task
-            let before: Task
-            if index.isMultiple(of: 2) {
-                moving = backlogTasks[1]
-                before = backlogTasks[0]
-            } else {
-                moving = backlogTasks[0]
-                before = backlogTasks[1]
-            }
-
-            let start = clock.now
-            _ = try await workspace.moveTask(taskID: moving.id, to: .backlog, beforeTaskID: before.id)
-            samples.append(milliseconds(from: start.duration(to: clock.now)))
-        }
-
-        return samples
-    }
-
-    @MainActor
-    private final class KanbanRenderer {
-        private let window: NSWindow
-        private let hostingView: InstrumentedHostingView<KanbanBoardView>
-        private let viewModel: AppViewModel
-        private var latestDrawTimestampNS: UInt64?
-
-        init(viewModel: AppViewModel) {
-            self.viewModel = viewModel
-            let app = NSApplication.shared
-            app.setActivationPolicy(.prohibited)
-
-            let frame = NSRect(x: 0, y: 0, width: 1_440, height: 920)
-            window = NSWindow(
-                contentRect: frame,
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.isReleasedWhenClosed = false
-            window.ignoresMouseEvents = true
-            window.orderFrontRegardless()
-
-            hostingView = InstrumentedHostingView(rootView: KanbanBoardView(viewModel: viewModel))
-            hostingView.onDraw = { [weak self] in
-                self?.latestDrawTimestampNS = DispatchTime.now().uptimeNanoseconds
-            }
-            hostingView.frame = frame
-            hostingView.autoresizingMask = [.width, .height]
-            window.contentView = hostingView
-            window.layoutIfNeeded()
-            window.displayIfNeeded()
-        }
-
-        func requestRender() {
-            hostingView.needsDisplay = true
-            window.contentView?.needsDisplay = true
-        }
-
-        func waitForNextDraw(after previousTimestampNS: UInt64?, timeout: TimeInterval) -> UInt64? {
-            let deadline = Date().addingTimeInterval(timeout)
-            while Date() < deadline {
-                if let latest = latestDrawTimestampNS,
-                   previousTimestampNS == nil || latest > previousTimestampNS! {
-                    return latest
+                renderer.requestRender()
+                guard let currentDraw = renderer.waitForNextDraw(after: previousDraw, timeout: timeout) else {
+                    throw PerfHarnessError.kanbanFrameTimeout(iteration: tick + 1)
                 }
-                RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1.0 / 240.0))
+
+                if tick >= warmupRuns {
+                    samples.append(Double(currentDraw - previousDraw) / 1_000_000)
+                }
+                previousDraw = currentDraw
             }
-            return nil
+
+            viewModel.endTaskDrag()
+            return samples
         }
 
-        func teardown() {
-            window.orderOut(nil)
-            window.close()
-        }
-    }
+        private static func runKanbanDragCommitBenchmark(
+            runs: Int,
+            taskCount: Int,
+        ) async throws -> [Double] {
+            let folder = try makeTempFolder(component: "kanban-drag")
+            let dbURL = folder.appendingPathComponent("kanban-drag.sqlite")
+            try await seedWorkspaceDatabase(
+                databaseURL: dbURL,
+                noteCount: 64,
+                taskCount: max(3, taskCount),
+                targetTitle: "Drag Target",
+            )
 
-    private final class InstrumentedHostingView<Content: View>: NSHostingView<Content> {
-        var onDraw: (() -> Void)?
+            let store = try SQLiteStore(databaseURL: dbURL)
+            let workspace = WorkspaceService(store: store)
+            let clock = ContinuousClock()
+            var samples: [Double] = []
+            samples.reserveCapacity(runs)
 
-        override func draw(_ dirtyRect: NSRect) {
-            super.draw(dirtyRect)
-            onDraw?()
+            for index in 0 ..< runs {
+                let backlogTasks = try await store.fetchTasks(includeDeleted: false)
+                    .filter { $0.status == .backlog }
+                    .sorted { $0.kanbanOrder < $1.kanbanOrder }
+                guard backlogTasks.count >= 2 else {
+                    throw PerfHarnessError.invalidFixture("Kanban drag benchmark requires at least two backlog tasks.")
+                }
+
+                let moving: Task
+                let before: Task
+                if index.isMultiple(of: 2) {
+                    moving = backlogTasks[1]
+                    before = backlogTasks[0]
+                } else {
+                    moving = backlogTasks[0]
+                    before = backlogTasks[1]
+                }
+
+                let start = clock.now
+                _ = try await workspace.moveTask(taskID: moving.id, to: .backlog, beforeTaskID: before.id)
+                samples.append(milliseconds(from: start.duration(to: clock.now)))
+            }
+
+            return samples
         }
-    }
+
+        @MainActor
+        private final class KanbanRenderer {
+            private let window: NSWindow
+            private let hostingView: InstrumentedHostingView<KanbanBoardView>
+            private let viewModel: AppViewModel
+            private var latestDrawTimestampNS: UInt64?
+
+            init(viewModel: AppViewModel) {
+                self.viewModel = viewModel
+                let app = NSApplication.shared
+                app.setActivationPolicy(.prohibited)
+
+                let frame = NSRect(x: 0, y: 0, width: 1440, height: 920)
+                window = NSWindow(
+                    contentRect: frame,
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false,
+                )
+                window.isReleasedWhenClosed = false
+                window.ignoresMouseEvents = true
+                window.orderFrontRegardless()
+
+                hostingView = InstrumentedHostingView(rootView: KanbanBoardView(viewModel: viewModel))
+                hostingView.onDraw = { [weak self] in
+                    self?.latestDrawTimestampNS = DispatchTime.now().uptimeNanoseconds
+                }
+                hostingView.frame = frame
+                hostingView.autoresizingMask = [.width, .height]
+                window.contentView = hostingView
+                window.layoutIfNeeded()
+                window.displayIfNeeded()
+            }
+
+            func requestRender() {
+                hostingView.needsDisplay = true
+                window.contentView?.needsDisplay = true
+            }
+
+            func waitForNextDraw(after previousTimestampNS: UInt64?, timeout: TimeInterval) -> UInt64? {
+                let deadline = Date().addingTimeInterval(timeout)
+                while Date() < deadline {
+                    if let latest = latestDrawTimestampNS,
+                       previousTimestampNS == nil || latest > previousTimestampNS!
+                    {
+                        return latest
+                    }
+                    RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 1.0 / 240.0))
+                }
+                return nil
+            }
+
+            func teardown() {
+                window.orderOut(nil)
+                window.close()
+            }
+        }
+
+        private final class InstrumentedHostingView<Content: View>: NSHostingView<Content> {
+            var onDraw: (() -> Void)?
+
+            override func draw(_ dirtyRect: NSRect) {
+                super.draw(dirtyRect)
+                onDraw?()
+            }
+        }
     #endif
 
     private static func summarize(samples: [Double]) -> LatencySummary {
@@ -522,7 +523,7 @@ struct NotesPerfHarness {
             max: sorted.last ?? 0,
             avg: avg,
             p50: p50,
-            p95: p95
+            p95: p95,
         )
     }
 
@@ -534,7 +535,7 @@ struct NotesPerfHarness {
 
     private static func milliseconds(from duration: Duration) -> Double {
         let components = duration.components
-        return (Double(components.seconds) * 1_000) + (Double(components.attoseconds) / 1_000_000_000_000_000)
+        return (Double(components.seconds) * 1000) + (Double(components.attoseconds) / 1_000_000_000_000_000)
     }
 
     private static func makeTempFolder(component: String) throws -> URL {
@@ -550,7 +551,7 @@ struct NotesPerfHarness {
         databaseURL: URL,
         noteCount: Int,
         taskCount: Int,
-        targetTitle: String
+        targetTitle: String,
     ) async throws {
         let store = try SQLiteStore(databaseURL: databaseURL)
         let workspace = WorkspaceService(store: store)
@@ -562,40 +563,39 @@ struct NotesPerfHarness {
             Note(
                 title: targetTitle,
                 body: "Root note for perf harness.",
-                updatedAt: base
-            )
+                updatedAt: base,
+            ),
         )
         seededNotes.append(targetNote)
 
         if noteCount > 1 {
-            for index in 1..<noteCount {
-                let body: String
-                if index.isMultiple(of: 3) {
-                    body = "Linked context [[\(targetTitle)]] \(index)"
+            for index in 1 ..< noteCount {
+                let body = if index.isMultiple(of: 3) {
+                    "Linked context [[\(targetTitle)]] \(index)"
                 } else {
-                    body = "General context \(index)"
+                    "General context \(index)"
                 }
                 let note = try await store.upsertNote(
                     Note(
                         title: "Note \(index)",
                         body: body,
-                        updatedAt: base.addingTimeInterval(Double(index))
-                    )
+                        updatedAt: base.addingTimeInterval(Double(index)),
+                    ),
                 )
                 seededNotes.append(note)
             }
         }
 
         let statuses = TaskStatus.allCases
-        for index in 0..<taskCount {
+        for index in 0 ..< taskCount {
             _ = try await workspace.createTask(
                 NewTaskInput(
                     noteID: seededNotes[index % seededNotes.count].id,
                     title: "Task \(index)",
                     details: "Drag benchmark task \(index)",
                     status: statuses[index % statuses.count],
-                    priority: 3
-                )
+                    priority: 3,
+                ),
             )
         }
     }
@@ -604,7 +604,7 @@ struct NotesPerfHarness {
         guard milliseconds > 0 else {
             return .infinity
         }
-        return 1_000 / milliseconds
+        return 1000 / milliseconds
     }
 }
 
@@ -741,11 +741,11 @@ private struct PerfReport: Codable {
 private struct Options: Codable {
     var runs: Int = 240
     var warmupRuns: Int = 40
-    var kanbanTaskCount: Int = 1_000
-    var launchDatasetNotes: Int = 2_000
-    var launchDatasetTasks: Int = 1_000
-    var editorDatasetNotes: Int = 10_000
-    var searchDatasetNotes: Int = 50_000
+    var kanbanTaskCount: Int = 1000
+    var launchDatasetNotes: Int = 2000
+    var launchDatasetTasks: Int = 1000
+    var editorDatasetNotes: Int = 10000
+    var searchDatasetNotes: Int = 50000
     var searchRuns: Int = 40
     var targetFPS: Double = 120
     var maxLaunchToInteractiveP95MS: Double = 200
@@ -760,7 +760,7 @@ private struct Options: Codable {
     var reportPath: String?
 
     init() {
-        maxKanbanFrameP95MS = 1_000 / targetFPS
+        maxKanbanFrameP95MS = 1000 / targetFPS
     }
 
     static func parse(arguments: [String]) throws -> Options {
@@ -771,40 +771,43 @@ private struct Options: Codable {
             let argument = arguments[index]
             switch argument {
             case "--runs":
-                options.runs = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.runs = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--warmup-runs":
-                options.warmupRuns = try parseNonNegativeInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.warmupRuns = try parseNonNegativeInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--kanban-cards":
-                options.kanbanTaskCount = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.kanbanTaskCount = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--launch-dataset-notes":
-                options.launchDatasetNotes = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.launchDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--launch-dataset-tasks":
-                options.launchDatasetTasks = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.launchDatasetTasks = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--editor-dataset-notes":
-                options.editorDatasetNotes = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.editorDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--search-dataset-notes":
-                options.searchDatasetNotes = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.searchDatasetNotes = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--search-runs":
-                options.searchRuns = try parsePositiveInt(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.searchRuns = try parsePositiveInt(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--target-fps":
-                options.targetFPS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
-                options.maxKanbanFrameP95MS = 1_000 / options.targetFPS
+                options.targetFPS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
+                options.maxKanbanFrameP95MS = 1000 / options.targetFPS
             case "--max-launch-p95-ms":
-                options.maxLaunchToInteractiveP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxLaunchToInteractiveP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-open-note-p95-ms":
-                options.maxOpenNoteP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxOpenNoteP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-save-note-p95-ms":
-                options.maxSaveNoteEditP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxSaveNoteEditP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-wikilink-backlinks-p95-ms":
-                options.maxWikilinkBacklinksRefreshP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxWikilinkBacklinksRefreshP95MS = try parsePositiveDouble(
+                    flag: argument,
+                    value: value(after: argument, index: &index, from: arguments),
+                )
             case "--max-create-note-p95-ms":
-                options.maxCreateNoteP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxCreateNoteP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-search-50k-p95-ms":
-                options.maxSearch50kP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxSearch50kP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-kanban-drag-commit-p95-ms":
-                options.maxKanbanDragCommitP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxKanbanDragCommitP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--max-kanban-frame-p95-ms":
-                options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: try value(after: argument, index: &index, from: arguments))
+                options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: value(after: argument, index: &index, from: arguments))
             case "--skip-kanban-render":
                 options.skipKanbanRender = true
             case "--report-json":
@@ -860,36 +863,36 @@ private enum PerfHarnessError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .invalidArgument(message):
-            return "\(message)\n\n\(Self.usageText)"
+            "\(message)\n\n\(Self.usageText)"
         case let .invalidFixture(message):
-            return message
+            message
         case .helpRequested:
-            return Self.usageText
+            Self.usageText
         case let .kanbanFrameTimeout(iteration):
-            return "Timed out waiting for rendered Kanban frame at iteration \(iteration)."
+            "Timed out waiting for rendered Kanban frame at iteration \(iteration)."
         }
     }
 
     private static let usageText = """
-notes-perf-harness options:
-  --runs <n>                         Number of measured samples per benchmark (default: 240)
-  --warmup-runs <n>                  Warmup samples for rendering benchmark (default: 40)
-  --kanban-cards <n>                 Number of cards used for kanban rendering benchmark (default: 1000)
-  --launch-dataset-notes <n>         Dataset size for launch benchmark (default: 2000)
-  --launch-dataset-tasks <n>         Task count for launch benchmark (default: 1000)
-  --editor-dataset-notes <n>         Dataset size for open/save/wiki benchmark (default: 10000)
-  --search-dataset-notes <n>         Number of notes used for search benchmark (default: 50000)
-  --search-runs <n>                  Number of measured search samples (default: 40)
-  --target-fps <hz>                  Target refresh rate for gating (default: 120)
-  --max-launch-p95-ms <ms>           Launch-to-interactive p95 gate (default: 200)
-  --max-open-note-p95-ms <ms>        Open-note p95 gate (default: 40)
-  --max-save-note-p95-ms <ms>        Save-note-edit p95 gate (default: 30)
-  --max-wikilink-backlinks-p95-ms <ms> Wiki-link/backlinks refresh p95 gate (default: 50)
-  --max-kanban-frame-p95-ms <ms>     Explicit p95 frame-time gate (default: 1000/target-fps)
-  --max-kanban-drag-commit-p95-ms    Kanban drag reorder commit p95 gate (default: 50)
-  --max-create-note-p95-ms <ms>      Note creation p95 gate (default: 30)
-  --max-search-50k-p95-ms <ms>       Search-at-50k p95 gate (default: 80)
-  --skip-kanban-render               Skip the kanban rendering benchmark
-  --report-json <path>               Optional JSON report output path
-"""
+    notes-perf-harness options:
+      --runs <n>                         Number of measured samples per benchmark (default: 240)
+      --warmup-runs <n>                  Warmup samples for rendering benchmark (default: 40)
+      --kanban-cards <n>                 Number of cards used for kanban rendering benchmark (default: 1000)
+      --launch-dataset-notes <n>         Dataset size for launch benchmark (default: 2000)
+      --launch-dataset-tasks <n>         Task count for launch benchmark (default: 1000)
+      --editor-dataset-notes <n>         Dataset size for open/save/wiki benchmark (default: 10000)
+      --search-dataset-notes <n>         Number of notes used for search benchmark (default: 50000)
+      --search-runs <n>                  Number of measured search samples (default: 40)
+      --target-fps <hz>                  Target refresh rate for gating (default: 120)
+      --max-launch-p95-ms <ms>           Launch-to-interactive p95 gate (default: 200)
+      --max-open-note-p95-ms <ms>        Open-note p95 gate (default: 40)
+      --max-save-note-p95-ms <ms>        Save-note-edit p95 gate (default: 30)
+      --max-wikilink-backlinks-p95-ms <ms> Wiki-link/backlinks refresh p95 gate (default: 50)
+      --max-kanban-frame-p95-ms <ms>     Explicit p95 frame-time gate (default: 1000/target-fps)
+      --max-kanban-drag-commit-p95-ms    Kanban drag reorder commit p95 gate (default: 50)
+      --max-create-note-p95-ms <ms>      Note creation p95 gate (default: 30)
+      --max-search-50k-p95-ms <ms>       Search-at-50k p95 gate (default: 80)
+      --skip-kanban-render               Skip the kanban rendering benchmark
+      --report-json <path>               Optional JSON report output path
+    """
 }

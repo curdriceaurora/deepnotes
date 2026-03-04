@@ -21,7 +21,7 @@ public struct SyncEngineConfiguration: Sendable {
         lastWriteWinsTieBreaker: ConflictSource = .calendar,
         providerMaxRetryAttempts: Int = 3,
         providerRetryBaseDelayMilliseconds: UInt64 = 150,
-        providerRetryMaxDelayMilliseconds: UInt64 = 2_000
+        providerRetryMaxDelayMilliseconds: UInt64 = 2000,
     ) {
         self.checkpointID = checkpointID
         self.calendarID = calendarID
@@ -77,7 +77,7 @@ public struct SyncDiagnosticEntry: Sendable {
         calendarID: String,
         providerError: String? = nil,
         timestamp: Date,
-        attempt: Int? = nil
+        attempt: Int? = nil,
     ) {
         self.operation = operation
         self.severity = severity
@@ -126,7 +126,7 @@ public final class TwoWaySyncEngine: Sendable {
         calendarProvider: CalendarProvider,
         mapper: TaskCalendarMapper = TaskCalendarMapper(),
         noteMapper: NoteCalendarMapper = NoteCalendarMapper(),
-        clock: Clock = SystemClock()
+        clock: Clock = SystemClock(),
     ) {
         self.taskStore = taskStore
         self.noteStore = noteStore
@@ -146,14 +146,14 @@ public final class TwoWaySyncEngine: Sendable {
             taskVersionCursor: 0,
             noteVersionCursor: 0,
             calendarToken: nil,
-            updatedAt: now
+            updatedAt: now,
         )
 
         let accumulator = SyncRunAccumulator()
 
         let changedTasks = try await taskStore.fetchTasksUpdated(
             afterVersion: checkpoint.taskVersionCursor,
-            limit: configuration.taskBatchSize
+            limit: configuration.taskBatchSize,
         )
 
         var highestTaskVersion = checkpoint.taskVersionCursor
@@ -165,7 +165,7 @@ public final class TwoWaySyncEngine: Sendable {
                     task,
                     configuration: configuration,
                     now: now,
-                    accumulator: accumulator
+                    accumulator: accumulator,
                 )
                 if deleted {
                     accumulator.eventsDeletedFromTasks += 1
@@ -176,7 +176,7 @@ public final class TwoWaySyncEngine: Sendable {
             let binding = try await bindingStore.fetchBinding(
                 entityType: .task,
                 entityID: task.id,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             let outgoingEvent = try taskMapper.event(from: task, calendarID: configuration.calendarID, existing: binding)
             let persistedEvent = try await performProviderOperation(
@@ -188,7 +188,7 @@ public final class TwoWaySyncEngine: Sendable {
                 externalIdentifier: outgoingEvent.externalIdentifier,
                 calendarID: configuration.calendarID,
                 configuration: configuration,
-                accumulator: accumulator
+                accumulator: accumulator,
             ) {
                 try await calendarProvider.upsertEvent(outgoingEvent)
             }
@@ -206,7 +206,7 @@ public final class TwoWaySyncEngine: Sendable {
                 lastEntityVersion: task.version,
                 lastEventUpdatedAt: persistedEvent.updatedAt,
                 lastSyncedAt: now,
-                deletedAt: nil
+                deletedAt: nil,
             )
 
             try await bindingStore.upsertBinding(updatedBinding)
@@ -217,7 +217,7 @@ public final class TwoWaySyncEngine: Sendable {
         if let noteStore {
             let changedNotes = try await noteStore.fetchNotesUpdated(
                 afterVersion: checkpoint.noteVersionCursor,
-                limit: configuration.taskBatchSize
+                limit: configuration.taskBatchSize,
             )
 
             for note in changedNotes {
@@ -227,7 +227,7 @@ public final class TwoWaySyncEngine: Sendable {
                         note,
                         configuration: configuration,
                         now: now,
-                        accumulator: accumulator
+                        accumulator: accumulator,
                     )
                     continue
                 }
@@ -238,7 +238,7 @@ public final class TwoWaySyncEngine: Sendable {
                 let binding = try await bindingStore.fetchBinding(
                     entityType: .note,
                     entityID: note.id,
-                    calendarID: configuration.calendarID
+                    calendarID: configuration.calendarID,
                 )
                 let outgoingEvent = try noteMapper.event(from: note, calendarID: configuration.calendarID, existing: binding)
                 let persistedEvent = try await performProviderOperation(
@@ -249,7 +249,7 @@ public final class TwoWaySyncEngine: Sendable {
                     externalIdentifier: outgoingEvent.externalIdentifier,
                     calendarID: configuration.calendarID,
                     configuration: configuration,
-                    accumulator: accumulator
+                    accumulator: accumulator,
                 ) {
                     try await calendarProvider.upsertEvent(outgoingEvent)
                 }
@@ -267,7 +267,7 @@ public final class TwoWaySyncEngine: Sendable {
                     lastEntityVersion: note.version,
                     lastEventUpdatedAt: persistedEvent.updatedAt,
                     lastSyncedAt: now,
-                    deletedAt: nil
+                    deletedAt: nil,
                 )
                 try await bindingStore.upsertBinding(updatedBinding)
             }
@@ -277,33 +277,33 @@ public final class TwoWaySyncEngine: Sendable {
             operation: .pullCalendarChanges,
             calendarID: configuration.calendarID,
             configuration: configuration,
-            accumulator: accumulator
+            accumulator: accumulator,
         ) {
             try await calendarProvider.fetchChanges(
                 since: checkpoint.calendarToken,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
         }
 
         for change in batch.changes {
             accumulator.eventsPulled += 1
             switch change {
-            case .upsert(let event):
+            case let .upsert(event):
                 let result = try await pullEventUpsert(
                     event,
                     configuration: configuration,
                     now: now,
-                    accumulator: accumulator
+                    accumulator: accumulator,
                 )
                 accumulator.tasksImported += result.imported
                 accumulator.tasksUpdatedFromCalendar += result.updated
 
-            case .delete(let deletion):
+            case let .delete(deletion):
                 if try await pullEventDeletion(
                     deletion,
                     configuration: configuration,
                     now: now,
-                    accumulator: accumulator
+                    accumulator: accumulator,
                 ) {
                     accumulator.tasksDeletedFromCalendar += 1
                 }
@@ -326,7 +326,7 @@ public final class TwoWaySyncEngine: Sendable {
         _ event: CalendarEvent,
         configuration: SyncEngineConfiguration,
         now: Date,
-        accumulator: SyncRunAccumulator
+        accumulator: SyncRunAccumulator,
     ) async throws -> (imported: Int, updated: Int) {
         guard event.calendarID == configuration.calendarID else {
             recordDiagnostic(
@@ -337,7 +337,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: nil,
                 eventIdentifier: event.eventIdentifier,
                 externalIdentifier: event.externalIdentifier,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             return (0, 0)
         }
@@ -356,7 +356,7 @@ public final class TwoWaySyncEngine: Sendable {
                     entityID: binding?.entityID,
                     eventIdentifier: event.eventIdentifier,
                     externalIdentifier: event.externalIdentifier,
-                    calendarID: configuration.calendarID
+                    calendarID: configuration.calendarID,
                 )
                 return (0, 0)
             }
@@ -372,7 +372,7 @@ public final class TwoWaySyncEngine: Sendable {
                         entityID: binding.entityID,
                         eventIdentifier: event.eventIdentifier,
                         externalIdentifier: event.externalIdentifier,
-                        calendarID: configuration.calendarID
+                        calendarID: configuration.calendarID,
                     )
                     return (0, 0)
                 }
@@ -383,7 +383,7 @@ public final class TwoWaySyncEngine: Sendable {
                     binding: binding,
                     policy: configuration.policy,
                     timestampNormalizationSeconds: configuration.timestampNormalizationSeconds,
-                    lastWriteWinsTieBreaker: configuration.lastWriteWinsTieBreaker
+                    lastWriteWinsTieBreaker: configuration.lastWriteWinsTieBreaker,
                 )
 
                 if noteWins {
@@ -396,7 +396,7 @@ public final class TwoWaySyncEngine: Sendable {
                         externalIdentifier: outgoing.externalIdentifier,
                         calendarID: configuration.calendarID,
                         configuration: configuration,
-                        accumulator: accumulator
+                        accumulator: accumulator,
                     ) {
                         try await calendarProvider.upsertEvent(outgoing)
                     }
@@ -409,7 +409,7 @@ public final class TwoWaySyncEngine: Sendable {
                         lastEntityVersion: currentNote.version,
                         lastEventUpdatedAt: persistedEvent.updatedAt,
                         lastSyncedAt: now,
-                        deletedAt: nil
+                        deletedAt: nil,
                     )
                     try await bindingStore.upsertBinding(updatedBinding)
                     return (0, 0)
@@ -426,7 +426,7 @@ public final class TwoWaySyncEngine: Sendable {
                     lastEntityVersion: currentNote.version,
                     lastEventUpdatedAt: event.updatedAt,
                     lastSyncedAt: now,
-                    deletedAt: nil
+                    deletedAt: nil,
                 )
                 try await bindingStore.upsertBinding(updatedBinding)
                 return (0, 1)
@@ -442,7 +442,7 @@ public final class TwoWaySyncEngine: Sendable {
                     entityID: nil,
                     eventIdentifier: event.eventIdentifier,
                     externalIdentifier: event.externalIdentifier,
-                    calendarID: configuration.calendarID
+                    calendarID: configuration.calendarID,
                 )
                 return (0, 0)
             }
@@ -458,7 +458,7 @@ public final class TwoWaySyncEngine: Sendable {
                 lastEntityVersion: persistedNote.version,
                 lastEventUpdatedAt: event.updatedAt,
                 lastSyncedAt: now,
-                deletedAt: nil
+                deletedAt: nil,
             )
             try await bindingStore.upsertBinding(noteBinding)
             return (1, 0)
@@ -476,7 +476,7 @@ public final class TwoWaySyncEngine: Sendable {
                     taskID: binding.taskID,
                     eventIdentifier: event.eventIdentifier,
                     externalIdentifier: event.externalIdentifier,
-                    calendarID: configuration.calendarID
+                    calendarID: configuration.calendarID,
                 )
                 return (0, 0)
             }
@@ -487,14 +487,14 @@ public final class TwoWaySyncEngine: Sendable {
                 binding: binding,
                 policy: configuration.policy,
                 timestampNormalizationSeconds: configuration.timestampNormalizationSeconds,
-                lastWriteWinsTieBreaker: configuration.lastWriteWinsTieBreaker
+                lastWriteWinsTieBreaker: configuration.lastWriteWinsTieBreaker,
             )
 
             switch resolution {
             case .keepTask:
                 return (0, 0)
 
-            case .taskWins(let task):
+            case let .taskWins(task):
                 let outgoing = try taskMapper.event(from: task, calendarID: configuration.calendarID, existing: binding)
                 let persistedEvent = try await performProviderOperation(
                     operation: .pushTaskUpsert,
@@ -505,7 +505,7 @@ public final class TwoWaySyncEngine: Sendable {
                     externalIdentifier: outgoing.externalIdentifier,
                     calendarID: configuration.calendarID,
                     configuration: configuration,
-                    accumulator: accumulator
+                    accumulator: accumulator,
                 ) {
                     try await calendarProvider.upsertEvent(outgoing)
                 }
@@ -519,12 +519,12 @@ public final class TwoWaySyncEngine: Sendable {
                     lastEntityVersion: task.version,
                     lastEventUpdatedAt: persistedEvent.updatedAt,
                     lastSyncedAt: now,
-                    deletedAt: nil
+                    deletedAt: nil,
                 )
                 try await bindingStore.upsertBinding(updatedBinding)
                 return (0, 0)
 
-            case .eventWins(let taskFromEvent):
+            case let .eventWins(taskFromEvent):
                 let persistedTask = try await taskStore.upsertTask(taskFromEvent)
                 let resolvedEventID = event.eventIdentifier ?? binding.eventIdentifier
                 let updatedBinding = CalendarBinding(
@@ -536,7 +536,7 @@ public final class TwoWaySyncEngine: Sendable {
                     lastEntityVersion: persistedTask.version,
                     lastEventUpdatedAt: event.updatedAt,
                     lastSyncedAt: now,
-                    deletedAt: nil
+                    deletedAt: nil,
                 )
                 try await bindingStore.upsertBinding(updatedBinding)
                 return (0, 1)
@@ -555,7 +555,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: nil,
                 eventIdentifier: event.eventIdentifier,
                 externalIdentifier: event.externalIdentifier,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             return (0, 0)
         }
@@ -572,7 +572,7 @@ public final class TwoWaySyncEngine: Sendable {
             lastEntityVersion: persistedTask.version,
             lastEventUpdatedAt: event.updatedAt,
             lastSyncedAt: now,
-            deletedAt: nil
+            deletedAt: nil,
         )
         try await bindingStore.upsertBinding(bindingToSave)
 
@@ -583,7 +583,7 @@ public final class TwoWaySyncEngine: Sendable {
         _ deletion: CalendarDeletion,
         configuration: SyncEngineConfiguration,
         now: Date,
-        accumulator: SyncRunAccumulator
+        accumulator: SyncRunAccumulator,
     ) async throws -> Bool {
         guard deletion.calendarID == configuration.calendarID else {
             recordDiagnostic(
@@ -594,7 +594,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: nil,
                 eventIdentifier: deletion.eventIdentifier,
                 externalIdentifier: deletion.externalIdentifier,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             return false
         }
@@ -608,7 +608,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: nil,
                 eventIdentifier: deletion.eventIdentifier,
                 externalIdentifier: deletion.externalIdentifier,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             return false
         }
@@ -628,7 +628,7 @@ public final class TwoWaySyncEngine: Sendable {
                     entityID: binding.entityID,
                     eventIdentifier: deletion.eventIdentifier,
                     externalIdentifier: deletion.externalIdentifier,
-                    calendarID: configuration.calendarID
+                    calendarID: configuration.calendarID,
                 )
                 return false
             }
@@ -642,7 +642,7 @@ public final class TwoWaySyncEngine: Sendable {
         _ task: Task,
         configuration: SyncEngineConfiguration,
         now: Date,
-        accumulator: SyncRunAccumulator
+        accumulator: SyncRunAccumulator,
     ) async throws -> Bool {
         guard let binding = try await bindingStore.fetchBinding(entityType: .task, entityID: task.id, calendarID: configuration.calendarID) else {
             recordDiagnostic(
@@ -655,7 +655,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: task.id,
                 eventIdentifier: nil,
                 externalIdentifier: nil,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
             return false
         }
@@ -670,7 +670,7 @@ public final class TwoWaySyncEngine: Sendable {
                 externalIdentifier: binding.externalIdentifier,
                 calendarID: configuration.calendarID,
                 configuration: configuration,
-                accumulator: accumulator
+                accumulator: accumulator,
             ) {
                 try await calendarProvider.deleteEvent(eventIdentifier: eventIdentifier, calendarID: configuration.calendarID)
             }
@@ -685,7 +685,7 @@ public final class TwoWaySyncEngine: Sendable {
                 taskID: task.id,
                 eventIdentifier: nil,
                 externalIdentifier: binding.externalIdentifier,
-                calendarID: configuration.calendarID
+                calendarID: configuration.calendarID,
             )
         }
 
@@ -697,7 +697,7 @@ public final class TwoWaySyncEngine: Sendable {
         _ note: Note,
         configuration: SyncEngineConfiguration,
         now: Date,
-        accumulator: SyncRunAccumulator
+        accumulator: SyncRunAccumulator,
     ) async throws -> Bool {
         guard let binding = try await bindingStore.fetchBinding(entityType: .note, entityID: note.id, calendarID: configuration.calendarID) else {
             return false
@@ -712,7 +712,7 @@ public final class TwoWaySyncEngine: Sendable {
                 externalIdentifier: binding.externalIdentifier,
                 calendarID: configuration.calendarID,
                 configuration: configuration,
-                accumulator: accumulator
+                accumulator: accumulator,
             ) {
                 try await calendarProvider.deleteEvent(eventIdentifier: eventIdentifier, calendarID: configuration.calendarID)
             }
@@ -728,10 +728,11 @@ public final class TwoWaySyncEngine: Sendable {
         binding: CalendarBinding,
         policy: ConflictResolutionPolicy,
         timestampNormalizationSeconds: TimeInterval,
-        lastWriteWinsTieBreaker: ConflictSource
+        lastWriteWinsTieBreaker: ConflictSource,
     ) -> Bool {
         if let lastEventUpdatedAt = binding.lastEventUpdatedAt,
-           event.updatedAt <= lastEventUpdatedAt {
+           event.updatedAt <= lastEventUpdatedAt
+        {
             return true
         }
 
@@ -775,12 +776,14 @@ public final class TwoWaySyncEngine: Sendable {
 
     private func findBinding(for event: CalendarEvent, calendarID: String) async throws -> CalendarBinding? {
         if let eventIdentifier = event.eventIdentifier,
-           let binding = try await bindingStore.fetchBinding(eventIdentifier: eventIdentifier, calendarID: calendarID) {
+           let binding = try await bindingStore.fetchBinding(eventIdentifier: eventIdentifier, calendarID: calendarID)
+        {
             return binding
         }
 
         if let externalIdentifier = event.externalIdentifier,
-           let binding = try await bindingStore.fetchBinding(externalIdentifier: externalIdentifier, calendarID: calendarID) {
+           let binding = try await bindingStore.fetchBinding(externalIdentifier: externalIdentifier, calendarID: calendarID)
+        {
             return binding
         }
 
@@ -789,12 +792,14 @@ public final class TwoWaySyncEngine: Sendable {
 
     private func findBinding(for deletion: CalendarDeletion, calendarID: String) async throws -> CalendarBinding? {
         if let eventIdentifier = deletion.eventIdentifier,
-           let binding = try await bindingStore.fetchBinding(eventIdentifier: eventIdentifier, calendarID: calendarID) {
+           let binding = try await bindingStore.fetchBinding(eventIdentifier: eventIdentifier, calendarID: calendarID)
+        {
             return binding
         }
 
         if let externalIdentifier = deletion.externalIdentifier,
-           let binding = try await bindingStore.fetchBinding(externalIdentifier: externalIdentifier, calendarID: calendarID) {
+           let binding = try await bindingStore.fetchBinding(externalIdentifier: externalIdentifier, calendarID: calendarID)
+        {
             return binding
         }
 
@@ -811,7 +816,7 @@ public final class TwoWaySyncEngine: Sendable {
         calendarID: String,
         configuration: SyncEngineConfiguration,
         accumulator: SyncRunAccumulator,
-        _ operationBlock: () async throws -> T
+        _ operationBlock: () async throws -> T,
     ) async throws -> T {
         var attempt = 1
         while true {
@@ -837,7 +842,7 @@ public final class TwoWaySyncEngine: Sendable {
                     externalIdentifier: externalIdentifier,
                     calendarID: calendarID,
                     providerError: error.localizedDescription,
-                    attempt: attempt
+                    attempt: attempt,
                 )
 
                 guard willRetry else {
@@ -847,7 +852,7 @@ public final class TwoWaySyncEngine: Sendable {
                 let delay = retryDelayNanoseconds(
                     attempt: attempt,
                     baseDelayMilliseconds: configuration.providerRetryBaseDelayMilliseconds,
-                    maxDelayMilliseconds: configuration.providerRetryMaxDelayMilliseconds
+                    maxDelayMilliseconds: configuration.providerRetryMaxDelayMilliseconds,
                 )
                 if delay > 0 {
                     try await _Concurrency.Task.sleep(nanoseconds: delay)
@@ -860,7 +865,7 @@ public final class TwoWaySyncEngine: Sendable {
     private func retryDelayNanoseconds(
         attempt: Int,
         baseDelayMilliseconds: UInt64,
-        maxDelayMilliseconds: UInt64
+        maxDelayMilliseconds: UInt64,
     ) -> UInt64 {
         guard baseDelayMilliseconds > 0 else {
             return 0
@@ -911,7 +916,7 @@ public final class TwoWaySyncEngine: Sendable {
         externalIdentifier: String?,
         calendarID: String,
         providerError: String? = nil,
-        attempt: Int? = nil
+        attempt: Int? = nil,
     ) {
         accumulator.diagnostics.append(
             SyncDiagnosticEntry(
@@ -926,8 +931,8 @@ public final class TwoWaySyncEngine: Sendable {
                 calendarID: calendarID,
                 providerError: providerError,
                 timestamp: clock.now(),
-                attempt: attempt
-            )
+                attempt: attempt,
+            ),
         )
     }
 }

@@ -53,7 +53,7 @@ public struct FuzzyMatcher: Sendable {
         var queryIndex = query.startIndex
         var candidateIndex = candidate.startIndex
 
-        while queryIndex < query.endIndex && candidateIndex < candidate.endIndex {
+        while queryIndex < query.endIndex, candidateIndex < candidate.endIndex {
             if query[queryIndex] == candidate[candidateIndex] {
                 queryIndex = query.index(after: queryIndex)
             }

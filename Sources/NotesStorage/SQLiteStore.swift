@@ -1,6 +1,6 @@
 import Foundation
-import SQLite3
 import NotesDomain
+import SQLite3
 
 private struct SQLiteConnection: @unchecked Sendable {
     let raw: OpaquePointer
@@ -8,7 +8,9 @@ private struct SQLiteConnection: @unchecked Sendable {
 
 public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckpointStore, TemplateStore, KanbanColumnStore {
     private let connection: SQLiteConnection
-    private var db: OpaquePointer { connection.raw }
+    private var db: OpaquePointer {
+        connection.raw
+    }
 
     public init(databaseURL: URL) throws {
         var dbPointer: OpaquePointer?
@@ -60,11 +62,10 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             let version = try nextVersion(for: "note_version")
             let now = max(note.updatedAt, Date())
 
-            let tagsJSON: String
-            if let data = try? JSONEncoder().encode(note.tags), let str = String(data: data, encoding: .utf8) {
-                tagsJSON = str
+            let tagsJSON: String = if let data = try? JSONEncoder().encode(note.tags), let str = String(data: data, encoding: .utf8) {
+                str
             } else {
-                tagsJSON = "[]"
+                "[]"
             }
 
             let sql = """
@@ -120,7 +121,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 title: normalizedTitle,
                 body: note.body,
                 tags: note.tags,
-                deletedAt: note.deletedAt
+                deletedAt: note.deletedAt,
             )
 
             try commitTransaction()
@@ -152,24 +153,24 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
     public func fetchNotes(includeDeleted: Bool = false) async throws -> [Note] {
         let sql = includeDeleted
-        ? """
-          SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
-                 calendar_sync_enabled, updated_at, version, deleted_at
-          FROM notes
-          ORDER BY updated_at DESC;
-          """
-        : """
-          SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
-                 calendar_sync_enabled, updated_at, version, deleted_at
-          FROM notes
-          WHERE deleted_at IS NULL
-          ORDER BY updated_at DESC;
-          """
+            ? """
+            SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
+                   calendar_sync_enabled, updated_at, version, deleted_at
+            FROM notes
+            ORDER BY updated_at DESC;
+            """
+            : """
+            SELECT id, stable_id, title, body, tags, date_start, date_end, is_all_day, recurrence_rule,
+                   calendar_sync_enabled, updated_at, version, deleted_at
+            FROM notes
+            WHERE deleted_at IS NULL
+            ORDER BY updated_at DESC;
+            """
 
         return try withStatement(sql) { statement in
             var notes: [Note] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                notes.append(try note(from: statement))
+                try notes.append(note(from: statement))
             }
             return notes
         }
@@ -189,7 +190,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             bindText(tag.lowercased(), to: 1, in: statement)
             var notes: [Note] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                notes.append(try note(from: statement))
+                try notes.append(note(from: statement))
             }
             return notes
         }
@@ -302,7 +303,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             query: query,
             mode: .smart,
             limit: limit,
-            offset: 0
+            offset: 0,
         )
         return page.hits.map(\.note)
     }
@@ -311,7 +312,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         query: String,
         mode: NoteSearchMode = .smart,
         limit: Int = 50,
-        offset: Int = 0
+        offset: Int = 0,
     ) async throws -> NoteSearchPage {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedLimit = max(1, limit)
@@ -320,14 +321,14 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             let notes = try await fetchNotes(includeDeleted: false)
             let start = min(normalizedOffset, notes.count)
             let end = min(notes.count, start + normalizedLimit)
-            let pageNotes = Array(notes[start..<end])
+            let pageNotes = Array(notes[start ..< end])
             return NoteSearchPage(
                 query: trimmed,
                 mode: mode,
                 offset: normalizedOffset,
                 limit: normalizedLimit,
                 totalCount: notes.count,
-                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) }
+                hits: pageNotes.map { NoteSearchHit(note: $0, snippet: nil, rank: 0) },
             )
         }
         guard let matchExpression = ftsMatchExpression(from: trimmed, mode: mode) else {
@@ -337,7 +338,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 offset: normalizedOffset,
                 limit: normalizedLimit,
                 totalCount: 0,
-                hits: []
+                hits: [],
             )
         }
 
@@ -368,8 +369,8 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                     NoteSearchHit(
                         note: matchedNote,
                         snippet: snippet?.isEmpty == false ? snippet : nil,
-                        rank: sqlite3_column_double(statement, 14)
-                    )
+                        rank: sqlite3_column_double(statement, 14),
+                    ),
                 )
             }
             return hits
@@ -384,7 +385,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             offset: normalizedOffset,
             limit: normalizedLimit,
             totalCount: inferredTotalCount,
-            hits: hits
+            hits: hits,
         )
     }
 
@@ -432,7 +433,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
             var notes: [Note] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                notes.append(try note(from: statement))
+                try notes.append(note(from: statement))
             }
             return notes
         }
@@ -541,26 +542,26 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
     public func fetchTasks(includeDeleted: Bool = false) async throws -> [Task] {
         let sql = includeDeleted
-        ? """
-          SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-                 labels, kanban_column_id, subtasks
-          FROM tasks
-          ORDER BY updated_at DESC;
-          """
-        : """
-          SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
-                 priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
-                 labels, kanban_column_id, subtasks
-          FROM tasks
-          WHERE deleted_at IS NULL
-          ORDER BY updated_at DESC;
-          """
+            ? """
+            SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
+                   priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+                   labels, kanban_column_id, subtasks
+            FROM tasks
+            ORDER BY updated_at DESC;
+            """
+            : """
+            SELECT id, note_id, stable_id, title, details, due_start, due_end, status,
+                   priority, recurrence_rule, kanban_order, completed_at, updated_at, version, deleted_at,
+                   labels, kanban_column_id, subtasks
+            FROM tasks
+            WHERE deleted_at IS NULL
+            ORDER BY updated_at DESC;
+            """
 
         return try withStatement(sql) { statement in
             var tasks: [Task] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                tasks.append(try task(from: statement))
+                try tasks.append(task(from: statement))
             }
             return tasks
         }
@@ -584,7 +585,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
 
             var tasks: [Task] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                tasks.append(try task(from: statement))
+                try tasks.append(task(from: statement))
             }
             return tasks
         }
@@ -747,7 +748,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
                 taskVersionCursor: sqlite3_column_int64(statement, 1),
                 noteVersionCursor: sqlite3_column_int64(statement, 2),
                 calendarToken: columnOptionalText(statement, at: 3),
-                updatedAt: columnDate(statement, at: 4)
+                updatedAt: columnDate(statement, at: 4),
             )
         }
     }
@@ -785,7 +786,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         return try withStatement(sql) { statement in
             var templates: [NoteTemplate] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                templates.append(try template(from: statement))
+                try templates.append(template(from: statement))
             }
             return templates
         }
@@ -840,7 +841,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         return try withStatement(sql) { statement in
             var columns: [KanbanColumn] = []
             while sqlite3_step(statement) == SQLITE_ROW {
-                columns.append(try kanbanColumn(from: statement))
+                try columns.append(kanbanColumn(from: statement))
             }
             return columns
         }
@@ -908,18 +909,16 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             throw StorageError.dataCorruption(reason: "Invalid kanban_columns row values")
         }
 
-        let builtInStatus: TaskStatus?
-        if let statusText = columnOptionalText(statement, at: 2) {
-            builtInStatus = TaskStatus(rawValue: statusText)
+        let builtInStatus: TaskStatus? = if let statusText = columnOptionalText(statement, at: 2) {
+            TaskStatus(rawValue: statusText)
         } else {
-            builtInStatus = nil
+            nil
         }
 
-        let wipLimit: Int?
-        if sqlite3_column_type(statement, 4) != SQLITE_NULL {
-            wipLimit = Int(sqlite3_column_int(statement, 4))
+        let wipLimit: Int? = if sqlite3_column_type(statement, 4) != SQLITE_NULL {
+            Int(sqlite3_column_int(statement, 4))
         } else {
-            wipLimit = nil
+            nil
         }
 
         return KanbanColumn(
@@ -928,7 +927,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             builtInStatus: builtInStatus,
             position: Int(sqlite3_column_int(statement, 3)),
             wipLimit: wipLimit,
-            colorHex: columnOptionalText(statement, at: 5)
+            colorHex: columnOptionalText(statement, at: 5),
         )
     }
 
@@ -1051,15 +1050,15 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             table: "notes",
             column: "stable_id",
             definition: "TEXT",
-            on: db
+            on: db,
         )
         try executeOnConnection(
             db,
-            sql: "UPDATE notes SET stable_id = lower(id) WHERE stable_id IS NULL OR trim(stable_id) = '';"
+            sql: "UPDATE notes SET stable_id = lower(id) WHERE stable_id IS NULL OR trim(stable_id) = '';",
         )
         try executeOnConnection(
             db,
-            sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_stable_id ON notes(stable_id);"
+            sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_stable_id ON notes(stable_id);",
         )
         try ensureColumnExists(table: "notes", column: "date_start", definition: "REAL", on: db)
         try ensureColumnExists(table: "notes", column: "date_end", definition: "REAL", on: db)
@@ -1071,7 +1070,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             table: "tasks",
             column: "kanban_order",
             definition: "REAL NOT NULL DEFAULT 0",
-            on: db
+            on: db,
         )
 
         let indexSQL = """
@@ -1159,7 +1158,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
         table: String,
         column: String,
         definition: String,
-        on db: OpaquePointer
+        on db: OpaquePointer,
     ) throws {
         let pragmaSQL = "PRAGMA table_info(\(table));"
         var statement: OpaquePointer?
@@ -1380,13 +1379,13 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             throw StorageError.dataCorruption(reason: "Invalid note row values")
         }
 
-        let tags: [String]
-        if let tagsJSON = columnOptionalText(statement, at: 4),
-           let data = tagsJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String].self, from: data) {
-            tags = decoded
+        let tags: [String] = if let tagsJSON = columnOptionalText(statement, at: 4),
+                                let data = tagsJSON.data(using: .utf8),
+                                let decoded = try? JSONDecoder().decode([String].self, from: data)
+        {
+            decoded
         } else {
-            tags = []
+            []
         }
 
         return Note(
@@ -1402,7 +1401,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             calendarSyncEnabled: sqlite3_column_int(statement, 9) != 0,
             updatedAt: columnDate(statement, at: 10),
             version: sqlite3_column_int64(statement, 11),
-            deletedAt: columnOptionalDate(statement, at: 12)
+            deletedAt: columnOptionalDate(statement, at: 12),
         )
     }
 
@@ -1419,20 +1418,18 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             throw StorageError.dataCorruption(reason: "Invalid task row values")
         }
 
-        let noteID: UUID?
-        if let noteIDText = columnOptionalText(statement, at: 1) {
-            noteID = UUID(uuidString: noteIDText)
+        let noteID: UUID? = if let noteIDText = columnOptionalText(statement, at: 1) {
+            UUID(uuidString: noteIDText)
         } else {
-            noteID = nil
+            nil
         }
 
         let labels: [TaskLabel] = decodeFromJSON(columnOptionalText(statement, at: 15)) ?? []
 
-        let kanbanColumnID: UUID?
-        if let colIDText = columnOptionalText(statement, at: 16) {
-            kanbanColumnID = UUID(uuidString: colIDText)
+        let kanbanColumnID: UUID? = if let colIDText = columnOptionalText(statement, at: 16) {
+            UUID(uuidString: colIDText)
         } else {
-            kanbanColumnID = nil
+            nil
         }
 
         let subtasks: [Subtask] = decodeFromJSON(columnOptionalText(statement, at: 17)) ?? []
@@ -1455,7 +1452,7 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             deletedAt: columnOptionalDate(statement, at: 14),
             labels: labels,
             kanbanColumnID: kanbanColumnID,
-            subtasks: subtasks
+            subtasks: subtasks,
         )
     }
 
@@ -1479,21 +1476,23 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             lastEntityVersion: sqlite3_column_int64(statement, 5),
             lastEventUpdatedAt: columnOptionalDate(statement, at: 6),
             lastSyncedAt: columnOptionalDate(statement, at: 7),
-            deletedAt: columnOptionalDate(statement, at: 8)
+            deletedAt: columnOptionalDate(statement, at: 8),
         )
     }
 
-    private func encodeToJSON<T: Encodable>(_ value: T) -> String {
+    private func encodeToJSON(_ value: some Encodable) -> String {
         guard let data = try? JSONEncoder().encode(value),
-              let str = String(data: data, encoding: .utf8) else {
+              let str = String(data: data, encoding: .utf8)
+        else {
             return "[]"
         }
         return str
     }
 
     private func decodeFromJSON<T: Decodable>(_ jsonString: String?) -> T? {
-        guard let jsonString = jsonString,
-              let data = jsonString.data(using: .utf8) else {
+        guard let jsonString,
+              let data = jsonString.data(using: .utf8)
+        else {
             return nil
         }
         return try? JSONDecoder().decode(T.self, from: data)
@@ -1560,9 +1559,9 @@ public actor SQLiteStore: TaskStore, NoteStore, CalendarBindingStore, SyncCheckp
             return segments.map { segment in
                 switch segment {
                 case let .phrase(phrase):
-                    return "\"\(escapeFTSValue(phrase))\""
+                    "\"\(escapeFTSValue(phrase))\""
                 case let .token(token):
-                    return "\"\(escapeFTSValue(token))\"*"
+                    "\"\(escapeFTSValue(token))\"*"
                 }
             }.joined(separator: " AND ")
         }
