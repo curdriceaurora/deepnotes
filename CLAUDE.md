@@ -341,6 +341,25 @@ grep -r "function_name\|helper_pattern" Sources/ Tests/
 - Make corrections based on review feedback
 - Commit and push fixes without additional prompting
 
+### GitHub API-Based PR Review Workflow
+
+For ALL PR reviews, use GitHub API directly instead of relying on `gh pr view` summaries:
+
+**Steps:**
+1. **Fetch ALL review comments via GitHub API**:
+   ```bash
+   gh api repos/OWNER/REPO/pulls/PR_NUM/reviews/REVIEW_ID/comments | jq '.[] | {line, path, body}'
+   ```
+
+2. **Address each comment individually** with a corresponding reply:
+   ```bash
+   gh api repos/OWNER/REPO/pulls/PR_NUM/comments/COMMENT_ID/replies -X POST -f "body=@fix-message"
+   ```
+
+3. **Track resolution**: Make code fix → Reply to comment → Mark PR ready for merge
+
+**Why**: Prevents skipped comments, ensures comprehensive feedback addressed, creates audit trail.
+
 **This autonomy applies to all Phase-level delivery work. For work outside the current phase, defer to user instructions.**
 
 ## API Stability & Deprecation
