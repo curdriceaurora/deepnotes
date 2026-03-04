@@ -204,6 +204,18 @@ Test suites are parallelized where possible. Use `swift test --filter <test-name
 5. Add tests to corresponding test target
 6. Verify gates: `./Scripts/run-coverage-gates.sh && ./Scripts/run-perf-gates.sh`
 
+## Concurrency Model
+
+The project uses **Swift 6 language mode** (`swift-tools-version: 6.0`), which enables strict concurrency checking by default — no explicit flags needed. Key patterns:
+
+- **Domain models**: All structs with value semantics (automatically `Sendable`)
+- **Storage**: `SQLiteStore` is an `actor` — all access is isolated
+- **Sync**: `TwoWaySyncEngine` is a `Sendable` final class with immutable properties
+- **UI**: All views and `AppViewModel` are `@MainActor`-isolated
+- **Protocols**: `NoteStore`, `CalendarProvider`, etc. require `Sendable` conformance
+
+See `Docs/CONCURRENCY_ARCHITECTURE.md` for the full architecture and compliance details.
+
 ## Configuration
 
 - **Swift**: 6.2 (see `Package.swift`)

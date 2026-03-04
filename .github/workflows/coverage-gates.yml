@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+# NOTE: This project requires Xcode 26+ (Swift 6.0, macOS 26 SDK).
+# macos-15 runners currently include Xcode 26 and builds succeed with the default toolchain.
+# If a runner image update breaks the build, switch to macos-26 runners or pin via xcode-select.
+
 jobs:
   lint:
     runs-on: macos-15
