@@ -91,11 +91,12 @@ extension XCTestCase {
     @discardableResult
     func waitForPredicate(
         _ format: String,
+        _ args: any CVarArg...,
         object: Any,
         timeout: TimeInterval = 5,
     ) -> XCTWaiter.Result {
         let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: format),
+            predicate: NSPredicate(format: format, argumentArray: args),
             object: object,
         )
         return XCTWaiter.wait(for: [expectation], timeout: timeout)

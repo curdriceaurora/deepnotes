@@ -29,8 +29,9 @@ final class GraphViewXCUITests: XCTestCase {
     }
 
     func testGraphTabDoesNotCrash() {
-        // Let the graph simulation run briefly, then verify responsiveness
-        Thread.sleep(forTimeInterval: 1)
+        // Verify graph content loaded, then switch tabs to confirm responsiveness
+        let title = app.staticTexts["Knowledge Graph"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
 
         navigateToTab(app, "Notes")
         let searchField = app.textFields["noteSearchField"]

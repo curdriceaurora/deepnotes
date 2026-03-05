@@ -21,13 +21,19 @@ struct XCUIHostApp: App {
             let store = try SQLiteStore(databaseURL: databaseURL)
             let service = WorkspaceService(store: store)
 
-            #if canImport(EventKit)
-                let liveProvider = EventKitCalendarProvider()
-                let providerFactory: CalendarProviderFactory = { liveProvider }
-            #else
+            let providerFactory: CalendarProviderFactory
+            if isUITesting {
                 let localProvider = InMemoryCalendarProvider()
-                let providerFactory: CalendarProviderFactory = { localProvider }
-            #endif
+                providerFactory = { localProvider }
+            } else {
+                #if canImport(EventKit)
+                    let liveProvider = EventKitCalendarProvider()
+                    providerFactory = { liveProvider }
+                #else
+                    let localProvider = InMemoryCalendarProvider()
+                    providerFactory = { localProvider }
+                #endif
+            }
 
             _viewModel = State(initialValue: AppViewModel(
                 service: service,

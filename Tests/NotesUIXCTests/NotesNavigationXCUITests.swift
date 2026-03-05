@@ -99,7 +99,7 @@ final class NotesNavigationXCUITests: XCTestCase {
         let firstTitle = titleField.value as? String ?? ""
 
         allRows[1].tap()
-        let result = waitForPredicate("value != %@", object: titleField)
+        let result = waitForPredicate("value != %@", firstTitle, object: titleField)
         XCTAssertEqual(result, .completed, "Title should change when selecting a different note")
     }
 
