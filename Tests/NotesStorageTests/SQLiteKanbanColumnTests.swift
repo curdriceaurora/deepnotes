@@ -16,7 +16,7 @@ final class SQLiteKanbanColumnTests: XCTestCase {
         super.tearDown()
     }
 
-    func testFetchColumnsReturnsSeededDefaults() async throws {
+    func testSmoke_FetchColumnsReturnsSeededDefaults() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let columns = try await store.fetchColumns()
@@ -30,7 +30,7 @@ final class SQLiteKanbanColumnTests: XCTestCase {
         XCTAssertEqual(columns.map(\.position), [0, 1, 2, 3, 4])
     }
 
-    func testUpsertCustomColumn() async throws {
+    func testSmoke_UpsertCustomColumn() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let column = KanbanColumn(title: "Review", position: 5, wipLimit: 3, colorHex: "#FF5500")
@@ -46,7 +46,7 @@ final class SQLiteKanbanColumnTests: XCTestCase {
         XCTAssertNil(custom?.builtInStatus)
     }
 
-    func testDeleteCustomColumn() async throws {
+    func testSmoke_DeleteCustomColumn() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let column = KanbanColumn(title: "Custom", position: 5)
@@ -87,7 +87,7 @@ final class SQLiteKanbanColumnTests: XCTestCase {
         XCTAssertEqual(fetched?.labels.last?.name, "Feature")
     }
 
-    func testTaskKanbanColumnIDPersistence() async throws {
+    func testSmoke_TaskKanbanColumnIDPersistence() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let column = KanbanColumn(title: "Custom", position: 5)

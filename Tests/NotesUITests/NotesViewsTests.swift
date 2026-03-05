@@ -8,7 +8,7 @@ import XCTest
 
 @MainActor
 final class NotesViewsTests: XCTestCase {
-    func testNotesEditorContainsCoreControls() async throws {
+    func testSmoke_NotesEditorContainsCoreControls() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
@@ -17,7 +17,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertEqual(viewModel.noteEditMode, .edit, "Editor must start in edit mode")
     }
 
-    func testTasksListContainsPickerAndRows() async throws {
+    func testSmoke_TasksListContainsPickerAndRows() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
@@ -33,7 +33,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertFalse(viewModel.tasks.isEmpty)
     }
 
-    func testKanbanRendersAllStatusColumns() async throws {
+    func testSmoke_KanbanRendersAllStatusColumns() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
@@ -45,14 +45,14 @@ final class NotesViewsTests: XCTestCase {
         }
     }
 
-    func testSyncDashboardHasCalendarFieldAndRunButton() async throws {
+    func testSmoke_SyncDashboardHasCalendarFieldAndRunButton() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
         XCTAssertNil(viewModel.lastSyncReport)
     }
 
-    func testNotesEditorNewNoteButtonTriggersCreation() async throws {
+    func testSmoke_NotesEditorNewNoteButtonTriggersCreation() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
         let countBefore = viewModel.notes.count
@@ -73,7 +73,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertNotNil(viewModel.lastSyncReport)
     }
 
-    func testKanbanMoveRightButtonTransitionsTask() async throws {
+    func testSmoke_KanbanMoveRightButtonTransitionsTask() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
@@ -238,7 +238,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertEqual(moved?.status, .next)
     }
 
-    func testKanbanDeleteButtonRemovesTask() async throws {
+    func testSmoke_KanbanDeleteButtonRemovesTask() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
         await viewModel.setTaskFilter(.all)
@@ -380,7 +380,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertFalse(viewModel.tasks(for: .backlog).isEmpty, "Backlog column should still have tasks after reorder")
     }
 
-    func testSyncDashboardShowsReportSectionAfterSync() async throws {
+    func testSmoke_SyncDashboardShowsReportSectionAfterSync() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
@@ -422,14 +422,14 @@ final class NotesViewsTests: XCTestCase {
         try makeTestAppViewModel()
     }
 
-    func testTogglePreviewButtonRenders() async throws {
+    func testSmoke_TogglePreviewButtonRenders() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
         XCTAssertEqual(viewModel.noteEditMode, .edit)
     }
 
-    func testPreviewModeShowsPreviewNotEditor() async throws {
+    func testSmoke_PreviewModeShowsPreviewNotEditor() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
@@ -448,7 +448,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertEqual(viewModel.noteEditMode, .edit)
     }
 
-    func testTagFilterBarRendersWithTags() async throws {
+    func testSmoke_TagFilterBarRendersWithTags() async throws {
         let now = Date()
         let taggedNote = Note(
             id: UUID(), title: "Tagged Note", body: "Content with #project tag",
@@ -461,7 +461,7 @@ final class NotesViewsTests: XCTestCase {
         XCTAssertFalse(viewModel.allTagsList.isEmpty)
     }
 
-    func testNoteTagBadgesRender() async throws {
+    func testSmoke_NoteTagBadgesRender() async throws {
         let now = Date()
         let taggedNote = Note(
             id: UUID(), title: "Tagged Note", body: "Content with #design tag",

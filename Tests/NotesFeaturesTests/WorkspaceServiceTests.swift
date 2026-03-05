@@ -20,7 +20,7 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertEqual(links, ["Q2 Launch Plan", "Vendor Call Notes", "Team Sync"])
     }
 
-    func testBacklinksAreResolvedCaseInsensitively() async throws {
+    func testSmoke_BacklinksAreResolvedCaseInsensitively() async throws {
         let store = try makeStore()
         let service = WorkspaceService(
             taskStore: store,
@@ -66,7 +66,7 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertTrue(backlinks.isEmpty)
     }
 
-    func testSearchNotesReturnsFTSMatches() async throws {
+    func testSmoke_SearchNotesReturnsFTSMatches() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
 
         _ = try await service.createNote(title: "Roadmap", body: "Discuss FTS launch milestones")
@@ -290,7 +290,7 @@ final class WorkspaceServiceTests: XCTestCase {
         XCTAssertTrue(imported.contains { $0.stableID == "from-calendar" })
     }
 
-    func testSeedDemoDataCreatesNotesAndTasksOnce() async throws {
+    func testSmoke_SeedDemoDataCreatesNotesAndTasksOnce() async throws {
         let service = try makeService(now: Date(timeIntervalSince1970: 1_700_000_000))
 
         try await service.seedDemoDataIfNeeded()

@@ -35,7 +35,7 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §1 Empty States — Fresh Install
 
-    func testFreshInstallNotesListEmpty() async {
+    func testSmoke_FreshInstallNotesListEmpty() async {
         let viewModel = makeViewModel()
         await viewModel.load()
 
@@ -63,7 +63,7 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §8 Filter Edge Cases
 
-    func testFilterUpcomingReturnsFutureDatedTasks() async throws {
+    func testSmoke_FilterUpcomingReturnsFutureDatedTasks() async throws {
         let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
         let task = try Task(
             stableID: "upcoming-task",
@@ -214,7 +214,7 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §18 Recurrence Dialog Lifecycle
 
-    func testRecurrenceEditPromptNilInitially() async throws {
+    func testSmoke_RecurrenceEditPromptNilInitially() async throws {
         let viewModel = try makePopulatedViewModel()
         await viewModel.load()
 
@@ -272,7 +272,7 @@ final class UICoverageGapTests: XCTestCase {
 
     // MARK: - §19 Error Banner Lifecycle
 
-    func testErrorBannerAppearsAndClears() async throws {
+    func testSmoke_ErrorBannerAppearsAndClears() async throws {
         let viewModel = try makePopulatedViewModel()
         await viewModel.load()
 

@@ -6,7 +6,7 @@ import XCTest
 final class TaskCalendarMapperTests: XCTestCase {
     private let mapper = TaskCalendarMapper()
 
-    func testEventFromTaskAddsStableIDMarkerWhenDetailsEmpty() throws {
+    func testSmoke_EventFromTaskAddsStableIDMarkerWhenDetailsEmpty() throws {
         let task = try Task(stableID: "stable-1", title: "Task", details: "", updatedAt: Date())
         let event = try mapper.event(from: task, calendarID: "cal", existing: nil)
 
@@ -34,7 +34,7 @@ final class TaskCalendarMapperTests: XCTestCase {
         XCTAssertEqual(markerCount, 2)
     }
 
-    func testTaskFromEventUsesSourceStableIDFirst() throws {
+    func testSmoke_TaskFromEventUsesSourceStableIDFirst() throws {
         let event = try CalendarEvent(
             calendarID: "cal",
             title: "E",
@@ -82,14 +82,14 @@ final class TaskCalendarMapperTests: XCTestCase {
         XCTAssertEqual(task.stableID, "existing")
     }
 
-    func testTaskFromEventCreatesGeneratedStableID() throws {
+    func testSmoke_TaskFromEventCreatesGeneratedStableID() throws {
         let event = try CalendarEvent(calendarID: "cal", title: "E", notes: nil, updatedAt: Date())
         let task = try mapper.task(from: event, existingTask: nil)
 
         XCTAssertFalse(task.stableID.isEmpty)
     }
 
-    func testTaskFromEventMarksCompletedState() throws {
+    func testSmoke_TaskFromEventMarksCompletedState() throws {
         let event = try CalendarEvent(
             calendarID: "cal",
             title: "E",
@@ -153,7 +153,7 @@ final class TaskCalendarMapperTests: XCTestCase {
         XCTAssertNil(TaskCalendarMapper.recurrenceExceptionDate(in: stripped))
     }
 
-    func testResolveWithoutBindingReturnsEventWins() throws {
+    func testSmoke_ResolveWithoutBindingReturnsEventWins() throws {
         let task = try makeTask(updatedAt: 100, stableID: "s", title: "task")
         let event = try makeEvent(updatedAt: 100, sourceStableID: "s", title: "event")
 
@@ -275,7 +275,7 @@ final class TaskCalendarMapperTests: XCTestCase {
         }
     }
 
-    func testResolvePolicyLastWriteWinsWhenEventNewer() throws {
+    func testSmoke_ResolvePolicyLastWriteWinsWhenEventNewer() throws {
         let task = try makeTask(updatedAt: 250, stableID: "s", title: "task")
         let event = try makeEvent(updatedAt: 260, sourceStableID: "s", title: "event")
         let binding = CalendarBinding(

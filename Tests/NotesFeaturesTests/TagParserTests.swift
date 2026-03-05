@@ -4,12 +4,12 @@ import XCTest
 final class TagParserTests: XCTestCase {
     private let parser = TagParser()
 
-    func testExtractsSingleTag() {
+    func testSmoke_ExtractsSingleTag() {
         let tags = parser.extractTags(from: "Hello #world")
         XCTAssertEqual(tags, ["world"])
     }
 
-    func testExtractsMultipleTags() {
+    func testSmoke_ExtractsMultipleTags() {
         let tags = parser.extractTags(from: "#first some text #second")
         XCTAssertEqual(tags, ["first", "second"])
     }
@@ -24,7 +24,7 @@ final class TagParserTests: XCTestCase {
         XCTAssertEqual(tags, ["hello"])
     }
 
-    func testIgnoresEmbeddedHash() {
+    func testSmoke_IgnoresEmbeddedHash() {
         let tags = parser.extractTags(from: "text#notag but #real")
         XCTAssertEqual(tags, ["real"])
     }
@@ -34,7 +34,7 @@ final class TagParserTests: XCTestCase {
         XCTAssertEqual(tags, ["project/sub-task"])
     }
 
-    func testEmptyBodyReturnsEmpty() {
+    func testSmoke_EmptyBodyReturnsEmpty() {
         let tags = parser.extractTags(from: "")
         XCTAssertTrue(tags.isEmpty)
     }

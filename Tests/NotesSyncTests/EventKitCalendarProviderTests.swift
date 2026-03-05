@@ -5,7 +5,7 @@
     @testable import NotesSync
 
     final class EventKitCalendarProviderTests: XCTestCase {
-        func testUpsertThrowsWhenAccessDenied() async throws {
+        func testSmoke_UpsertThrowsWhenAccessDenied() async throws {
             let client = FakeEventStoreClient()
             await client.setAuthorization(.other)
             await client.setAccessResult(.success(false))
@@ -41,7 +41,7 @@
             }
         }
 
-        func testUpsertExistingEventAddsRecurrenceMarkerAndPersists() async throws {
+        func testSmoke_UpsertExistingEventAddsRecurrenceMarkerAndPersists() async throws {
             let client = FakeEventStoreClient()
             await client.setAuthorization(.fullAccess)
             await client.addCalendar(id: "cal-1")
@@ -110,7 +110,7 @@
             XCTAssertEqual(interval, 86400, accuracy: 1)
         }
 
-        func testDeleteNoopWhenEventMissing() async throws {
+        func testSmoke_DeleteNoopWhenEventMissing() async throws {
             let client = FakeEventStoreClient()
             await client.setAuthorization(.fullAccess)
             await client.addCalendar(id: "cal-1")
@@ -147,7 +147,7 @@
             XCTAssertEqual(removed, [])
         }
 
-        func testFetchChangesDetectsUpsertsAndDeletions() async throws {
+        func testSmoke_FetchChangesDetectsUpsertsAndDeletions() async throws {
             let client = FakeEventStoreClient()
             await client.setAuthorization(.fullAccess)
             await client.addCalendar(id: "cal-1")

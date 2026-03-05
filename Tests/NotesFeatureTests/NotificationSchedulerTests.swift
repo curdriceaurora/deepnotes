@@ -34,14 +34,14 @@ final class NotificationSchedulerTests: XCTestCase {
         scheduler = MockNotificationScheduler()
     }
 
-    func testRequestAuthorizationReturnsTrue() async {
+    func testSmoke_RequestAuthorizationReturnsTrue() async {
         let result = await scheduler.requestAuthorization()
         XCTAssertTrue(result)
         let authed = await scheduler.authorizationRequested
         XCTAssertTrue(authed)
     }
 
-    func testScheduleReminderAppendsTaskID() async throws {
+    func testSmoke_ScheduleReminderAppendsTaskID() async throws {
         let task = try Task(
             noteID: nil,
             stableID: "test",
@@ -56,14 +56,14 @@ final class NotificationSchedulerTests: XCTestCase {
         XCTAssertTrue(scheduled.contains(task.id))
     }
 
-    func testCancelReminderAppendsTaskID() async {
+    func testSmoke_CancelReminderAppendsTaskID() async {
         let taskID = UUID()
         await scheduler.cancelReminder(for: taskID)
         let cancelled = await scheduler.cancelledTaskIDs
         XCTAssertTrue(cancelled.contains(taskID))
     }
 
-    func testCancelAllRemindersClears() async {
+    func testSmoke_CancelAllRemindersClears() async {
         let id1 = UUID()
         let id2 = UUID()
         await scheduler.cancelReminder(for: id1)

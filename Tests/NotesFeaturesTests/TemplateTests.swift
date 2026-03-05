@@ -17,7 +17,7 @@ final class TemplateTests: XCTestCase {
         super.tearDown()
     }
 
-    func testCRUDTemplates() async throws {
+    func testSmoke_CRUDTemplates() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
@@ -46,7 +46,7 @@ final class TemplateTests: XCTestCase {
         }
     }
 
-    func testCreateNoteUsesTemplateBody() async throws {
+    func testSmoke_CreateNoteUsesTemplateBody() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
