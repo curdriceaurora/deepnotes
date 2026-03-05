@@ -17,7 +17,7 @@ swift run notes-cli seed --db ./data/notes.sqlite  # Seed data
 
 # Test
 swift test                                     # Full suite
-swift test --filter testSmoke                  # Smoke subset (~164 tests, <10s)
+swift test --filter testSmoke                  # Smoke subset (~160 tests, <10s)
 ./Scripts/run-smoke-tests.sh                   # Smoke tests (script wrapper)
 swift test NotesUITests                        # Single target
 swift test --filter NotesUITests.AppViewModelTests.testDeleteNote  # Single test

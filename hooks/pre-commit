@@ -11,7 +11,6 @@ echo -n "$STAGED" | xargs -0 swiftformat --lint --config .swiftformat
 echo "==> SwiftLint (staged files)"
 echo -n "$STAGED" | xargs -0 swiftlint lint --strict --config .swiftlint.yml
 
-echo "==> Smoke tests (staged changes)"
-swift test --filter testSmoke 2>&1 | tail -3
+"$(git rev-parse --show-toplevel)"/Scripts/run-smoke-tests.sh
 
 echo "✓ Pre-commit checks passed"
