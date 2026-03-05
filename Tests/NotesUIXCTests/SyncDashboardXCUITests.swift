@@ -37,8 +37,7 @@ final class SyncDashboardXCUITests: XCTestCase {
     }
 
     func testSyncStatusTextExists() {
-        let status = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'syncStatusText'")).firstMatch
+        let status = element(in: app, identifier: "syncStatusText")
         XCTAssertTrue(status.waitForExistence(timeout: 5), "Sync status text should exist")
     }
 
@@ -47,11 +46,8 @@ final class SyncDashboardXCUITests: XCTestCase {
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
 
-        // Wait a moment and verify app is still responsive
-        Thread.sleep(forTimeInterval: 2)
-
-        // App should still be responsive — verify by checking the tab still exists
+        // Verify app remains responsive after sync
         let syncTab = app.radioButtons["Sync"]
-        XCTAssertTrue(syncTab.exists, "App should remain responsive after sync button tap")
+        XCTAssertTrue(syncTab.waitForExistence(timeout: 5), "App should remain responsive after sync button tap")
     }
 }

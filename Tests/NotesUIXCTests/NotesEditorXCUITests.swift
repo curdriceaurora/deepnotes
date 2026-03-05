@@ -13,17 +13,10 @@ final class NotesEditorXCUITests: XCTestCase {
         app = nil
     }
 
-    /// Select the first note so the editor panel is visible.
-    private func selectFirstNote() {
-        let firstRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'")).firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 5), "At least one note row should exist")
-        firstRow.tap()
-    }
-
-    // MARK: - Text entry (existing tests, expanded)
+    // MARK: - Text entry
 
     func testNoteBodyEditorAcceptsText() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let bodyEditor = app.textViews["noteBodyEditor"]
         XCTAssertTrue(bodyEditor.waitForExistence(timeout: 5), "Note body editor should appear after selecting a note")
@@ -37,7 +30,7 @@ final class NotesEditorXCUITests: XCTestCase {
     }
 
     func testNoteTitleFieldAcceptsText() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let titleField = app.textFields["noteTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Note title field should appear after selecting a note")
@@ -54,13 +47,13 @@ final class NotesEditorXCUITests: XCTestCase {
     // MARK: - Save button
 
     func testSaveButtonExists() {
-        selectFirstNote()
+        selectFirstNote(in: app)
         let saveButton = app.buttons["saveNoteButton"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5), "Save button should be visible after selecting a note")
     }
 
     func testSaveButtonTapDoesNotCrash() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let bodyEditor = app.textViews["noteBodyEditor"]
         XCTAssertTrue(bodyEditor.waitForExistence(timeout: 5))
@@ -71,23 +64,20 @@ final class NotesEditorXCUITests: XCTestCase {
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
         saveButton.tap()
 
-        // Verify no error banner appeared
-        let errorBanner = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'globalErrorBanner'")).firstMatch
-        XCTAssertFalse(errorBanner.exists, "No error banner should appear after save")
+        let errorBanner = element(in: app, identifier: "globalErrorBanner")
+        XCTAssertFalse(errorBanner.waitForExistence(timeout: 2), "No error banner should appear after save")
     }
 
     // MARK: - Preview toggle
 
     func testTogglePreviewShowsPreviewPane() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let toggleButton = app.buttons["togglePreviewButton"]
         XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
         toggleButton.tap()
 
-        let preview = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'noteBodyPreview'")).firstMatch
+        let preview = element(in: app, identifier: "noteBodyPreview")
         XCTAssertTrue(preview.waitForExistence(timeout: 5), "Preview pane should appear after toggle")
 
         let editor = app.textViews["noteBodyEditor"]
@@ -95,15 +85,14 @@ final class NotesEditorXCUITests: XCTestCase {
     }
 
     func testTogglePreviewBackToEditMode() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let toggleButton = app.buttons["togglePreviewButton"]
         XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
 
         // Toggle to preview
         toggleButton.tap()
-        let preview = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'noteBodyPreview'")).firstMatch
+        let preview = element(in: app, identifier: "noteBodyPreview")
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
 
         // Toggle back to edit
@@ -115,7 +104,7 @@ final class NotesEditorXCUITests: XCTestCase {
     // MARK: - Markdown toolbar
 
     func testMarkdownToolbarVisibleInEditMode() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         for id in ["insertHeadingButton", "insertBulletButton", "insertCheckboxButton"] {
             let button = app.buttons[id]
@@ -124,15 +113,13 @@ final class NotesEditorXCUITests: XCTestCase {
     }
 
     func testMarkdownToolbarHiddenInPreviewMode() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let toggleButton = app.buttons["togglePreviewButton"]
         XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
         toggleButton.tap()
 
-        // Wait for preview to appear
-        let preview = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'noteBodyPreview'")).firstMatch
+        let preview = element(in: app, identifier: "noteBodyPreview")
         XCTAssertTrue(preview.waitForExistence(timeout: 5))
 
         for id in ["insertHeadingButton", "insertBulletButton", "insertCheckboxButton"] {
@@ -142,52 +129,42 @@ final class NotesEditorXCUITests: XCTestCase {
     }
 
     func testInsertHeadingButtonAddsText() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let bodyEditor = app.textViews["noteBodyEditor"]
         XCTAssertTrue(bodyEditor.waitForExistence(timeout: 5))
         bodyEditor.tap()
-
-        // Clear existing text
         bodyEditor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 200))
 
-        let headingButton = app.buttons["insertHeadingButton"]
-        XCTAssertTrue(headingButton.waitForExistence(timeout: 5))
-        headingButton.tap()
+        app.buttons["insertHeadingButton"].tap()
 
         let value = bodyEditor.value as? String ?? ""
         XCTAssertTrue(value.contains("#"), "Body should contain '#' after heading insert, got: '\(value)'")
     }
 
     func testInsertBulletButtonAddsText() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let bodyEditor = app.textViews["noteBodyEditor"]
         XCTAssertTrue(bodyEditor.waitForExistence(timeout: 5))
         bodyEditor.tap()
-
         bodyEditor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 200))
 
-        let bulletButton = app.buttons["insertBulletButton"]
-        XCTAssertTrue(bulletButton.waitForExistence(timeout: 5))
-        bulletButton.tap()
+        app.buttons["insertBulletButton"].tap()
 
         let value = bodyEditor.value as? String ?? ""
         XCTAssertTrue(value.contains("- "), "Body should contain '- ' after bullet insert, got: '\(value)'")
     }
 
     func testInsertCheckboxButtonAddsText() {
-        selectFirstNote()
+        selectFirstNote(in: app)
 
         let bodyEditor = app.textViews["noteBodyEditor"]
         XCTAssertTrue(bodyEditor.waitForExistence(timeout: 5))
         bodyEditor.tap()
-
         bodyEditor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 200))
 
-        let checkboxButton = app.buttons["insertCheckboxButton"]
-        XCTAssertTrue(checkboxButton.waitForExistence(timeout: 5))
-        checkboxButton.tap()
+        app.buttons["insertCheckboxButton"].tap()
 
         let value = bodyEditor.value as? String ?? ""
         XCTAssertTrue(value.contains("- [ ]"), "Body should contain '- [ ]' after checkbox insert, got: '\(value)'")
@@ -203,15 +180,16 @@ final class NotesEditorXCUITests: XCTestCase {
     func testNewNoteButtonCreatesNote() {
         let newNoteButton = app.buttons["newNoteButton"]
         XCTAssertTrue(newNoteButton.waitForExistence(timeout: 5))
+
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"))
+        let initialCount = rows.allElementsBoundByAccessibilityElement.count
+
         newNoteButton.tap()
 
         // Should show template picker sheet or create a new note row
         let templatePicker = app.staticTexts["New Note"]
-        let newRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"))
-        let initialCount = newRow.allElementsBoundByAccessibilityElement.count
-
-        // Either a sheet appeared or a new row was added
-        let appeared = templatePicker.waitForExistence(timeout: 5) || newRow.allElementsBoundByAccessibilityElement.count > initialCount
+        let appeared = templatePicker.waitForExistence(timeout: 5)
+            || rows.allElementsBoundByAccessibilityElement.count > initialCount
         XCTAssertTrue(appeared, "Template picker or new note should appear after tapping new note button")
     }
 
@@ -221,22 +199,15 @@ final class NotesEditorXCUITests: XCTestCase {
     }
 
     func testDailyNoteButtonCreatesOrNavigates() {
-        let initialCount = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"))
-            .allElementsBoundByAccessibilityElement.count
-
         let dailyButton = app.buttons["dailyNoteButton"]
         XCTAssertTrue(dailyButton.waitForExistence(timeout: 5))
         dailyButton.tap()
 
-        // Wait for either a new note or navigation
+        // Wait for a note to be selected (title field populated)
         let titleField = app.textFields["noteTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Title field should appear after daily note action")
 
-        // The title should contain a date-like string or a new row was added
         let titleValue = titleField.value as? String ?? ""
-        let newCount = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"))
-            .allElementsBoundByAccessibilityElement.count
-        let dateCreatedOrNavigated = newCount > initialCount || !titleValue.isEmpty
-        XCTAssertTrue(dateCreatedOrNavigated, "Daily note should create a new note or navigate to existing")
+        XCTAssertFalse(titleValue.isEmpty, "Daily note should have a non-empty title")
     }
 }

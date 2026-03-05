@@ -29,7 +29,17 @@ extension XCTestCase {
         matchingRow?.tap()
     }
 
+    /// Select the first note in the sidebar.
+    func selectFirstNote(in app: XCUIApplication) {
+        let firstRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"),
+        ).firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 5), "At least one note row should exist")
+        firstRow.tap()
+    }
+
     /// Navigate to the Board tab and open the first kanban card's detail sheet.
+    @discardableResult
     func openFirstKanbanCard(in app: XCUIApplication) -> XCUIElement {
         navigateToTab(app, "Board")
 
@@ -44,10 +54,50 @@ extension XCTestCase {
         return detailSheet
     }
 
-    /// Count elements matching a predicate-based identifier prefix.
-    func elementCount(_ app: XCUIApplication, matching type: XCUIElement.ElementType = .any, prefix: String) -> Int {
+    /// Find a single element by exact accessibility identifier.
+    func element(
+        in app: XCUIApplication,
+        identifier: String,
+        type: XCUIElement.ElementType = .any,
+    ) -> XCUIElement {
+        app.descendants(matching: type)
+            .matching(NSPredicate(format: "identifier == %@", identifier)).firstMatch
+    }
+
+    /// Query elements matching an accessibility identifier prefix.
+    func elements(
+        in app: XCUIApplication,
+        prefix: String,
+        type: XCUIElement.ElementType = .any,
+    ) -> XCUIElementQuery {
         app.descendants(matching: type)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
-            .allElementsBoundByAccessibilityElement.count
+    }
+
+    /// Wait for an element to disappear, returning the waiter result.
+    @discardableResult
+    func waitForDisappearance(
+        of element: XCUIElement,
+        timeout: TimeInterval = 5,
+    ) -> XCTWaiter.Result {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element,
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
+    }
+
+    /// Wait for an arbitrary predicate to become true on an object.
+    @discardableResult
+    func waitForPredicate(
+        _ format: String,
+        object: Any,
+        timeout: TimeInterval = 5,
+    ) -> XCTWaiter.Result {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: format),
+            object: object,
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout)
     }
 }

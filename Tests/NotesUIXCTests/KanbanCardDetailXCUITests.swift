@@ -16,7 +16,7 @@ final class KanbanCardDetailXCUITests: XCTestCase {
     // MARK: - Text entry (migrated from KanbanCardXCUITests)
 
     func testKanbanCardDetailAcceptsTitle() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let titleField = app.textFields["cardDetailTitle"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Card detail title field should exist")
@@ -31,7 +31,7 @@ final class KanbanCardDetailXCUITests: XCTestCase {
     }
 
     func testKanbanCardDetailAcceptsDetails() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let detailsEditor = app.textViews["cardDetailDetails"]
         XCTAssertTrue(detailsEditor.waitForExistence(timeout: 5), "Card detail body editor should exist")
@@ -49,118 +49,94 @@ final class KanbanCardDetailXCUITests: XCTestCase {
     func testCardDetailSheetOpensOnCardTap() {
         navigateToTab(app, "Board")
 
-        let firstCard = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'kanbanCard_'")).firstMatch
+        let firstCard = elements(in: app, prefix: "kanbanCard_").firstMatch
         XCTAssertTrue(firstCard.waitForExistence(timeout: 5))
         firstCard.tap()
 
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanCardDetailSheet'")).firstMatch
+        let sheet = element(in: app, identifier: "kanbanCardDetailSheet")
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Card detail sheet should open on card tap")
     }
 
     func testCardDetailCancelDismissesSheet() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let cancelButton = app.buttons["cardDetailCancel"]
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
         cancelButton.tap()
 
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanCardDetailSheet'")).firstMatch
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: sheet,
-        )
-        XCTWaiter.wait(for: [dismissed], timeout: 5)
-        XCTAssertFalse(sheet.exists, "Sheet should dismiss after cancel")
+        let sheet = element(in: app, identifier: "kanbanCardDetailSheet")
+        let result = waitForDisappearance(of: sheet)
+        XCTAssertEqual(result, .completed, "Sheet should dismiss after cancel")
     }
 
     func testCardDetailSaveDismissesSheet() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let saveButton = app.buttons["cardDetailSave"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 5))
         saveButton.tap()
 
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanCardDetailSheet'")).firstMatch
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: sheet,
-        )
-        XCTWaiter.wait(for: [dismissed], timeout: 5)
-        XCTAssertFalse(sheet.exists, "Sheet should dismiss after save")
+        let sheet = element(in: app, identifier: "kanbanCardDetailSheet")
+        let result = waitForDisappearance(of: sheet)
+        XCTAssertEqual(result, .completed, "Sheet should dismiss after save")
     }
 
     // MARK: - Form fields
 
     func testCardDetailStatusPickerExists() {
-        _ = openFirstKanbanCard(in: app)
-
-        let statusPicker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailStatus'")).firstMatch
+        openFirstKanbanCard(in: app)
+        let statusPicker = element(in: app, identifier: "cardDetailStatus")
         XCTAssertTrue(statusPicker.waitForExistence(timeout: 5), "Status picker should exist in card detail")
     }
 
     func testCardDetailPriorityPickerExists() {
-        _ = openFirstKanbanCard(in: app)
-
-        let priorityPicker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailPriority'")).firstMatch
+        openFirstKanbanCard(in: app)
+        let priorityPicker = element(in: app, identifier: "cardDetailPriority")
         XCTAssertTrue(priorityPicker.waitForExistence(timeout: 5), "Priority picker should exist in card detail")
     }
 
     func testCardDetailDueStartToggle() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let toggle = app.switches["cardDetailDueStartToggle"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5), "Due start toggle should exist")
         toggle.tap()
 
-        let datePicker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailDueStart'")).firstMatch
+        let datePicker = element(in: app, identifier: "cardDetailDueStart")
         XCTAssertTrue(datePicker.waitForExistence(timeout: 5), "Due start date picker should appear after toggle")
     }
 
     func testCardDetailDueEndToggle() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let toggle = app.switches["cardDetailDueEndToggle"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5), "Due end toggle should exist")
         toggle.tap()
 
-        let datePicker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailDueEnd'")).firstMatch
+        let datePicker = element(in: app, identifier: "cardDetailDueEnd")
         XCTAssertTrue(datePicker.waitForExistence(timeout: 5), "Due end date picker should appear after toggle")
     }
 
     func testCardDetailLinkedNotePickerExists() {
-        _ = openFirstKanbanCard(in: app)
-
-        let picker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailLinkedNote'")).firstMatch
+        openFirstKanbanCard(in: app)
+        let picker = element(in: app, identifier: "cardDetailLinkedNote")
         XCTAssertTrue(picker.waitForExistence(timeout: 5), "Linked note picker should exist")
     }
 
     func testCardDetailLabelsSection() {
-        _ = openFirstKanbanCard(in: app)
-
-        let labels = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailLabels'")).firstMatch
+        openFirstKanbanCard(in: app)
+        let labels = element(in: app, identifier: "cardDetailLabels")
         XCTAssertTrue(labels.waitForExistence(timeout: 5), "Labels section should exist")
     }
 
     func testCardDetailSubtasksSection() {
-        _ = openFirstKanbanCard(in: app)
-
-        let subtasks = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'cardDetailSubtasks'")).firstMatch
+        openFirstKanbanCard(in: app)
+        let subtasks = element(in: app, identifier: "cardDetailSubtasks")
         XCTAssertTrue(subtasks.waitForExistence(timeout: 5), "Subtasks section should exist")
     }
 
     func testCardDetailSavePersistsTitle() {
-        _ = openFirstKanbanCard(in: app)
+        openFirstKanbanCard(in: app)
 
         let titleField = app.textFields["cardDetailTitle"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5))
@@ -175,17 +151,11 @@ final class KanbanCardDetailXCUITests: XCTestCase {
         saveButton.tap()
 
         // Wait for sheet to dismiss
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanCardDetailSheet'")).firstMatch
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: sheet,
-        )
-        XCTWaiter.wait(for: [dismissed], timeout: 5)
+        let sheet = element(in: app, identifier: "kanbanCardDetailSheet")
+        waitForDisappearance(of: sheet)
 
-        // Reopen the same card — find it by the new title text
-        let updatedCard = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'kanbanCard_'"))
+        // Reopen the card by finding the one with the updated title
+        let updatedCard = elements(in: app, prefix: "kanbanCard_")
             .allElementsBoundByAccessibilityElement.first { card in
                 card.staticTexts[uniqueTitle].exists
             }

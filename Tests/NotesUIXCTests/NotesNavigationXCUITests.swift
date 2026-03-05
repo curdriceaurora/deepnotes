@@ -34,20 +34,17 @@ final class NotesNavigationXCUITests: XCTestCase {
     func testSwitchToTasksTab() {
         navigateToTab(app, "Tasks")
 
-        let picker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'taskFilterPicker'")).firstMatch
+        let picker = element(in: app, identifier: "taskFilterPicker")
         XCTAssertTrue(picker.waitForExistence(timeout: 5), "Task filter picker should appear on Tasks tab")
 
-        let list = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'tasksList'")).firstMatch
+        let list = element(in: app, identifier: "tasksList")
         XCTAssertTrue(list.exists, "Tasks list should appear on Tasks tab")
     }
 
     func testSwitchToBoardTab() {
         navigateToTab(app, "Board")
 
-        let column = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'kanbanColumn_'")).firstMatch
+        let column = elements(in: app, prefix: "kanbanColumn_").firstMatch
         XCTAssertTrue(column.waitForExistence(timeout: 5), "At least one kanban column should appear on Board tab")
     }
 
@@ -72,15 +69,12 @@ final class NotesNavigationXCUITests: XCTestCase {
 
     func testNoteListShowsThreeSeededNotes() {
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'"))
-        // Wait for the first row to appear, then count
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "At least one note row should exist")
         XCTAssertEqual(rows.allElementsBoundByAccessibilityElement.count, 3, "Should have 3 seeded notes")
     }
 
     func testSelectNoteShowsEditor() {
-        let firstRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'")).firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
-        firstRow.tap()
+        selectFirstNote(in: app)
 
         let titleField = app.textFields["noteTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Note title field should appear after selecting a note")
@@ -105,12 +99,7 @@ final class NotesNavigationXCUITests: XCTestCase {
         let firstTitle = titleField.value as? String ?? ""
 
         allRows[1].tap()
-        // Small delay for UI to update
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value != %@", firstTitle),
-            object: titleField,
-        )
-        let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+        let result = waitForPredicate("value != %@", object: titleField)
         XCTAssertEqual(result, .completed, "Title should change when selecting a different note")
     }
 

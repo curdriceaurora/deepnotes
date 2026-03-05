@@ -20,8 +20,7 @@ final class KanbanColumnEditorXCUITests: XCTestCase {
         XCTAssertTrue(addButton.waitForExistence(timeout: 5))
         addButton.tap()
 
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanColumnEditorSheet'")).firstMatch
+        let sheet = element(in: app, identifier: "kanbanColumnEditorSheet")
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Column editor sheet should appear")
     }
 
@@ -29,9 +28,8 @@ final class KanbanColumnEditorXCUITests: XCTestCase {
 
     func testColumnEditorSheetAppears() {
         openColumnEditor()
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanColumnEditorSheet'")).firstMatch
-        XCTAssertTrue(sheet.exists, "Column editor sheet should be visible")
+        let titleField = app.textFields["columnEditorTitle"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Column editor should contain a title field")
     }
 
     func testColumnEditorTitleFieldExists() {
@@ -48,9 +46,8 @@ final class KanbanColumnEditorXCUITests: XCTestCase {
     }
 
     func testColumnEditorSaveCreatesColumn() {
-        let columnsBefore = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'kanbanColumn_'"))
-            .allElementsBoundByAccessibilityElement.count
+        let columnsBefore = elements(in: app, prefix: "kanbanColumn_")
+        let beforeCount = columnsBefore.allElementsBoundByAccessibilityElement.count
 
         openColumnEditor()
 
@@ -63,13 +60,10 @@ final class KanbanColumnEditorXCUITests: XCTestCase {
         XCTAssertTrue(saveButton.isEnabled, "Save should be enabled after entering a title")
         saveButton.tap()
 
-        // Wait for sheet to dismiss and column to appear
-        Thread.sleep(forTimeInterval: 1)
-
-        let columnsAfter = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'kanbanColumn_'"))
-            .allElementsBoundByAccessibilityElement.count
-        XCTAssertGreaterThan(columnsAfter, columnsBefore, "A new column should appear after saving")
+        // Wait for new column to appear
+        let columnsAfter = elements(in: app, prefix: "kanbanColumn_")
+        let result = waitForPredicate("count > \(beforeCount)", object: columnsAfter)
+        XCTAssertEqual(result, .completed, "A new column should appear after saving")
     }
 
     func testColumnEditorCancelDismisses() {
@@ -79,13 +73,8 @@ final class KanbanColumnEditorXCUITests: XCTestCase {
         XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
         cancelButton.tap()
 
-        let sheet = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'kanbanColumnEditorSheet'")).firstMatch
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: sheet,
-        )
-        let result = XCTWaiter.wait(for: [dismissed], timeout: 5)
+        let sheet = element(in: app, identifier: "kanbanColumnEditorSheet")
+        let result = waitForDisappearance(of: sheet)
         XCTAssertEqual(result, .completed, "Column editor sheet should dismiss after cancel")
     }
 }

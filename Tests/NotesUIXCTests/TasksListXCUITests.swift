@@ -17,50 +17,44 @@ final class TasksListXCUITests: XCTestCase {
     // MARK: - Task list basics
 
     func testTasksTabShowsSeededTasks() {
-        let list = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'tasksList'")).firstMatch
+        let list = element(in: app, identifier: "tasksList")
         XCTAssertTrue(list.waitForExistence(timeout: 5), "Tasks list should appear")
 
-        let rows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
+        let rows = elements(in: app, prefix: "taskRow_")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5), "Task rows should exist")
         XCTAssertEqual(rows.allElementsBoundByAccessibilityElement.count, 3, "Should have 3 seeded tasks")
     }
 
     func testTaskFilterPickerExists() {
-        let picker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'taskFilterPicker'")).firstMatch
+        let picker = element(in: app, identifier: "taskFilterPicker")
         XCTAssertTrue(picker.waitForExistence(timeout: 5), "Task filter picker should exist")
     }
 
     func testTaskFilterAllShowsAllTasks() {
-        // "All" is the default filter — verify all 3 tasks show
-        let rows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
+        let rows = elements(in: app, prefix: "taskRow_")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(rows.allElementsBoundByAccessibilityElement.count, 3, "All filter should show 3 tasks")
     }
 
     func testTaskFilterCompletedShowsEmpty() {
-        // Tap the "Completed" segment
+        // Tap the "Completed" segment in the filter picker
         let completedButton = app.buttons["Completed"]
+        let completedText = app.staticTexts["Completed"]
+        let tapped: Bool
         if completedButton.waitForExistence(timeout: 3) {
             completedButton.tap()
+            tapped = true
+        } else if completedText.waitForExistence(timeout: 3) {
+            completedText.tap()
+            tapped = true
         } else {
-            // Try as static text in segmented control
-            let completedText = app.staticTexts["Completed"]
-            if completedText.waitForExistence(timeout: 3) {
-                completedText.tap()
-            }
+            tapped = false
         }
+        XCTAssertTrue(tapped, "Should find 'Completed' filter segment to tap")
 
-        // Wait a moment for filter to apply
-        Thread.sleep(forTimeInterval: 1)
-
-        let rows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
-        let count = rows.allElementsBoundByAccessibilityElement.count
-        XCTAssertEqual(count, 0, "Completed filter should show 0 tasks (none are completed), got: \(count)")
+        let rows = elements(in: app, prefix: "taskRow_")
+        let result = waitForPredicate("count == 0", object: rows)
+        XCTAssertEqual(result, .completed, "Completed filter should show 0 tasks (none are completed)")
     }
 
     // MARK: - Sort & multi-select
@@ -80,8 +74,7 @@ final class TasksListXCUITests: XCTestCase {
         XCTAssertTrue(toggleButton.waitForExistence(timeout: 5))
         toggleButton.tap()
 
-        let bulkMenu = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'bulkMoveMenu'")).firstMatch
+        let bulkMenu = element(in: app, identifier: "bulkMoveMenu")
         XCTAssertTrue(bulkMenu.waitForExistence(timeout: 5), "Bulk move menu should appear in multi-select mode")
     }
 
@@ -91,50 +84,40 @@ final class TasksListXCUITests: XCTestCase {
 
         // Toggle on
         toggleButton.tap()
-        let bulkMenu = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'bulkMoveMenu'")).firstMatch
+        let bulkMenu = element(in: app, identifier: "bulkMoveMenu")
         XCTAssertTrue(bulkMenu.waitForExistence(timeout: 5))
 
         // Toggle off
         toggleButton.tap()
-        Thread.sleep(forTimeInterval: 0.5)
-        XCTAssertFalse(bulkMenu.exists, "Bulk move menu should disappear after toggling off multi-select")
+        let result = waitForDisappearance(of: bulkMenu)
+        XCTAssertEqual(result, .completed, "Bulk move menu should disappear after toggling off multi-select")
     }
 
     // MARK: - Task interactions
 
     func testTaskCompletionToggle() {
-        let firstRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'")).firstMatch
+        let firstRow = elements(in: app, prefix: "taskRow_").firstMatch
         XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
 
-        // Find the completion circle button (first button inside the task row)
         let circleButton = firstRow.buttons.firstMatch
         XCTAssertTrue(circleButton.exists, "Completion toggle button should exist on task row")
         circleButton.tap()
 
-        // The task should still exist (toggling completion doesn't remove it from All view)
         XCTAssertTrue(firstRow.waitForExistence(timeout: 5), "Task row should remain visible after completion toggle")
     }
 
     func testTaskDeletionRemovesRow() {
-        let rows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
+        let rows = elements(in: app, prefix: "taskRow_")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         let initialCount = rows.allElementsBoundByAccessibilityElement.count
 
-        // Find and tap a delete button
-        let deleteButton = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'deleteTask_'")).firstMatch
+        let deleteButton = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'deleteTask_'"),
+        ).firstMatch
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 5), "Delete button should exist")
         deleteButton.tap()
 
-        // Wait for row count to change
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "count < %d", initialCount),
-            object: app.descendants(matching: .any)
-                .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'")),
-        )
-        let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+        let result = waitForPredicate("count < \(initialCount)", object: rows)
         XCTAssertEqual(result, .completed, "Task count should decrease after deletion")
     }
 }

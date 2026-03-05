@@ -27,16 +27,13 @@ final class QuickOpenXCUITests: XCTestCase {
 
     func testQuickOpenButtonOpensSheet() {
         openQuickOpen()
-        let searchField = app.textFields["quickOpenSearchField"]
-        XCTAssertTrue(searchField.exists, "Quick Open search field should be visible")
+        // The helper already asserts the search field exists; verify the results list too
+        let resultsList = element(in: app, identifier: "quickOpenResultsList")
+        XCTAssertTrue(resultsList.waitForExistence(timeout: 5), "Quick Open results list should be visible")
     }
 
     func testQuickOpenShowsAllNotes() {
         openQuickOpen()
-
-        let resultsList = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'quickOpenResultsList'")).firstMatch
-        XCTAssertTrue(resultsList.waitForExistence(timeout: 5), "Quick Open results list should exist")
 
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'quickOpenRow_'"))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
@@ -50,13 +47,13 @@ final class QuickOpenXCUITests: XCTestCase {
         searchField.tap()
         searchField.typeText("Vendor")
 
-        // Wait for filtering
-        Thread.sleep(forTimeInterval: 1)
-
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'quickOpenRow_'"))
-        let count = rows.allElementsBoundByAccessibilityElement.count
-        XCTAssertLessThan(count, 3, "Filtering should reduce results, got: \(count)")
-        XCTAssertGreaterThan(count, 0, "Should still have at least one matching result")
+        let result = waitForPredicate("count < 3", object: rows)
+        XCTAssertEqual(result, .completed, "Filtering should reduce results")
+        XCTAssertGreaterThan(
+            rows.allElementsBoundByAccessibilityElement.count, 0,
+            "Should still have at least one matching result",
+        )
     }
 
     func testQuickOpenSelectNavigatesToNote() {
@@ -68,11 +65,7 @@ final class QuickOpenXCUITests: XCTestCase {
 
         // Sheet should dismiss
         let searchField = app.textFields["quickOpenSearchField"]
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: searchField,
-        )
-        XCTWaiter.wait(for: [dismissed], timeout: 5)
+        waitForDisappearance(of: searchField)
 
         // Note title field should be populated
         let titleField = app.textFields["noteTitleField"]
@@ -87,11 +80,7 @@ final class QuickOpenXCUITests: XCTestCase {
         closeButton.tap()
 
         let searchField = app.textFields["quickOpenSearchField"]
-        let dismissed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: searchField,
-        )
-        let result = XCTWaiter.wait(for: [dismissed], timeout: 5)
+        let result = waitForDisappearance(of: searchField)
         XCTAssertEqual(result, .completed, "Quick Open sheet should dismiss after close button tap")
     }
 }

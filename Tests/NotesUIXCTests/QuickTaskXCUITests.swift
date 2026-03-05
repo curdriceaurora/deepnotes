@@ -7,9 +7,7 @@ final class QuickTaskXCUITests: XCTestCase {
         continueAfterFailure = false
         app = launchApp()
         // Select a note so the quick task bar is visible
-        let firstRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'")).firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
-        firstRow.tap()
+        selectFirstNote(in: app)
     }
 
     override func tearDownWithError() throws {
@@ -30,8 +28,7 @@ final class QuickTaskXCUITests: XCTestCase {
     }
 
     func testQuickTaskPriorityPickerExists() {
-        let picker = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == 'quickTaskPriorityPicker'")).firstMatch
+        let picker = element(in: app, identifier: "quickTaskPriorityPicker")
         XCTAssertTrue(picker.waitForExistence(timeout: 5), "Quick task priority picker should be visible")
     }
 
@@ -48,48 +45,35 @@ final class QuickTaskXCUITests: XCTestCase {
         button.tap()
 
         // Field should clear after creation
-        let cleared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == '' OR value == nil OR value == 'Quick task…'"),
+        let result = waitForPredicate(
+            "value == '' OR value == nil OR value == 'Quick task…'",
             object: field,
         )
-        let result = XCTWaiter.wait(for: [cleared], timeout: 5)
         XCTAssertEqual(result, .completed, "Quick task field should clear after task creation")
     }
 
     func testQuickTaskAppearsInTasksTab() {
         // Get initial task count on Tasks tab
         navigateToTab(app, "Tasks")
-        let rows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
+        let rows = elements(in: app, prefix: "taskRow_")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 5))
         let initialCount = rows.allElementsBoundByAccessibilityElement.count
 
         // Switch back to Notes and create a quick task
         navigateToTab(app, "Notes")
-        let firstRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'noteRow_'")).firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
-        firstRow.tap()
+        selectFirstNote(in: app)
 
         let field = app.textFields["quickTaskField"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText("New Quick Task XCUI")
 
-        let button = app.buttons["quickTaskButton"]
-        button.tap()
-
-        // Wait for task creation
-        Thread.sleep(forTimeInterval: 1)
+        app.buttons["quickTaskButton"].tap()
 
         // Switch to Tasks tab and verify count increased
         navigateToTab(app, "Tasks")
-        let updatedRows = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'taskRow_'"))
-        let increased = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "count > %d", initialCount),
-            object: updatedRows,
-        )
-        let result = XCTWaiter.wait(for: [increased], timeout: 5)
+        let updatedRows = elements(in: app, prefix: "taskRow_")
+        let result = waitForPredicate("count > \(initialCount)", object: updatedRows)
         XCTAssertEqual(result, .completed, "Task count should increase after creating a quick task")
     }
 }
