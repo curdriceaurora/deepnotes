@@ -73,4 +73,59 @@ final class ThemeTests: XCTestCase {
         let view = Text("Column").dnColumn(isDropTarget: true)
         XCTAssertNotNil(view, "dnColumn modifier should apply when targeted")
     }
+
+    // MARK: - DNGlassCardModifier
+
+    func testDNGlassCardModifierDefaultProperties() {
+        let modifier = DNGlassCardModifier()
+        XCTAssertEqual(modifier.cornerRadius, 10, "Default corner radius should be 10")
+        XCTAssertFalse(modifier.isDropTarget, "Default drop target should be false")
+    }
+
+    func testDNGlassCardModifierAppliesWithDefaults() {
+        let view = Text("Test").dnGlassCard()
+        XCTAssertNotNil(view, "dnGlassCard modifier should apply with defaults")
+    }
+
+    func testDNGlassCardModifierKanbanCardParams() {
+        // Matches kanban card call site: .dnGlassCard(cornerRadius: 8, isDropTarget: ...)
+        let modifier = DNGlassCardModifier(cornerRadius: 8, isDropTarget: true)
+        XCTAssertEqual(modifier.cornerRadius, 8)
+        XCTAssertTrue(modifier.isDropTarget)
+
+        let view = Text("Card").dnGlassCard(cornerRadius: 8, isDropTarget: true)
+        XCTAssertNotNil(view)
+    }
+
+    func testDNGlassCardModifierDropTargetFalse() {
+        let view = Text("Card").dnGlassCard(cornerRadius: 8, isDropTarget: false)
+        XCTAssertNotNil(view, "dnGlassCard should apply when not drop targeted")
+    }
+
+    // MARK: - DNGlassOverlayModifier
+
+    func testDNGlassOverlayModifierErrorBannerParams() {
+        // Matches error banner: .dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
+        let view = Text("Error").dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with red-tinted capsule")
+    }
+
+    func testDNGlassOverlayModifierGraphFABParams() {
+        // Matches graph FAB: .dnGlassOverlay(glass: .regular.tint(.accentColor), shape: Circle())
+        let view = Image(systemName: "play.fill")
+            .frame(width: 44, height: 44)
+            .dnGlassOverlay(glass: .regular.tint(.accentColor), shape: Circle())
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with accent-tinted circle")
+    }
+
+    func testDNGlassOverlayModifierDefaultGlass() {
+        // Default glass parameter (.regular)
+        let view = Text("Test").dnGlassOverlay(shape: RoundedRectangle(cornerRadius: 8))
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with default glass and rounded rect")
+    }
+
+    func testDNGlassOverlayModifierClearVariant() {
+        let view = Text("Test").dnGlassOverlay(glass: .clear, shape: Capsule())
+        XCTAssertNotNil(view, "dnGlassOverlay should accept .clear glass variant")
+    }
 }

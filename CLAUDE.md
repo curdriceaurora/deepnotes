@@ -92,7 +92,7 @@ For PR reviews, use GitHub API directly (not `gh pr view` summaries):
 
 - **Swift tools version**: 6.0 (see `Package.swift`) | **Platforms**: macOS 26.0, iOS 26.0
 - **Dependencies**: `swift-markdown` (parsing), `ViewInspector` (UI testing)
-- **CI**: `.github/workflows/coverage-gates.yml` runs lint/coverage gates (jobs use `continue-on-error: true` — reports status but does not block merge). Performance gates are local-only (`./Scripts/run-perf-gates.sh`).
+- **CI**: `.github/workflows/coverage-gates.yml` is advisory-only (all jobs use `continue-on-error: true` — reports status but does not block merge). CI runners may lag behind the local SDK/toolchain. **Local checks are the authoritative quality gates** — always run `run-lint.sh`, `run-coverage-gates.sh`, and `run-perf-gates.sh` locally before committing.
 
 ## Documentation Index
 
@@ -110,6 +110,7 @@ Load detailed docs as needed:
 | Performance & debugging | `Docs/debugging.md` |
 | Linting config | `Docs/LINTING.md` |
 | Accessibility testing | `Docs/ACCESSIBILITY_TESTING.md` |
+| Liquid Glass discovery | `Docs/liquid-glass-discovery.md` |
 | Historical decisions | `memory/decisions.md` |
 | Known pitfalls | `memory/gotchas.md` |
 | Release process | `Docs/ReleaseRunbook.md` |

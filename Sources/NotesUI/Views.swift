@@ -43,8 +43,7 @@ public struct NotesRootView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(.red.gradient, in: Capsule())
-                    .shadow(color: .red.opacity(0.3), radius: 8, y: 4)
+                    .dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
                     .padding(.bottom, 16)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("globalErrorBanner")
@@ -216,7 +215,7 @@ public struct NotesEditorView: View {
                     .accessibilityHint("Search notes by title or content")
             }
             .padding(8)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
 
@@ -712,7 +711,7 @@ public struct TasksListView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(.quaternary)
+                .background(.ultraThinMaterial)
             }
         }
         .toolbar {
@@ -1102,11 +1101,7 @@ public struct KanbanBoardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { viewModel.openTaskDetail(taskID: task.id) }
-        .dnCard(cornerRadius: 8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isDropTarget ? Color.accentColor : Color.clear, lineWidth: 2),
-        )
+        .dnGlassCard(cornerRadius: 8, isDropTarget: isDropTarget)
         .animation(.spring(duration: 0.2), value: isDropTarget)
         .dropDestination(for: String.self) { payloads, _ in
             if let dropStatus = column.builtInStatus {
@@ -1886,9 +1881,8 @@ public struct GraphView: View {
                                     Image(systemName: isSimulating ? "pause.fill" : "play.fill")
                                         .font(.body)
                                         .frame(width: 44, height: 44)
-                                        .background(Color.accentColor)
                                         .foregroundStyle(.white)
-                                        .clipShape(Circle())
+                                        .dnGlassOverlay(glass: .regular.tint(.accentColor), shape: Circle())
                                 }
                                 .buttonStyle(.plain)
                                 .padding(16)

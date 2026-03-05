@@ -41,6 +41,39 @@ extension View {
     func dnColumn(isDropTarget: Bool = false) -> some View {
         modifier(DNColumnModifier(isDropTarget: isDropTarget))
     }
+
+    func dnGlassCard(cornerRadius: CGFloat = 10, isDropTarget: Bool = false) -> some View {
+        modifier(DNGlassCardModifier(cornerRadius: cornerRadius, isDropTarget: isDropTarget))
+    }
+
+    func dnGlassOverlay(glass: Glass = .regular, shape: some Shape) -> some View {
+        modifier(DNGlassOverlayModifier(glass: glass, shape: shape))
+    }
+}
+
+// MARK: - Glass Modifiers
+
+struct DNGlassCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = 10
+    var isDropTarget: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(isDropTarget ? Color.accentColor : .clear, lineWidth: 2),
+            )
+    }
+}
+
+struct DNGlassOverlayModifier<S: Shape>: ViewModifier {
+    var glass: Glass = .regular
+    var shape: S
+
+    func body(content: Content) -> some View {
+        content.glassEffect(glass, in: shape)
+    }
 }
 
 // MARK: - Due Date Styling
