@@ -73,4 +73,28 @@ final class ThemeTests: XCTestCase {
         let view = Text("Column").dnColumn(isDropTarget: true)
         XCTAssertNotNil(view, "dnColumn modifier should apply when targeted")
     }
+
+    // MARK: - DNGlassCardModifier
+
+    func testDNGlassCardModifierDefault() {
+        let view = Text("Test").dnGlassCard()
+        XCTAssertNotNil(view, "dnGlassCard modifier should apply with defaults")
+    }
+
+    func testDNGlassCardModifierWithDropTarget() {
+        let view = Text("Test").dnGlassCard(cornerRadius: 8, isDropTarget: true)
+        XCTAssertNotNil(view, "dnGlassCard modifier should apply when drop targeted")
+    }
+
+    // MARK: - DNGlassOverlayModifier
+
+    func testDNGlassOverlayModifierCapsule() {
+        let view = Text("Error").dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with capsule shape")
+    }
+
+    func testDNGlassOverlayModifierCircle() {
+        let view = Text("FAB").dnGlassOverlay(shape: Circle())
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with circle shape")
+    }
 }
