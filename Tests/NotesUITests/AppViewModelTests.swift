@@ -125,9 +125,8 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedNoteTitle, "Alpha")
 
         await viewModel.setNoteSearchQuery("beta")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil { viewModel.notes.count == 1 }
         XCTAssertEqual(viewModel.noteSearchQuery, "beta")
-        XCTAssertEqual(viewModel.notes.count, 1)
         XCTAssertEqual(viewModel.notes.first?.title, "Beta")
         XCTAssertNil(viewModel.selectedNoteID)
         XCTAssertEqual(viewModel.selectedNoteTitle, "")
@@ -139,13 +138,11 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("alpha")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
-        XCTAssertEqual(viewModel.notes.count, 1)
+        await waitUntil { viewModel.notes.count == 1 }
 
         await viewModel.setNoteSearchQuery("")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil { viewModel.notes.count == 2 }
         XCTAssertEqual(viewModel.noteSearchQuery, "")
-        XCTAssertEqual(viewModel.notes.count, 2)
     }
 
     func testWikiLinkAutocompleteSuggestsAndAppliesReplacement() async {
@@ -205,14 +202,14 @@ final class AppViewModelTests: XCTestCase {
         await viewModel.load()
 
         await viewModel.setNoteSearchQuery("alpha")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil { viewModel.notes.count == 1 }
         guard let firstID = viewModel.notes.first?.id else {
             return XCTFail("Expected at least one note")
         }
         XCTAssertNotNil(viewModel.noteSearchSnippet(for: firstID))
 
         await viewModel.setNoteSearchQuery("")
-        try? await _Concurrency.Task.sleep(for: .milliseconds(400))
+        await waitUntil { viewModel.noteSearchSnippet(for: firstID) == nil }
         XCTAssertNil(viewModel.noteSearchSnippet(for: firstID))
     }
 
