@@ -17,7 +17,7 @@ final class GraphEdgesTests: XCTestCase {
         super.tearDown()
     }
 
-    func testResolvesWikiLinksToEdges() async throws {
+    func testSmoke_ResolvesWikiLinksToEdges() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
@@ -57,7 +57,7 @@ final class GraphEdgesTests: XCTestCase {
         XCTAssertEqual(edges.count, 0)
     }
 
-    func testEmptyStoreReturnsNoEdges() async throws {
+    func testSmoke_EmptyStoreReturnsNoEdges() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 

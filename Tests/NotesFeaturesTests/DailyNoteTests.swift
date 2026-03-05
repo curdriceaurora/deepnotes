@@ -17,7 +17,7 @@ final class DailyNoteTests: XCTestCase {
         super.tearDown()
     }
 
-    func testCreatesWithISODateTitle() async throws {
+    func testSmoke_CreatesWithISODateTitle() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
@@ -32,7 +32,7 @@ final class DailyNoteTests: XCTestCase {
         XCTAssertEqual(note.title, expectedTitle)
     }
 
-    func testIdempotentOnSameDay() async throws {
+    func testSmoke_IdempotentOnSameDay() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 

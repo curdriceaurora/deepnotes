@@ -4,7 +4,7 @@ import XCTest
 final class FuzzyMatcherTests: XCTestCase {
     private let matcher = FuzzyMatcher()
 
-    func testExactMatchRanksFirst() {
+    func testSmoke_ExactMatchRanksFirst() {
         let candidates = ["Alpha", "alpha project", "Alphanumeric"]
         let results = matcher.rank(query: "Alpha", candidates: candidates)
         XCTAssertEqual(results.first?.title, "Alpha")
@@ -30,7 +30,7 @@ final class FuzzyMatcherTests: XCTestCase {
         XCTAssertGreaterThan(results[0].score, results[1].score)
     }
 
-    func testNonMatchExcluded() {
+    func testSmoke_NonMatchExcluded() {
         let candidates = ["Alpha", "Beta", "Gamma"]
         let results = matcher.rank(query: "Zeta", candidates: candidates)
         XCTAssertTrue(results.isEmpty)
@@ -43,7 +43,7 @@ final class FuzzyMatcherTests: XCTestCase {
         XCTAssertEqual(results.map(\.title), ["Alpha", "Beta", "Gamma"])
     }
 
-    func testCaseInsensitive() {
+    func testSmoke_CaseInsensitive() {
         let candidates = ["ALPHA", "alpha", "Alpha"]
         let results = matcher.rank(query: "alpha", candidates: candidates)
         XCTAssertEqual(results.count, 3)

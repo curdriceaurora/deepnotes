@@ -4,7 +4,7 @@ import XCTest
 @testable import NotesStorage
 
 final class SQLiteStoreTests: XCTestCase {
-    func testUpsertAndFetchNote() async throws {
+    func testSmoke_UpsertAndFetchNote() async throws {
         let store = try makeStore()
 
         let note = Note(
@@ -21,7 +21,7 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertGreaterThan(persisted.version, 0)
     }
 
-    func testUpsertAndFetchTask() async throws {
+    func testSmoke_UpsertAndFetchTask() async throws {
         let store = try makeStore()
 
         let task = try Task(
@@ -45,7 +45,7 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertGreaterThan(persisted.version, 0)
     }
 
-    func testStableIDPreventsDuplicatesAcrossEdits() async throws {
+    func testSmoke_StableIDPreventsDuplicatesAcrossEdits() async throws {
         let store = try makeStore()
         let first = try Task(
             id: UUID(),
@@ -71,7 +71,7 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(fetched?.title, "Edited title")
     }
 
-    func testUpsertTaskPersistsKanbanOrder() async throws {
+    func testSmoke_UpsertTaskPersistsKanbanOrder() async throws {
         let store = try makeStore()
         let task = try Task(
             stableID: "task-kanban-order",
@@ -88,7 +88,7 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(fetched?.kanbanOrder, 42.5)
     }
 
-    func testTombstoneMarksDeletedAndIncrementsVersion() async throws {
+    func testSmoke_TombstoneMarksDeletedAndIncrementsVersion() async throws {
         let store = try makeStore()
 
         let task = try Task(
