@@ -8,7 +8,7 @@ final class MarkdownRendererTests: XCTestCase {
         String(str[run.range].characters)
     }
 
-    func testHeadingIsBold() {
+    func testSmoke_HeadingIsBold() {
         let result = renderer.render("# Hello", noteTitles: [])
         let runs = Array(result.runs)
         XCTAssertFalse(runs.isEmpty)
@@ -33,7 +33,7 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(italicRun?.inlinePresentationIntent?.contains(.emphasized) == true)
     }
 
-    func testBulletList() {
+    func testSmoke_BulletList() {
         let result = renderer.render("- Item A\n- Item B", noteTitles: [])
         let fullText = String(result.characters)
         XCTAssertTrue(fullText.contains("\u{2022}"))
@@ -41,7 +41,7 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(fullText.contains("Item B"))
     }
 
-    func testWikiLinkWithExistingTitle() {
+    func testSmoke_WikiLinkWithExistingTitle() {
         let result = renderer.render("See [[Alpha]] here", noteTitles: ["Alpha"])
         let runs = Array(result.runs)
         let linkRun = runs.first { $0.link != nil }
@@ -58,7 +58,7 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertNotNil(linkRun?.foregroundColor)
     }
 
-    func testCodeSpanMonospaced() {
+    func testSmoke_CodeSpanMonospaced() {
         let result = renderer.render("Use `code` here", noteTitles: [])
         let runs = Array(result.runs)
         let codeRun = runs.first { text(of: $0, in: result) == "code" }
@@ -66,7 +66,7 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertTrue(codeRun?.inlinePresentationIntent?.contains(.code) == true)
     }
 
-    func testEmptyStringReturnsEmptyAttributedString() {
+    func testSmoke_EmptyStringReturnsEmptyAttributedString() {
         let result = renderer.render("", noteTitles: [])
         XCTAssertTrue(result.characters.isEmpty)
     }

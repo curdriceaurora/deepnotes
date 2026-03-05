@@ -24,7 +24,7 @@ final class SQLiteTemplateStoreTests: XCTestCase {
         XCTAssertEqual(templates.count, 0)
     }
 
-    func testUpsertAndFetch() async throws {
+    func testSmoke_UpsertAndFetch() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let template = NoteTemplate(name: "Test", body: "Body", createdAt: Date())
@@ -37,7 +37,7 @@ final class SQLiteTemplateStoreTests: XCTestCase {
         XCTAssertEqual(fetched[0].body, "Body")
     }
 
-    func testUpdate() async throws {
+    func testSmoke_Update() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let template = NoteTemplate(name: "Test", body: "Body", createdAt: Date())
@@ -52,7 +52,7 @@ final class SQLiteTemplateStoreTests: XCTestCase {
         XCTAssertEqual(fetched[0].body, "Updated Body")
     }
 
-    func testDelete() async throws {
+    func testSmoke_Delete() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
 
         let template = NoteTemplate(name: "Test", body: "Body", createdAt: Date())

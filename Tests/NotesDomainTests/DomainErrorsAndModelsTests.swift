@@ -3,7 +3,7 @@ import XCTest
 @testable import NotesDomain
 
 final class DomainErrorsAndModelsTests: XCTestCase {
-    func testDomainValidationErrorDescriptions() {
+    func testSmoke_DomainValidationErrorDescriptions() {
         XCTAssertEqual(
             DomainValidationError.invalidPriority(9).errorDescription,
             "Task priority must be between 0 and 5, got 9.",
@@ -18,7 +18,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         )
     }
 
-    func testStorageErrorDescriptions() {
+    func testSmoke_StorageErrorDescriptions() {
         XCTAssertEqual(
             StorageError.openDatabase(path: "/tmp/db", reason: "no permission").errorDescription,
             "Failed to open SQLite database at /tmp/db: no permission",
@@ -41,7 +41,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         )
     }
 
-    func testSyncErrorDescriptions() {
+    func testSmoke_SyncErrorDescriptions() {
         XCTAssertEqual(
             SyncError.missingEventIdentifier.errorDescription,
             "Calendar provider did not return an event identifier; cannot persist binding.",
@@ -52,7 +52,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         )
     }
 
-    func testCalendarProviderErrorDescriptionsAndRetryability() {
+    func testSmoke_CalendarProviderErrorDescriptionsAndRetryability() {
         XCTAssertEqual(
             CalendarProviderError.transient(reason: "timeout").errorDescription,
             "Transient calendar provider failure: timeout",
@@ -65,7 +65,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         XCTAssertFalse(CalendarProviderError.permanent(reason: "x").isRetryable)
     }
 
-    func testTaskValidationFailsInvalidPriority() {
+    func testSmoke_TaskValidationFailsInvalidPriority() {
         XCTAssertThrowsError(
             try Task(stableID: "id", title: "Task", priority: 10, updatedAt: Date()),
         ) { error in
@@ -73,7 +73,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         }
     }
 
-    func testTaskValidationFailsInvalidRange() {
+    func testSmoke_TaskValidationFailsInvalidRange() {
         XCTAssertThrowsError(
             try Task(
                 stableID: "id",
@@ -87,7 +87,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         }
     }
 
-    func testCalendarEventValidationFailsInvalidRange() {
+    func testSmoke_CalendarEventValidationFailsInvalidRange() {
         XCTAssertThrowsError(
             try CalendarEvent(
                 calendarID: "calendar",
@@ -101,7 +101,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         }
     }
 
-    func testTaskSortOrderAllCases() {
+    func testSmoke_TaskSortOrderAllCases() {
         let allCases = TaskSortOrder.allCases
         XCTAssertEqual(allCases.count, 4)
         XCTAssertTrue(allCases.contains(.dueDate))
@@ -110,14 +110,14 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         XCTAssertTrue(allCases.contains(.creationDate))
     }
 
-    func testTaskSortOrderTitleProperty() {
+    func testSmoke_TaskSortOrderTitleProperty() {
         XCTAssertEqual(TaskSortOrder.dueDate.title, "Due Date")
         XCTAssertEqual(TaskSortOrder.priority.title, "Priority")
         XCTAssertEqual(TaskSortOrder.title.title, "Title")
         XCTAssertEqual(TaskSortOrder.creationDate.title, "Date Added")
     }
 
-    func testTaskSortOrderCodable() throws {
+    func testSmoke_TaskSortOrderCodable() throws {
         let cases: [TaskSortOrder] = [.dueDate, .priority, .title, .creationDate]
         for sortOrder in cases {
             let encoded = try JSONEncoder().encode(sortOrder)
@@ -126,7 +126,7 @@ final class DomainErrorsAndModelsTests: XCTestCase {
         }
     }
 
-    func testTaskSortOrderRawValue() {
+    func testSmoke_TaskSortOrderRawValue() {
         XCTAssertEqual(TaskSortOrder.dueDate.rawValue, "dueDate")
         XCTAssertEqual(TaskSortOrder.priority.rawValue, "priority")
         XCTAssertEqual(TaskSortOrder.title.rawValue, "title")

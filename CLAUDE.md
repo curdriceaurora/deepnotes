@@ -17,6 +17,8 @@ swift run notes-cli seed --db ./data/notes.sqlite  # Seed data
 
 # Test
 swift test                                     # Full suite
+swift test --filter testSmoke                  # Smoke subset (~164 tests, <10s)
+./Scripts/run-smoke-tests.sh                   # Smoke tests (script wrapper)
 swift test NotesUITests                        # Single target
 swift test --filter NotesUITests.AppViewModelTests.testDeleteNote  # Single test
 
@@ -54,11 +56,12 @@ Before committing ANY code, complete in order:
 
 1. **Build**: `swift build` succeeds
 2. **Lint**: `./Scripts/run-lint.sh` passes
-3. **Tests**: `swift test` — all pass
-4. **Coverage**: `./Scripts/run-coverage-gates.sh` passes
-5. **Perf** (if perf-sensitive): `./Scripts/run-perf-gates.sh` passes
-6. **Diff review**: `git diff --staged` — check for incomplete refactors, debug prints, missing tests
-7. **Commit**: conventional commit format only after steps 1-6 pass
+3. **Smoke tests**: `swift test --filter testSmoke` — fast subset passes (pre-commit hook runs this automatically)
+4. **Tests**: `swift test` — all pass
+5. **Coverage**: `./Scripts/run-coverage-gates.sh` passes
+6. **Perf** (if perf-sensitive): `./Scripts/run-perf-gates.sh` passes
+7. **Diff review**: `git diff --staged` — check for incomplete refactors, debug prints, missing tests
+8. **Commit**: conventional commit format only after steps 1-7 pass
 
 See `Docs/testing.md` for the full code review protocol and multi-step plan discipline.
 

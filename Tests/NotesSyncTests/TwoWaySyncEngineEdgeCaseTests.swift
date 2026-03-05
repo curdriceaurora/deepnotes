@@ -6,7 +6,7 @@ import XCTest
 @testable import NotesSync
 
 final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
-    func testRunOnceThrowsWhenUpsertEventHasNoIdentifier() async throws {
+    func testSmoke_RunOnceThrowsWhenUpsertEventHasNoIdentifier() async throws {
         let store = try makeStore()
         let provider = StubCalendarProvider()
 
@@ -33,7 +33,7 @@ final class TwoWaySyncEngineEdgeCaseTests: XCTestCase {
         }
     }
 
-    func testRunOnceRetriesTransientUpsertAndCapturesDiagnostic() async throws {
+    func testSmoke_RunOnceRetriesTransientUpsertAndCapturesDiagnostic() async throws {
         let store = try makeStore()
         let provider = StubCalendarProvider()
 

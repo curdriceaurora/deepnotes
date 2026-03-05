@@ -7,12 +7,12 @@ import XCTest
 final class ThemeTests: XCTestCase {
     // MARK: - DueDateStyle
 
-    func testDueDateStyleReturnsOrangeForToday() {
+    func testSmoke_DueDateStyleReturnsOrangeForToday() {
         let color = DueDateStyle.color(for: Date())
         XCTAssertEqual(color, .orange, "Today's date should return orange")
     }
 
-    func testDueDateStyleReturnsRedForOverdue() throws {
+    func testSmoke_DueDateStyleReturnsRedForOverdue() throws {
         let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let color = DueDateStyle.color(for: yesterday)
         XCTAssertEqual(color, .red, "Overdue date should return red")
@@ -32,7 +32,7 @@ final class ThemeTests: XCTestCase {
 
     // MARK: - TaskStatus.accentColor
 
-    func testTaskStatusAccentColors() {
+    func testSmoke_TaskStatusAccentColors() {
         XCTAssertEqual(TaskStatus.backlog.accentColor, .gray)
         XCTAssertEqual(TaskStatus.next.accentColor, .blue)
         XCTAssertEqual(TaskStatus.doing.accentColor, .orange)
@@ -52,7 +52,7 @@ final class ThemeTests: XCTestCase {
 
     // MARK: - DNCardModifier
 
-    func testDNCardModifierAppliesWithDefaultRadius() {
+    func testSmoke_DNCardModifierAppliesWithDefaultRadius() {
         let view = Text("Test").dnCard()
         XCTAssertNotNil(view, "dnCard modifier should apply without crashing")
     }
@@ -76,7 +76,7 @@ final class ThemeTests: XCTestCase {
 
     // MARK: - DNGlassCardModifier
 
-    func testDNGlassCardModifierDefaultProperties() {
+    func testSmoke_DNGlassCardModifierDefaultProperties() {
         let modifier = DNGlassCardModifier()
         XCTAssertEqual(modifier.cornerRadius, 10, "Default corner radius should be 10")
         XCTAssertFalse(modifier.isDropTarget, "Default drop target should be false")

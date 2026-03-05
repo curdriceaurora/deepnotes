@@ -5,7 +5,7 @@ import XCTest
 @testable import NotesSync
 
 final class TwoWaySyncEngineTests: XCTestCase {
-    func testRunOncePushesTaskAndCreatesBinding() async throws {
+    func testSmoke_RunOncePushesTaskAndCreatesBinding() async throws {
         let store = try makeStore()
         let provider = InMemoryCalendarProvider()
 
@@ -46,7 +46,7 @@ final class TwoWaySyncEngineTests: XCTestCase {
         XCTAssertEqual(eventCount, 1)
     }
 
-    func testRunOnceImportsCalendarEventAsTask() async throws {
+    func testSmoke_RunOnceImportsCalendarEventAsTask() async throws {
         let store = try makeStore()
         let provider = InMemoryCalendarProvider()
 
@@ -90,7 +90,7 @@ final class TwoWaySyncEngineTests: XCTestCase {
         XCTAssertNotNil(binding)
     }
 
-    func testCalendarDeletionCreatesTaskTombstone() async throws {
+    func testSmoke_CalendarDeletionCreatesTaskTombstone() async throws {
         let store = try makeStore()
         let provider = InMemoryCalendarProvider()
 

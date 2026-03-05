@@ -17,7 +17,7 @@ final class UnlinkedMentionsTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDetectsPlainTextMentions() async throws {
+    func testSmoke_DetectsPlainTextMentions() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 
@@ -31,7 +31,7 @@ final class UnlinkedMentionsTests: XCTestCase {
         XCTAssertEqual(mentions[0].sourceTitle, "Source Note")
     }
 
-    func testExcludesExistingBacklinks() async throws {
+    func testSmoke_ExcludesExistingBacklinks() async throws {
         let store = try SQLiteStore(databaseURL: tempDir.appendingPathComponent("test.db"))
         let service = WorkspaceService(store: store)
 

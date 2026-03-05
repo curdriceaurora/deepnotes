@@ -31,6 +31,13 @@ jobs:
       - name: Periphery (dead code)
         continue-on-error: true
         run: periphery scan
+  smoke:
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Smoke tests
+        run: swift test --filter testSmoke 2>&1 | xcbeautify; exit ${PIPESTATUS[0]}
   coverage:
     runs-on: macos-15
     continue-on-error: true

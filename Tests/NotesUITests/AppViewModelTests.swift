@@ -8,7 +8,7 @@ import XCTest
 
 @MainActor
 final class AppViewModelTests: XCTestCase {
-    func testLoadSeedsAndSelectsFirstNote() async {
+    func testSmoke_LoadSeedsAndSelectsFirstNote() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
 
@@ -31,7 +31,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isBusy)
     }
 
-    func testCreateNoteSelectsCreatedNote() async {
+    func testSmoke_CreateNoteSelectsCreatedNote() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -52,7 +52,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(updateCalls, 0)
     }
 
-    func testSaveSelectedNotePersistsChanges() async {
+    func testSmoke_SaveSelectedNotePersistsChanges() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -66,7 +66,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.notes.first?.title, "Alpha Updated")
     }
 
-    func testSelectNoteNilClearsEditor() async {
+    func testSmoke_SelectNoteNilClearsEditor() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -91,7 +91,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(createCalls, 0)
     }
 
-    func testCreateQuickTaskCreatesTaskAndClearsField() async {
+    func testSmoke_CreateQuickTaskCreatesTaskAndClearsField() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -105,7 +105,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.tasks.contains { $0.title == "Ship draft" })
     }
 
-    func testSetTaskFilterReloadsTasks() async {
+    func testSmoke_SetTaskFilterReloadsTasks() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -117,7 +117,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.tasks.first?.status, .done)
     }
 
-    func testSetNoteSearchQueryFiltersAndClearsSelectionWhenMissing() async {
+    func testSmoke_SetNoteSearchQueryFiltersAndClearsSelectionWhenMissing() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -159,7 +159,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isWikiLinkSuggestionVisible)
     }
 
-    func testQuickOpenFiltersAndSelectsNote() async {
+    func testSmoke_QuickOpenFiltersAndSelectsNote() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -180,7 +180,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedNoteID, target.id)
     }
 
-    func testMarkdownInsertActionsAppendExpectedPrefixes() async {
+    func testSmoke_MarkdownInsertActionsAppendExpectedPrefixes() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -213,7 +213,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.noteSearchSnippet(for: firstID))
     }
 
-    func testHandleTaskDropMovesTaskToTargetStatus() async {
+    func testSmoke_HandleTaskDropMovesTaskToTargetStatus() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -494,7 +494,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.tasks.first(where: { $0.id == backlogA.id })?.status, .backlog)
     }
 
-    func testToggleTaskCompletionUpdatesTaskState() async {
+    func testSmoke_ToggleTaskCompletionUpdatesTaskState() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -509,7 +509,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.tasks.contains { $0.id == first.id && $0.status == .done })
     }
 
-    func testMoveTaskUpdatesStatus() async {
+    func testSmoke_MoveTaskUpdatesStatus() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -655,7 +655,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "Could not resolve a parent recurring series for this occurrence.")
     }
 
-    func testDeleteTaskRemovesTaskWithoutPromptWhenNotDetached() async {
+    func testSmoke_DeleteTaskRemovesTaskWithoutPromptWhenNotDetached() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -763,7 +763,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isSyncing)
     }
 
-    func testRunSyncSuccessStoresReport() async {
+    func testSmoke_RunSyncSuccessStoresReport() async {
         let service = WorkspaceServiceSpy()
         let provider = InMemoryCalendarProvider()
         let viewModel = AppViewModel(service: service, calendarProviderFactory: { provider }, syncCalendarID: "cal")
@@ -802,7 +802,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.recurrenceConflictMessage)
     }
 
-    func testRunSyncFailureSetsErrorAndStopsSync() async {
+    func testSmoke_RunSyncFailureSetsErrorAndStopsSync() async {
         let service = WorkspaceServiceSpy()
         await service.setFailure(.sync)
         let provider = InMemoryCalendarProvider()
@@ -856,7 +856,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.lastDiagnosticsExportURL)
     }
 
-    func testNavigateToNoteByTitleSelectsCorrectNote() async {
+    func testSmoke_NavigateToNoteByTitleSelectsCorrectNote() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -899,7 +899,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.noteEditMode, .edit)
     }
 
-    func testToggleSwitchesToPreviewMode() async {
+    func testSmoke_ToggleSwitchesToPreviewMode() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -910,7 +910,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.renderedMarkdown.characters.isEmpty || viewModel.selectedNoteBody.isEmpty)
     }
 
-    func testToggleRoundTrips() async {
+    func testSmoke_ToggleRoundTrips() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
@@ -934,7 +934,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.noteEditMode, .edit)
     }
 
-    func testFilterByTagFiltersNotesList() async {
+    func testSmoke_FilterByTagFiltersNotesList() async {
         let service = WorkspaceServiceSpy()
         await service.addTaggedNote(title: "Swift Note", body: "Content", tags: ["swift"])
         await service.addTaggedNote(title: "Rust Note", body: "Content", tags: ["rust"])
@@ -961,7 +961,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(viewModel.notes.count, 2)
     }
 
-    func testAllTagsLoadedOnLoad() async {
+    func testSmoke_AllTagsLoadedOnLoad() async {
         let service = WorkspaceServiceSpy()
         await service.addTaggedNote(title: "Note", body: "Content", tags: ["alpha", "beta"])
         let viewModel = makeViewModel(service: service)
@@ -1378,7 +1378,7 @@ final class AppViewModelTests: XCTestCase {
 
     // MARK: - Kanban Column ViewModel tests
 
-    func testLoadPopulatesKanbanColumnsWithDefaults() async {
+    func testSmoke_LoadPopulatesKanbanColumnsWithDefaults() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
 
@@ -1389,7 +1389,7 @@ final class AppViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.kanbanColumns[4].builtInStatus, .done)
     }
 
-    func testCreateKanbanColumnAppendsCustomColumn() async {
+    func testSmoke_CreateKanbanColumnAppendsCustomColumn() async {
         let service = WorkspaceServiceSpy()
         let viewModel = makeViewModel(service: service)
         await viewModel.load()
