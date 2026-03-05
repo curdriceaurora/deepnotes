@@ -81,6 +81,37 @@ Conflict policies:
 - Features: workflow-level rules (filters, backlinks, status transitions)
 - UI: structural assertions and key control presence via ViewInspector
 
+## Key Design Patterns
+
+**Stable IDs for sync**: Tasks use immutable `stableID` so edits/renames don't create duplicate calendar events.
+
+**Tombstones for deletes**: Records are soft-deleted (`deletedAt` timestamp). Hard deletes never happen. Prevents ghost re-creation when sync is delayed.
+
+**Monotonic versioning**: Tables track `version` and `updated_at` per record. Sync queries only changed records since last pull via version cursors.
+
+**Service spies for testing**: `WorkspaceServiceSpy` and `MockWorkspaceService` conform to protocols, allowing UI layer testing in isolation.
+
+**Lazy loading & pagination**: Note bodies lazy-load; search results paginate in cursor-based chunks of 50.
+
+**In-memory indexes**: `LinkIndex` precomputes title→ID and note→links edges for fast backlink/graph queries. Invalidated on mutations.
+
+**Search caching**: LRU cache (max 8 entries) in WorkspaceService. Invalidated on any mutation.
+
+## API Stability & Deprecation
+
+All public APIs must maintain backward compatibility within a major version.
+
+**Deprecation process:**
+1. Mark with `@available(*, deprecated, renamed: "newName", message: "Use newName() instead")`
+2. Document in `CHANGELOG.md` under "Deprecated" section
+3. Minimum deprecation period: 2 releases
+4. Remove in next major version only
+
+**Semantic Versioning**: MAJOR.MINOR.PATCH
+- MAJOR: Breaking API changes only
+- MINOR: New features (backward compatible)
+- PATCH: Bug fixes
+
 ## Known limitations
 
 1. Recurrence exception handling is not fully complete.
