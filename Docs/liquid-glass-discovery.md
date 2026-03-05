@@ -86,7 +86,7 @@ Key findings:
 ### Hardware Tested
 
 - Apple Silicon (M-series Mac) — primary development target
-- Intel Mac — not tested (macOS 26 requires Apple Silicon)
+- Intel Mac — not tested
 - iPad — not tested (shared modules ready but no app host yet)
 
 ## Reusable Components Created
