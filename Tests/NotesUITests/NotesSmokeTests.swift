@@ -593,6 +593,13 @@ final class NotesSmokeTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
+        let builtInStatuses = Set(viewModel.kanbanColumns.compactMap(\.builtInStatus))
+        XCTAssertEqual(
+            builtInStatuses,
+            Set(TaskStatus.allCases),
+            "Kanban board must contain a column for each TaskStatus",
+        )
+
         for status in TaskStatus.allCases {
             _ = viewModel.tasks(for: status)
         }
@@ -618,6 +625,9 @@ final class NotesSmokeTests: XCTestCase {
 
         let backlogTasks = viewModel.tasks(for: .backlog)
         XCTAssertFalse(backlogTasks.isEmpty, "Expected at least one backlog card")
+        for task in backlogTasks {
+            XCTAssertFalse(task.id.uuidString.isEmpty, "Each card must expose a stable UUID")
+        }
     }
 
     // smoke-test: §12 — moveRight button moves card to next column.

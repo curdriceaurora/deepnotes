@@ -12,7 +12,9 @@ final class NotesViewsTests: XCTestCase {
         let viewModel = try makeViewModel()
         await viewModel.load()
 
-        XCTAssertFalse(viewModel.notes.isEmpty)
+        XCTAssertFalse(viewModel.notes.isEmpty, "Notes list must be populated")
+        XCTAssertNotNil(viewModel.selectedNoteID, "A note must be selected for editor controls")
+        XCTAssertEqual(viewModel.noteEditMode, .edit, "Editor must start in edit mode")
     }
 
     func testTasksListContainsPickerAndRows() async throws {
@@ -34,6 +36,9 @@ final class NotesViewsTests: XCTestCase {
     func testKanbanRendersAllStatusColumns() async throws {
         let viewModel = try makeViewModel()
         await viewModel.load()
+
+        let builtInStatuses = Set(viewModel.kanbanColumns.compactMap(\.builtInStatus))
+        XCTAssertEqual(builtInStatuses, Set(TaskStatus.allCases))
 
         for status in TaskStatus.allCases {
             _ = viewModel.tasks(for: status)
