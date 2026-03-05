@@ -104,6 +104,13 @@ final class ThemeTests: XCTestCase {
 
     // MARK: - DNGlassOverlayModifier
 
+    func testDNGlassOverlayModifierDefaultGlass() {
+        // Default glass parameter — only the shape is passed; Glass type is not referenced here.
+        let view = Text("Test").dnGlassOverlay(shape: RoundedRectangle(cornerRadius: 8))
+        XCTAssertNotNil(view, "dnGlassOverlay should apply with default glass and rounded rect")
+    }
+
+#if canImport(Glass)
     func testDNGlassOverlayModifierErrorBannerParams() {
         // Matches error banner: .dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
         let view = Text("Error").dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
@@ -118,14 +125,9 @@ final class ThemeTests: XCTestCase {
         XCTAssertNotNil(view, "dnGlassOverlay should apply with accent-tinted circle")
     }
 
-    func testDNGlassOverlayModifierDefaultGlass() {
-        // Default glass parameter (.regular)
-        let view = Text("Test").dnGlassOverlay(shape: RoundedRectangle(cornerRadius: 8))
-        XCTAssertNotNil(view, "dnGlassOverlay should apply with default glass and rounded rect")
-    }
-
     func testDNGlassOverlayModifierClearVariant() {
         let view = Text("Test").dnGlassOverlay(glass: .clear, shape: Capsule())
         XCTAssertNotNil(view, "dnGlassOverlay should accept .clear glass variant")
     }
+#endif
 }
