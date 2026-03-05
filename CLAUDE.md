@@ -110,6 +110,7 @@ Load detailed docs as needed:
 | Performance & debugging | `Docs/debugging.md` |
 | Linting config | `Docs/LINTING.md` |
 | Accessibility testing | `Docs/ACCESSIBILITY_TESTING.md` |
+| Liquid Glass discovery | `Docs/liquid-glass-discovery.md` |
 | Historical decisions | `memory/decisions.md` |
 | Known pitfalls | `memory/gotchas.md` |
 | Release process | `Docs/ReleaseRunbook.md` |
