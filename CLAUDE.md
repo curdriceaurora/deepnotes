@@ -92,7 +92,7 @@ For PR reviews, use GitHub API directly (not `gh pr view` summaries):
 
 - **Swift tools version**: 6.0 (see `Package.swift`) | **Platforms**: macOS 26.0, iOS 26.0
 - **Dependencies**: `swift-markdown` (parsing), `ViewInspector` (UI testing)
-- **CI**: `.github/workflows/coverage-gates.yml` runs coverage/performance gates (jobs use `continue-on-error: true` — reports status but does not block merge)
+- **CI**: `.github/workflows/coverage-gates.yml` runs lint/coverage gates (jobs use `continue-on-error: true` — reports status but does not block merge). Performance gates are local-only (`./Scripts/run-perf-gates.sh`).
 
 ## Documentation Index
 

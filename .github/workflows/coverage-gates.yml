@@ -51,18 +51,3 @@ jobs:
         with:
           name: coverage-artifacts
           path: coverage-artifacts
-
-  performance:
-    runs-on: macos-15
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run performance gates (release)
-        continue-on-error: true
-        run: ./Scripts/run-perf-gates.sh
-      - name: Upload perf artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: perf-artifacts
-          path: perf-artifacts
