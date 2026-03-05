@@ -3,9 +3,9 @@
 ## Repository Structure
 
 ```
-notes-placeholder/
+NotesEngine/
 ├── CLAUDE.md                          # Root instructions (concise, pointers to docs)
-├── Package.swift                      # Swift 6.2, macOS 26.0 / iOS 26.0
+├── Package.swift                      # swift-tools-version: 6.0, macOS 26.0 / iOS 26.0
 ├── Sources/
 │   ├── NotesDomain/                   # Pure models, protocols, errors
 │   │   ├── Models.swift               # Note, Task, Subtask, CalendarBinding, SyncCheckpoint, NoteTemplate

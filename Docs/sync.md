@@ -68,7 +68,7 @@ Each sync checkpoint stores the last-seen `task_version` and `note_version`. The
 
 ### Sync Failure Diagnostics
 
-Sync errors include structured diagnostics: operation type, affected IDs, provider error message, and timestamp. The UI displays these via `SyncDiagnosticsView`.
+Sync errors include structured diagnostics: operation type, affected IDs, provider error message, and timestamp. The UI displays these via `SyncDashboardView` (see the `syncDiagnosticsSection`).
 
 ## Performance Budgets
 

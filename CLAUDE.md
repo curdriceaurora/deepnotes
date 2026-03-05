@@ -70,7 +70,7 @@ See `Docs/testing.md` for the full code review protocol and multi-step plan disc
 - **Dependency direction**: NotesDomain → NotesStorage → NotesSync → NotesFeatures → NotesUI → NotesApp. No upward imports.
 - **Concurrency**: Swift 6 strict mode. Actors for storage, `@MainActor` for UI, `Sendable` for protocols. See `Docs/CONCURRENCY_ARCHITECTURE.md`.
 - **Tombstones**: Soft-delete only (`deleted_at`). No hard deletes.
-- **Pagination**: Cursor-based, never offset-based.
+- **Pagination**: Offset-based (`LIMIT ? OFFSET ?`). Cursor-based is a future enhancement.
 - **API stability**: SemVer. Deprecate with `@available` for 2 releases before removal. Breaking changes only in major bumps. See `Docs/Architecture.md`.
 
 ## Permissions & Autonomy
@@ -90,9 +90,9 @@ For PR reviews, use GitHub API directly (not `gh pr view` summaries):
 
 ## Configuration
 
-- **Swift**: 6.2 | **Platforms**: macOS 26.0, iOS 26.0
+- **Swift tools version**: 6.0 (see `Package.swift`) | **Platforms**: macOS 26.0, iOS 26.0
 - **Dependencies**: `swift-markdown` (parsing), `ViewInspector` (UI testing)
-- **CI**: `.github/workflows/coverage-gates.yml` blocks merge on gate failures
+- **CI**: `.github/workflows/coverage-gates.yml` runs coverage/performance gates (jobs use `continue-on-error: true` — reports status but does not block merge)
 
 ## Documentation Index
 

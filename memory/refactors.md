@@ -7,13 +7,13 @@ Restructured accessibility tests into MECE tiers:
 - **Tier B**: Created semantic attribute tests (labels, hints)
 - **Tier C**: Verification pass
 
-Converted 19 ViewInspector identifier tests to `XCTSkip()` due to framework limitation (see `memory/gotchas.md`).
+Converted affected ViewInspector identifier tests to `XCTSkip()` where lookups fail due to framework limitation (see `memory/gotchas.md`).
 
 ---
 
 ## Search & Pagination Polish (Section 7)
 
-1. **Cursor-based pagination**: `NoteListItemPage` with paginated SQLite, `.onAppear` trigger, pages of 50
+1. **Offset-based pagination**: `NoteListItemPage` with paginated SQLite, `.onAppear` trigger, pages of 50
 2. **Search result caching**: LRU cache (max 8) in WorkspaceService, invalidated on mutations
 3. **In-memory backlinks index**: `LinkIndex` precomputes title→ID + note→links
 4. **Launch profiling**: `os_signpost`, parallelized `load()` with `async let`, budget 900→200ms

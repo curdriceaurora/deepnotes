@@ -18,13 +18,13 @@ SwiftUI views and app state management.
 - Lazy-load note bodies — list shows titles only, body loads on selection
 - Pagination triggers on `.onAppear` of last visible item
 
-## ViewInspector Limitations
+## ViewInspector Caveats
 
-ViewInspector **cannot** find views by accessibility identifier. All identifier tests use `XCTSkip()`. See `memory/gotchas.md`.
+ViewInspector's `find(viewWithAccessibilityIdentifier:)` works in many cases but can be unreliable in certain view hierarchies. Prefer structural queries where practical. See `memory/gotchas.md` for details on which patterns fail.
 
 ## Dependencies
 
-**Allowed imports**: Foundation, SwiftUI, NotesDomain, NotesFeatures
+**Allowed imports**: Foundation, SwiftUI, Markdown, NotesDomain, NotesFeatures
 **Forbidden**: NotesStorage, NotesSync, NotesApp (UI must not depend on persistence/sync directly)
 
 ## Details

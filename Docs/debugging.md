@@ -47,8 +47,8 @@ Uses `os_signpost` markers integrated with Xcode Instruments:
 
 ## Key Performance Patterns
 
-### Cursor-Based Pagination
-Note lists paginate in pages of 50 using `WHERE id > :cursor LIMIT 50`. Avoids offset scanning which degrades linearly with dataset size.
+### Offset-Based Pagination
+Note lists paginate in pages of 50 using `LIMIT ? OFFSET ?`. For very large datasets, consider migrating to cursor-based pagination (`WHERE id > :cursor LIMIT 50`) to avoid offset scan costs.
 
 ### Search Result Caching
 LRU cache (max 8 entries) in WorkspaceService. Invalidated on any note/task mutation. Prevents redundant SQLite queries during interactive search typing.

@@ -1,18 +1,18 @@
 # Gotchas & Technical Pitfalls
 
-## ViewInspector Cannot Find Accessibility Identifiers
+## ViewInspector Accessibility Identifier Lookup Can Be Unreliable
 
-**Problem**: `find(viewWithAccessibilityIdentifier:)` throws "Search did not find a match" even when identifiers ARE set in Views.swift.
+**Problem**: In certain view hierarchies, `find(viewWithAccessibilityIdentifier:)` throws "Search did not find a match" even when identifiers ARE set in Views.swift. Many lookups work fine (e.g., in `NotesViewsTests`, `NotesSmokeTests`), but specific container/composition patterns fail.
 
-**Root Cause**: ViewInspector's hierarchy traversal doesn't see the same modifier chain that SwiftUI renders at runtime. Accessibility identifiers are applied as modifiers that ViewInspector can't reliably locate.
+**Root Cause**: For certain view compositions, ViewInspector's hierarchy traversal doesn't see the same modifier chain that SwiftUI renders at runtime.
 
 **Solution**:
-- Convert identifier-validation tests to `XCTSkip()` with clear reason
-- Move identifier validation to UI/XCUI tests (full app context)
-- Focus unit tests on: view rendering, state management, event handling
+- For failing patterns, convert tests to `XCTSkip()` with clear reason
+- Continue using `find(viewWithAccessibilityIdentifier:)` where it works
+- Move validation for failing cases to UI/XCUI tests (full app context)
 - Keep semantic attributes (labels, hints) in Views.swift for build-time verification
 
-**Affected tests**: 19 total across NotesAccessibilityTests (8), NotesViewsTests §20 (14), UICoverageGapTests (5).
+**Affected tests**: Identifier-validation tests in `NotesAccessibilityTests`, `NotesViewsTests`, and `UICoverageGapTests` that rely on `find(viewWithAccessibilityIdentifier:)`.
 
 ---
 

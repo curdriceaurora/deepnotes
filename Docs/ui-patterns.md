@@ -52,7 +52,7 @@ UI updates immediately on user actions (e.g., task status toggle), then persists
 
 ### Pagination
 
-Note lists use cursor-based pagination (pages of 50). The `.onAppear` modifier on the last visible item triggers loading the next page. See `NoteListItemPage` in Models.swift.
+Note lists use offset-based pagination (pages of 50) via `NoteListItemPage.offset` and `fetchNoteListItems(limit:offset:)`. The `.onAppear` modifier on the last visible item triggers loading the next page.
 
 ## Testing with ViewInspector
 
@@ -63,9 +63,9 @@ Note lists use cursor-based pagination (pages of 50). The `.onAppear` modifier o
 - Event handling: simulate taps, text input, selection
 - View rendering: verify views don't crash during construction
 
-### What Doesn't Work
+### Known Limitations
 
-ViewInspector **cannot** reliably find views by accessibility identifier. See `memory/gotchas.md` for details. All identifier tests use `XCTSkip()`.
+ViewInspector's `find(viewWithAccessibilityIdentifier:)` works in many cases but can be unreliable in certain view hierarchies. See `memory/gotchas.md` for details on which patterns fail and workarounds.
 
 ### Test Setup
 
@@ -83,4 +83,4 @@ Test helpers are consolidated in `Tests/NotesUITests/TestHelpers.swift`:
 
 ### Service Spies
 
-`WorkspaceServiceSpy` and `MockWorkspaceService` conform to the `WorkspaceServiceProtocol`. They record calls and return configurable responses, allowing UI tests to run without SQLite or EventKit.
+`WorkspaceServiceSpy` and `MockWorkspaceService` conform to `WorkspaceServicing`. They record calls and return configurable responses, allowing UI tests to run without SQLite or EventKit.

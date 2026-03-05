@@ -82,7 +82,7 @@ Migrations run automatically on first `.initialize()` call. The migration system
 
 - Note list queries return `id`, `title`, `updated_at` only (no `body`)
 - Full body loaded on demand when user selects a note
-- Pagination uses cursor-based `WHERE id > :cursor LIMIT 50`
+- Pagination uses offset-based `LIMIT ? OFFSET ?` queries
 
 ## Testing
 

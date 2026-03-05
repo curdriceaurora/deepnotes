@@ -27,9 +27,9 @@ Tables track `version` and `updated_at` per record. Sync queries only changed re
 
 ---
 
-## Cursor-Based Pagination (Not Offset)
+## Offset-Based Pagination
 
-Search results and note lists paginate in chunks of 50 using cursor-based pagination. Offset-based pagination degrades on large datasets because the DB must scan and skip rows. Cursor-based uses indexed `WHERE id > ?` for consistent performance.
+Search results and note lists currently paginate in chunks of 50 using offset-based queries (`LIMIT ? OFFSET ?`) via `NoteListItemPage.offset` and `fetchNoteListItems(limit:offset:)`. Cursor-based pagination (`WHERE id > ?`) is a future enhancement to avoid offset scan costs on very large datasets.
 
 ---
 

@@ -21,7 +21,7 @@ Two-way calendar synchronization engine.
 
 ## Dependencies
 
-**Allowed imports**: Foundation, NotesDomain, NotesStorage
+**Allowed imports**: Foundation, NotesDomain, NotesStorage, EventKit (via `#if canImport(EventKit)`)
 **Forbidden**: NotesFeatures, NotesUI, NotesApp
 
 ## Details

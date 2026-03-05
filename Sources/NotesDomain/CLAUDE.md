@@ -18,7 +18,7 @@ Pure domain models, protocols, and error types. Zero external dependencies.
 
 ## Dependencies
 
-**Allowed imports**: Foundation, swift-markdown (for markdown types only)
+**Allowed imports**: Foundation
 **Forbidden**: NotesStorage, NotesSync, NotesFeatures, NotesUI, NotesApp
 
 ## Testing

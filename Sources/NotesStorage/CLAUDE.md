@@ -14,11 +14,11 @@ SQLite persistence layer. Actor-isolated for thread safety.
 - Records are **soft-deleted** via `deleted_at` timestamp (no hard deletes)
 - Every mutation increments the record's `version` field (monotonic versioning)
 - Lazy-load note bodies — list queries return only `id`, `title`, `updated_at`
-- Pagination is cursor-based (`WHERE id > ? LIMIT 50`), never offset-based
+- Pagination is offset-based (`LIMIT ? OFFSET ?`) for list queries
 
 ## Dependencies
 
-**Allowed imports**: Foundation, NotesDomain
+**Allowed imports**: Foundation, NotesDomain, SQLite3
 **Forbidden**: NotesSync, NotesFeatures, NotesUI, NotesApp
 
 ## Details
