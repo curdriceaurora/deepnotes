@@ -74,6 +74,10 @@ swift test 2>&1 | xcbeautify
 - Kanban drag reorder: ≤ 50ms
 - Create note: ≤ 30ms
 - Search at 50k notes: ≤ 80ms
+- Sync push (500 tasks): ≤ 200ms
+- Sync pull (500 events): ≤ 200ms
+- Sync round-trip (mixed ops): ≤ 300ms
+- Sync conflict resolution: ≤ 250ms
 
 ## Architecture Overview
 
