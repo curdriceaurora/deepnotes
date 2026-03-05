@@ -57,25 +57,25 @@ struct NotesPerfHarness {
 
         let syncPushSamples = try await runSyncPushBenchmark(
             runs: options.runs,
-            taskCount: options.syncBenchTaskCount,
+            taskCount: options.syncBenchItemCount,
         )
         let syncPushSummary = summarize(samples: syncPushSamples)
 
         let syncPullSamples = try await runSyncPullBenchmark(
             runs: options.runs,
-            eventCount: options.syncBenchTaskCount,
+            eventCount: options.syncBenchItemCount,
         )
         let syncPullSummary = summarize(samples: syncPullSamples)
 
         let syncRoundTripSamples = try await runSyncRoundTripBenchmark(
             runs: options.runs,
-            taskCount: options.syncBenchTaskCount,
+            taskCount: options.syncBenchItemCount,
         )
         let syncRoundTripSummary = summarize(samples: syncRoundTripSamples)
 
         let syncConflictSamples = try await runSyncConflictResolutionBenchmark(
             runs: options.runs,
-            taskCount: options.syncBenchTaskCount,
+            taskCount: options.syncBenchItemCount,
         )
         let syncConflictSummary = summarize(samples: syncConflictSamples)
 
@@ -401,7 +401,7 @@ struct NotesPerfHarness {
             calendarID: "bench-cal",
             taskBatchSize: batchSize,
             policy: .lastWriteWins,
-            providerMaxRetryAttempts: 0,
+            providerMaxRetryAttempts: 1,
         )
     }
 
@@ -578,7 +578,7 @@ struct NotesPerfHarness {
                 var modified = event
                 modified.title = "Cal \(event.title)"
                 modified.updatedAt = calendarConflictTime
-                _ = try await provider.upsertEvent(modified)
+                await provider.seed(event: modified)
             }
 
             // Measure conflict resolution sync
@@ -1010,7 +1010,7 @@ private struct PerfReport: Codable {
         print(String(format: "sync_conflict_max_ms=%.3f", syncConflict.max))
         print(String(format: "sync_conflict_p95_slo_ms=%.3f", options.maxSyncConflictP95MS))
 
-        print("sync_bench_task_count=\(options.syncBenchTaskCount)")
+        print("sync_bench_item_count=\(options.syncBenchItemCount)")
 
         if failures.isEmpty {
             print("status=ok")
@@ -1051,7 +1051,7 @@ private struct Options: Codable {
     var maxKanbanDragCommitP95MS: Double = 50
     var maxKanbanFrameP95MS: Double
     var skipKanbanRender: Bool = false
-    var syncBenchTaskCount: Int = 500
+    var syncBenchItemCount: Int = 500
     var maxSyncPushP95MS: Double = 200
     var maxSyncPullP95MS: Double = 200
     var maxSyncRoundTripP95MS: Double = 300
@@ -1119,9 +1119,9 @@ private struct Options: Codable {
             case "--max-kanban-frame-p95-ms":
                 let val = try value(after: argument, index: &index, from: arguments)
                 options.maxKanbanFrameP95MS = try parsePositiveDouble(flag: argument, value: val)
-            case "--sync-bench-tasks":
+            case "--sync-bench-count":
                 let val = try value(after: argument, index: &index, from: arguments)
-                options.syncBenchTaskCount = try parsePositiveInt(flag: argument, value: val)
+                options.syncBenchItemCount = try parsePositiveInt(flag: argument, value: val)
             case "--max-sync-push-p95-ms":
                 let val = try value(after: argument, index: &index, from: arguments)
                 options.maxSyncPushP95MS = try parsePositiveDouble(flag: argument, value: val)
@@ -1218,7 +1218,7 @@ private enum PerfHarnessError: LocalizedError {
       --max-kanban-drag-commit-p95-ms    Kanban drag reorder commit p95 gate (default: 50)
       --max-create-note-p95-ms <ms>      Note creation p95 gate (default: 30)
       --max-search-50k-p95-ms <ms>       Search-at-50k p95 gate (default: 80)
-      --sync-bench-tasks <n>             Number of tasks used for sync benchmarks (default: 500)
+      --sync-bench-count <n>             Number of items used for sync benchmarks (default: 500)
       --max-sync-push-p95-ms <ms>        Sync push p95 gate (default: 200)
       --max-sync-pull-p95-ms <ms>        Sync pull p95 gate (default: 200)
       --max-sync-roundtrip-p95-ms <ms>   Sync round-trip p95 gate (default: 300)
