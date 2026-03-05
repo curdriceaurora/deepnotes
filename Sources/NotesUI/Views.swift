@@ -43,7 +43,11 @@ public struct NotesRootView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
+#if canImport(Glass)
                     .dnGlassOverlay(glass: .regular.tint(.red), shape: Capsule())
+#else
+                    .dnGlassOverlay(shape: Capsule())
+#endif
                     .padding(.bottom, 16)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("globalErrorBanner")
@@ -1882,7 +1886,11 @@ public struct GraphView: View {
                                         .font(.body)
                                         .frame(width: 44, height: 44)
                                         .foregroundStyle(.white)
+#if canImport(Glass)
                                         .dnGlassOverlay(glass: .regular.tint(.accentColor), shape: Circle())
+#else
+                                        .dnGlassOverlay(shape: Circle())
+#endif
                                 }
                                 .buttonStyle(.plain)
                                 .padding(16)
