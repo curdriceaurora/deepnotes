@@ -1,0 +1,49 @@
+name: NotesEngine
+options:
+  bundleIdPrefix: com.deepnotes
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "26.0"
+  generateEmptyDirectories: false
+
+packages:
+  NotesEngine:
+    path: .
+
+targets:
+  XCUIHost:
+    type: application
+    platform: macOS
+    sources:
+      - XCUIHost
+    dependencies:
+      - package: NotesEngine
+        product: NotesUI
+      - package: NotesEngine
+        product: NotesFeatures
+      - package: NotesEngine
+        product: NotesStorage
+      - package: NotesEngine
+        product: NotesSync
+      - package: NotesEngine
+        product: NotesDomain
+    settings:
+      PRODUCT_NAME: XCUIHost
+      PRODUCT_BUNDLE_IDENTIFIER: com.deepnotes.xcuihost
+      GENERATE_INFOPLIST_FILE: YES
+      MACOSX_DEPLOYMENT_TARGET: "26.0"
+      SWIFT_VERSION: "6.0"
+
+  NotesUIXCTests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - Tests/NotesUIXCTests
+    dependencies:
+      - target: XCUIHost
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.deepnotes.uitests
+      GENERATE_INFOPLIST_FILE: YES
+      MACOSX_DEPLOYMENT_TARGET: "26.0"
+      TEST_TARGET_NAME: XCUIHost
+      SWIFT_VERSION: "6.0"

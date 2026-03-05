@@ -6,5 +6,6 @@
 *.sqlite-wal
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 perf-artifacts/
+NotesEngine.xcodeproj/
 .swiftpm/xcode/xcuserdata/
 .swiftpm/xcode/package.xcworkspace/xcuserdata/

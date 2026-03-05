@@ -1,4 +1,3 @@
-import Foundation
 import NotesFeatures
 import NotesStorage
 import NotesSync
@@ -6,7 +5,7 @@ import NotesUI
 import SwiftUI
 
 @main
-struct NotesApplication: App {
+struct XCUIHostApp: App {
     @State private var viewModel: AppViewModel
 
     init() {
@@ -16,7 +15,7 @@ struct NotesApplication: App {
         do {
             try FileManager.default.createDirectory(
                 at: databaseURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true,
+                withIntermediateDirectories: true
             )
 
             let store = try SQLiteStore(databaseURL: databaseURL)
@@ -33,10 +32,10 @@ struct NotesApplication: App {
             _viewModel = State(initialValue: AppViewModel(
                 service: service,
                 calendarProviderFactory: providerFactory,
-                syncCalendarID: "",
+                syncCalendarID: ""
             ))
         } catch {
-            fatalError("Failed to initialize app storage at \(databaseURL.path): \(error.localizedDescription)")
+            fatalError("XCUIHost failed to init: \(error.localizedDescription)")
         }
     }
 
@@ -52,7 +51,6 @@ struct NotesApplication: App {
         let dbURL = tmpDir
             .appendingPathComponent("NotesEngine-UITest", isDirectory: true)
             .appendingPathComponent("notes.sqlite", isDirectory: false)
-        // Remove stale test database so each launch starts fresh
         try? FileManager.default.removeItem(at: dbURL.deletingLastPathComponent())
         return dbURL
     }
