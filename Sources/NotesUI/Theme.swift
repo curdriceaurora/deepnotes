@@ -46,13 +46,21 @@ extension View {
         modifier(DNGlassCardModifier(cornerRadius: cornerRadius, isDropTarget: isDropTarget))
     }
 
+#if canImport(Glass)
     func dnGlassOverlay(glass: Glass = .regular, shape: some Shape) -> some View {
         modifier(DNGlassOverlayModifier(glass: glass, shape: shape))
     }
+#else
+    // Fallback: no Glass parameter since the type is unavailable on this SDK.
+    func dnGlassOverlay(shape: some Shape) -> some View {
+        modifier(DNGlassOverlayModifier(shape: shape))
+    }
+#endif
 }
 
 // MARK: - Glass Modifiers
 
+#if canImport(Glass)
 struct DNGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat = 10
     var isDropTarget: Bool = false
@@ -75,6 +83,33 @@ struct DNGlassOverlayModifier<S: Shape>: ViewModifier {
         content.glassEffect(glass, in: shape)
     }
 }
+#else
+// Fallback implementations for SDKs without Liquid Glass support (Xcode < 26).
+// Glass effects degrade gracefully: cards use a plain background + shadow,
+// overlays use .regularMaterial.
+struct DNGlassCardModifier: ViewModifier {
+    var cornerRadius: CGFloat = 10
+    var isDropTarget: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+            .shadow(color: .primary.opacity(0.08), radius: 3, y: 1.5)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(isDropTarget ? Color.accentColor : .clear, lineWidth: 2),
+            )
+    }
+}
+
+struct DNGlassOverlayModifier<S: Shape>: ViewModifier {
+    var shape: S
+
+    func body(content: Content) -> some View {
+        content.background(.regularMaterial, in: shape)
+    }
+}
+#endif
 
 // MARK: - Due Date Styling
 
