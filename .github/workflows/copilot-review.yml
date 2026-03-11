@@ -26,7 +26,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Request Copilot as a reviewer using the official bot identifier
+            // Add Copilot as reviewer (for visibility)
             try {
               const result = await github.rest.pulls.requestReviewers({
                 owner: context.repo.owner,
@@ -34,24 +34,24 @@ jobs:
                 pull_number: context.issue.number,
                 reviewers: ['copilot-pull-request-reviewer[bot]']
               });
-              console.log('Successfully requested Copilot review:', result.status);
+              console.log('Added Copilot as reviewer:', result.status);
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
-              const errStatus = typeof err === 'object' && err !== null && 'status' in err ? err.status : 'unknown';
-              console.log(`Failed to add Copilot reviewer: status=${errStatus}, message=${errMsg}`);
-              // Post comment mentioning github-copilot for manual review
-              try {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  body: '@github-copilot review'
-                });
-                console.log('Posted @github-copilot review comment as fallback');
-              } catch (commentErr) {
-                const commentErrMsg = commentErr instanceof Error ? commentErr.message : String(commentErr);
-                const commentErrStatus = typeof commentErr === 'object' && commentErr !== null && 'status' in commentErr ? commentErr.status : 'unknown';
-                console.log(`Failed to post comment: status=${commentErrStatus}, message=${commentErrMsg}`);
-                throw commentErr;
-              }
+              console.log(`Note: Could not add Copilot as reviewer: ${errMsg}`);
+            }
+
+            // Trigger Copilot review via comment (this actually starts the review)
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '@github-copilot review'
+              });
+              console.log('Triggered Copilot review via comment');
+            } catch (commentErr) {
+              const commentErrMsg = commentErr instanceof Error ? commentErr.message : String(commentErr);
+              const commentErrStatus = typeof commentErr === 'object' && commentErr !== null && 'status' in commentErr ? commentErr.status : 'unknown';
+              console.log(`Failed to trigger Copilot review: status=${commentErrStatus}, message=${commentErrMsg}`);
+              throw commentErr;
             }
